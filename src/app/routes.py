@@ -1,5 +1,5 @@
 from flask import Blueprint, request
-from .db import db, Client, DepotPreArrival, Asset, Compartment, WashCycle
+from .db import db, Client, DepotPreArrival, Asset, Compartment, WashCycle, WashCertificate
 
 main = Blueprint("main", __name__)
 
@@ -550,4 +550,73 @@ def get_asset_status(asset_id):
             "declared_wash_compartments": pre_arrival.declared_wash_compartments if pre_arrival else None
         },
         "compartments": compartments
+    }, 200
+
+# ------------------------
+# Wash Certificates
+# ------------------------
+@main.route("/assets/<int:asset_id>/wash-certificate", methods=["POST"])
+def issue_wash_certificate(asset_id):
+    data = request.get_json() or {}
+
+    asset = Asset.query.get(asset_id)
+    if not asset:
+        return {"error": "Asset not found"}, 404
+
+    # כרגע מיישמים תעודת שטיפה רק ל-roadtanker
+    if asset.asset_type != "roadtanker":
+        return {"error": "Wash certificate is currently implemented only for roadtanker"}, 400
+
+    if asset.status != "ready_for_release":
+        return {
+            "error": "Wash certificate can only be issued when asset.status == 'ready_for_release'",
+            "current_status": asset.status
+        }, 400
+
+    existing = WashCertificate.query.filter_by(asset_id=asset.id).first()
+    if existing:
+        return {
+            "error": "Wash certificate already exists for this asset",
+            "certificate_id": existing.id
+        }, 400
+
+    cert = WashCertificate(
+        asset_id=asset.id,
+        issued_by_name=data["issued_by_name"],
+        issued_by_role=data["issued_by_role"],
+        notes=data.get("notes")
+    )
+
+    db.session.add(cert)
+    db.session.commit()
+
+    return {
+        "message": "Wash certificate issued",
+        "certificate": {
+            "id": cert.id,
+            "asset_id": cert.asset_id,
+            "issued_at": cert.issued_at,
+            "issued_by_name": cert.issued_by_name,
+            "issued_by_role": cert.issued_by_role,
+            "status": cert.status
+        }
+    }, 201
+
+@main.route("/wash-certificates/<int:certificate_id>", methods=["GET"])
+def get_wash_certificate(certificate_id):
+    cert = WashCertificate.query.get(certificate_id)
+    if not cert:
+        return {"error": "Wash certificate not found"}, 404
+
+    return {
+        "certificate": {
+            "id": cert.id,
+            "asset_id": cert.asset_id,
+            "asset_identifier": cert.asset.identifier if cert.asset else None,
+            "issued_at": cert.issued_at,
+            "issued_by_name": cert.issued_by_name,
+            "issued_by_role": cert.issued_by_role,
+            "notes": cert.notes,
+            "status": cert.status
+        }
     }, 200

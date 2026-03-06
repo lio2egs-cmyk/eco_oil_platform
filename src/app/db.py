@@ -99,3 +99,20 @@ class WashCycle(db.Model):
 
     def __repr__(self):
         return f"<WashCycle compartment={self.compartment_id} cycle={self.cycle_number}>"
+
+class WashCertificate(db.Model):
+    __tablename__ = "wash_certificates"
+
+    id = db.Column(db.Integer, primary_key=True)
+
+    asset_id = db.Column(db.Integer, db.ForeignKey("assets.id"), nullable=False, unique=True)
+    asset = db.relationship("Asset", backref="wash_certificate")
+
+    issued_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+    issued_by_name = db.Column(db.String(100), nullable=False)
+    issued_by_role = db.Column(db.String(50), nullable=False)
+    notes = db.Column(db.Text)
+    status = db.Column(db.String(50), default="issued", nullable=False)
+
+    def __repr__(self):
+        return f"<WashCertificate asset={self.asset_id} id={self.id}>"
