@@ -19,7 +19,7 @@ def create_app():
     db.init_app(app)
     with app.app_context():
     # חשוב: לטעון את כל המודלים לפני create_all, אחרת טבלאות לא יווצרו
-        from .db import Client, Asset, DepotPreArrival, Compartment, WashCycle, WashCertificate
+        from .db import Client, Asset, DepotPreArrival, Compartment, WashCycle, WashCertificate, TransportEvent, IsotankWashCycle, RepairEvent, ReleaseDocument, PhotoRecord, Carrier, ProducerDeclaration, AgreementDocument, DisposalEvent, DisposalCertificate
         db.create_all()
 
     app.register_blueprint(main)

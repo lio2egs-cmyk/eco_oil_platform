@@ -1,0 +1,77 @@
+<!DOCTYPE html>
+<html dir="rtl" lang="he">
+<head>
+    <meta charset="UTF-8">
+    <style>
+        @font-face {
+            font-family: 'DejaVu';
+            src: url('{{ font_path }}');
+        }
+        body {
+            font-family: DejaVu, Arial, sans-serif;
+            font-size: 12pt;
+            margin: 2cm;
+            direction: rtl;
+        }
+        .date { text-align: left; margin-bottom: 20px; }
+        .subject { font-weight: bold; margin-bottom: 20px; }
+        .body { line-height: 2; }
+        .footer { margin-top: 40px; }
+        .verification { margin-top: 30px; font-size: 10pt; }
+        .copies { margin-top: 20px; font-size: 10pt; }
+    </style>
+</head>
+<body>
+
+<div class="date">{{ event_date }}</div>
+
+<div>
+    לכבוד<br>
+    {{ client_name }}<br>
+    {{ client_address }}
+</div>
+
+<br>
+<div class="subject">הנדון : אישור קליטת שפכי אמולסיה.</div>
+
+<div class="body">
+    הרינו לאשר כי קלטנו במתקן הטיפול שלנו : {{ weight_declared }} טון שפכי אמולסיה; {{ packaging_type }} {{ packaging_count }}. {{ notes }}<br><br>
+
+    החומר נפרק במפעלנו בתאריך : {{ event_date }}<br><br>
+
+    החומר הועבר ע"י : {{ carrier_name }} (להלן :"המוביל").<br><br>
+
+    אישור זה אינו מהווה אישור של אקו אויל או אחריות של אקו אויל למקור השפכים או אופיים.<br><br>
+
+    אישור זה אינו מהווה, בשום צורה שהיא, אישור של אקו אויל לכך שהשפכים אשר נפרקו במתקני אקו אויל מקורם : {{ client_name }}<br><br>
+
+    האחריות על השפכים עד להגעתם למתקני אקו אויל הנה על {{ client_name }} בלבד ואקו אויל אינה אחראית בשום צורה שהיא על אופן שאיבת השפכים, אופן הטענתם ואופן ההובלה של השפכים.<br><br>
+
+    על פי הצהרת : {{ carrier_name }} (המוביל) החומר הגיע מחברת : {{ client_name }}.<br><br>
+
+    על פי הנחיית הרשויות אישור זה אינו מהווה אישור קליטה קבוע לקליטת שפכי אמולסיה, כי אם אישור חד פעמי לפינוי.<br><br>
+
+    אישור זה אינו ניתן להסבה.<br><br>
+
+    אישור זה הינו אישור זמני עד פרעון התשלום עבור קליטת השפכים במתקן אקו אויל.<br><br>
+
+    אי פרעון התשלום יגרור ביטול האישור לאלתר.
+</div>
+
+<div class="footer">
+    בברכה<br><br>
+    חברת "אקו-אויל"
+</div>
+
+<div class="verification">
+    קוד אישור : {{ event_date }} {{ exit_time }} {{ verification_code }}
+</div>
+
+<div class="copies">
+    העתק :המשרד לאיכות הסביבה – מחוז חיפה<br>
+    &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;מכון טיהור שפכים חיפה<br>
+    &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;איגוד ערים חיפה
+</div>
+
+</body>
+</html>
