@@ -5,3 +5,6 @@ data/
 *.docx
 output/
 fix_font.py
+*.xlsx
+prepare_data.py
+.env
