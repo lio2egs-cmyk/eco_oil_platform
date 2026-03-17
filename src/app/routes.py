@@ -4,7 +4,7 @@ import secrets
 from pathlib import Path
 from jinja2 import Environment, FileSystemLoader
 from xhtml2pdf import pisa
-from .db import db, Client, DepotPreArrival, Asset, Compartment, WashCycle, WashCertificate, TransportEvent, IsotankWashCycle, RepairEvent, ReleaseDocument, PhotoRecord, Carrier, DisposalEvent, DisposalCertificate, ProducerDeclaration
+from .db import db, Client, DepotPreArrival, Asset, Compartment, WashCycle, WashCertificate, TransportEvent, IsotankWashCycle, RepairEvent, ReleaseDocument, PhotoRecord, Carrier, DisposalEvent, DisposalCertificate, ProducerDeclaration, AgreementDocument
 
 main = Blueprint("main", __name__)
 
@@ -446,12 +446,12 @@ def finish_wash_cycle(cycle_id):
             if not last_cycle or last_cycle.result != "pass":
                 all_passed = False
                 break
-
+        db.session.commit()
         if all_passed:
             asset.status = "ready_for_release"
             asset.process_stage = "ready_for_release"
 
-            db.session.commit()
+            db.session.commit()            
 
     return {
         "message": "Wash cycle finished",
@@ -718,6 +718,11 @@ def issue_wash_certificate(asset_id):
     db.session.add(cert)
     db.session.commit()
 
+    if asset.asset_type == "roadtanker":
+            pdf_path, pdf_error = generate_roadtanker_wash_certificate(cert, asset)
+    else:
+            pdf_path, pdf_error = None, None
+
     return {
         "message": "Wash certificate issued",
         "certificate": {
@@ -744,6 +749,8 @@ def issue_wash_certificate(asset_id):
             "service_maintenance": cert.service_maintenance,
             "service_test": cert.service_test,
             "status": cert.status,
+            "pdf_saved_to": pdf_path,
+            "pdf_error": pdf_error,
         }
     }, 201
 
@@ -1014,6 +1021,8 @@ def finish_isotank_wash_cycle(cycle_id):
 
     db.session.commit()
 
+    pdf_path, pdf_error = generate_isotank_wash_certificate(cycle, cycle.asset)
+
     return {
         "message": "Isotank wash cycle finished",
         "wash_cycle": {
@@ -1026,6 +1035,8 @@ def finish_isotank_wash_cycle(cycle_id):
             "checked_by_name": cycle.checked_by_name,
             "checked_by_role": cycle.checked_by_role,
             "notes": cycle.notes,
+            "pdf_saved_to": pdf_path,
+            "pdf_error": pdf_error,
         }
     }, 200
 
@@ -1195,6 +1206,8 @@ def create_release_document(asset_id):
     db.session.add(doc)
     db.session.commit()
 
+    pdf_path, pdf_error = generate_isotank_release_document_pdf(doc, asset)
+
     return {
         "message": "Release document created",
         "release_document": {
@@ -1212,6 +1225,8 @@ def create_release_document(asset_id):
             "issued_at": doc.issued_at,
             "issued_by_name": doc.issued_by_name,
             "issued_by_role": doc.issued_by_role,
+            "pdf_saved_to": pdf_path,
+            "pdf_error": pdf_error,
         }
     }, 201
 
@@ -1506,6 +1521,322 @@ def client_portal(client_id):
         "client_name": client.name,
         "assets": result,
     }, 200
+
+def generate_isotank_release_document_pdf(doc, asset):
+    try:
+        from reportlab.pdfgen import canvas
+        from reportlab.pdfbase import pdfmetrics
+        from reportlab.pdfbase.ttfonts import TTFont
+        from reportlab.lib.pagesizes import A4
+        from reportlab.lib.units import cm
+
+        pdfmetrics.registerFont(TTFont('Calibri', str(Path(__file__).parent / 'templates' / 'calibri.ttf')))
+        pdfmetrics.registerFont(TTFont('CalibriBold', str(Path(__file__).parent / 'templates' / 'calibrib.ttf')))
+
+        client_name = doc.client_name or 'Unknown'
+        output_dir = Path(__file__).parents[2] / "output" / "release_documents" / client_name
+        output_dir.mkdir(parents=True, exist_ok=True)
+        filename = f"release_{asset.identifier}_{doc.id}.pdf"
+        output_path = output_dir / filename
+
+        c = canvas.Canvas(str(output_path), pagesize=A4)
+        width, height = A4
+
+        # ניירת מכתבים
+        letterhead_path = str(Path(__file__).parent / 'templates' / 'letterhead_depot_english.jpg')
+        c.drawImage(letterhead_path, 0, 0, width=width, height=height)
+
+        # כותרת
+        c.setFont('CalibriBold', 16)
+        c.drawString(1.5*cm, height - 4.5*cm, 'Release Document')
+
+        # מספר האיזוטנק
+        c.setFont('CalibriBold', 28)
+        c.drawString(1.5*cm, height - 7*cm, asset.identifier or '')
+
+        # פרטים
+        c.setFont('Calibri', 11)
+        y = height - 9*cm
+
+        c.drawString(1.5*cm, y, 'Client:')
+        c.setFont('CalibriBold', 11)
+        c.drawString(5*cm, y, client_name)
+
+        y -= 1.2*cm
+        c.setFont('Calibri', 11)
+        c.drawString(1.5*cm, y, 'Carrier:')
+        c.setFont('CalibriBold', 11)
+        c.drawString(5*cm, y, doc.carrier_name or '')
+
+        y -= 1.2*cm
+        c.setFont('Calibri', 11)
+        c.drawString(1.5*cm, y, 'Destination:')
+        c.setFont('CalibriBold', 11)
+        c.drawString(5*cm, y, doc.destination or '')
+
+        y -= 1.2*cm
+        c.setFont('Calibri', 11)
+        c.drawString(1.5*cm, y, 'Estimated pickup date:')
+        c.setFont('CalibriBold', 11)
+        pickup_date = doc.estimated_pickup_date.strftime("%d/%m/%Y") if doc.estimated_pickup_date else ''
+        c.drawString(6.5*cm, y, pickup_date)
+
+        y -= 1.2*cm
+        c.setFont('Calibri', 11)
+        c.drawString(1.5*cm, y, 'Issued by:')
+        c.setFont('CalibriBold', 11)
+        c.drawString(5*cm, y, 'Eco Depot')
+
+        if doc.notes:
+            y -= 1.2*cm
+            c.setFont('Calibri', 11)
+            c.drawString(1.5*cm, y, 'Notes:')
+            c.setFont('Calibri', 11)
+            c.drawString(5*cm, y, doc.notes)
+
+        
+        c.save()
+        return str(output_path), None
+
+    except Exception as e:
+        return None, str(e)
+
+def generate_roadtanker_wash_certificate(cert, asset):
+    try:
+        from reportlab.pdfgen import canvas
+        from reportlab.pdfbase import pdfmetrics
+        from reportlab.pdfbase.ttfonts import TTFont
+        from reportlab.lib.pagesizes import A4
+        from reportlab.lib.units import cm
+
+        pdfmetrics.registerFont(TTFont('Calibri', str(Path(__file__).parent / 'templates' / 'calibri.ttf')))
+        pdfmetrics.registerFont(TTFont('CalibriBold', str(Path(__file__).parent / 'templates' / 'calibrib.ttf')))
+
+        client_name = cert.client_name or 'Unknown'
+        output_dir = Path(__file__).parents[2] / "output" / "wash_certificates" / client_name
+        output_dir.mkdir(parents=True, exist_ok=True)
+        filename = f"wash_cert_{asset.identifier}_{cert.id}.pdf"
+        output_path = output_dir / filename
+
+        c = canvas.Canvas(str(output_path), pagesize=A4)
+        width, height = A4
+
+        # ניירת מכתבים
+        letterhead_path = str(Path(__file__).parent / 'templates' / 'letterhead_depot_english.jpg')
+        c.drawImage(letterhead_path, 0, 0, width=width, height=height)
+
+        # כותרת
+        c.setFont('CalibriBold', 16)
+        c.drawString(1.5*cm, height - 4.5*cm, 'Cleaning certificate')
+
+        # מספר הנכס
+        c.setFont('CalibriBold', 28)
+        c.drawString(1.5*cm, height - 7*cm, asset.identifier or '')
+
+        # פרטים
+        c.setFont('Calibri', 11)
+        y = height - 9*cm
+
+        c.drawString(1.5*cm, y, 'Material')
+        c.setFont('CalibriBold', 11)
+        c.drawString(5*cm, y, cert.last_cargo or '')
+        c.setFont('Calibri', 10)
+        c.drawString(5*cm, y - 0.5*cm, 'Last material according to owner declaration')
+
+        y -= 1.5*cm
+        c.setFont('Calibri', 11)
+        c.drawString(1.5*cm, y, 'Client')
+        c.setFont('CalibriBold', 11)
+        c.drawString(5*cm, y, client_name)
+
+        y -= 1.2*cm
+        c.setFont('Calibri', 11)
+        c.drawString(1.5*cm, y, 'Date [dd/mm]:')
+        c.setFont('CalibriBold', 11)
+        issued_date = cert.issued_at.strftime("%d/%m/%Y %H:%M") if cert.issued_at else ''
+        c.drawString(5*cm, y, issued_date)
+
+        y -= 0.7*cm
+        c.setFont('Calibri', 11)
+        c.drawString(1.5*cm, y, 'Tank type:')
+        c.setFont('CalibriBold', 11)
+        c.drawString(5*cm, y, 'ROADTANKER')
+
+        # תאים
+        total_comps = asset.compartments_count or 0
+        washed_comps = sorted([c2.number for c2 in asset.compartments if c2.requested_to_wash])
+        if len(washed_comps) == total_comps:
+            washed_str = 'All compartments'
+        else:
+            washed_str = ', '.join(str(n) for n in washed_comps)
+
+        y -= 1.2*cm
+        c.setFont('Calibri', 11)
+        c.drawString(1.5*cm, y, 'Total compartments:')
+        c.setFont('CalibriBold', 11)
+        c.drawString(6*cm, y, str(total_comps))
+
+        y -= 0.7*cm
+        c.setFont('Calibri', 11)
+        c.drawString(1.5*cm, y, 'Washed compartments:')
+        c.setFont('CalibriBold', 11)
+        c.drawString(6*cm, y, washed_str)
+
+        # חתימה וחותמת
+        sig_path = str(Path(__file__).parent / 'templates' / 'signature_yoav.png')
+        stamp_path = str(Path(__file__).parent / 'templates' / 'stamp_english.png')
+        c.drawImage(stamp_path, width - 8*cm, y - 2*cm, width=7*cm, height=6*cm, preserveAspectRatio=True, mask='auto')
+        c.drawImage(sig_path, width - 7.5*cm, y - 3*cm, width=6*cm, height=4*cm, preserveAspectRatio=True, mask='auto')
+
+        c.save()
+        return str(output_path), None
+
+    except Exception as e:
+        return None, str(e)
+
+def generate_isotank_wash_certificate(wash_cycle, asset):
+    try:
+        from reportlab.pdfgen import canvas
+        from reportlab.pdfbase import pdfmetrics
+        from reportlab.pdfbase.ttfonts import TTFont
+        from reportlab.lib.pagesizes import A4
+        from reportlab.lib.units import cm
+
+        pdfmetrics.registerFont(TTFont('Calibri', str(Path(__file__).parent / 'templates' / 'calibri.ttf')))
+        pdfmetrics.registerFont(TTFont('CalibriBold', str(Path(__file__).parent / 'templates' / 'calibrib.ttf')))
+
+        latest_pre = (
+                DepotPreArrival.query
+                .filter_by(asset_id=asset.id)
+                .order_by(DepotPreArrival.id.desc())
+                .first())
+        client_name = (latest_pre.client.name if latest_pre and latest_pre.client else 'TANKO')
+        last_material = (latest_pre.msds_chemical_name if latest_pre else '')
+        wash_date = wash_cycle.started_at.strftime("%d/%m/%Y") if wash_cycle.started_at else ''
+        wash_time = wash_cycle.started_at.strftime("%H:%M") if wash_cycle.started_at else ''
+
+        output_dir = Path(__file__).parents[2] / "output" / "wash_certificates" / client_name
+        output_dir.mkdir(parents=True, exist_ok=True)
+        filename = f"wash_cert_{asset.identifier}_{wash_cycle.id}.pdf"
+        output_path = output_dir / filename
+
+        c = canvas.Canvas(str(output_path), pagesize=A4)
+        width, height = A4
+
+        # רקע מלא (ניירת מכתבים)
+        letterhead_path = str(Path(__file__).parent / 'templates' / 'letterhead_depot_english.jpg')
+        c.drawImage(letterhead_path, 0, 0, width=width, height=height)
+
+        # Cleaning Certificate
+        c.setFont('CalibriBold', 16)
+        c.drawString(1.5*cm, height - 4.5*cm, 'Cleaning certificate')
+
+        # מספר טנק
+        c.setFont('CalibriBold', 28)
+        c.drawString(1.5*cm, height - 7*cm, asset.identifier or '')
+
+        # פרטים
+        c.setFont('Calibri', 11)
+        y = height - 9*cm
+        c.drawString(1.5*cm, y, 'Material')
+        c.setFont('CalibriBold', 11)
+        c.drawString(5*cm, y, last_material or '')
+        c.setFont('Calibri', 10)
+        c.drawString(5*cm, y - 0.5*cm, 'Last material according to owner declaration')
+
+        y -= 1.5*cm
+        c.setFont('Calibri', 11)
+        c.drawString(1.5*cm, y, 'Client')
+        c.setFont('CalibriBold', 11)
+        c.drawString(5*cm, y, client_name)
+
+        y -= 1.2*cm
+        c.setFont('Calibri', 11)
+        c.drawString(1.5*cm, y, 'Date [dd/mm]:')
+        c.setFont('CalibriBold', 11)
+        c.drawString(5*cm, y, f'{wash_date}  {wash_time}')
+
+        y -= 0.7*cm
+        c.drawString(1.5*cm, y, 'Tank type:')
+        c.setFont('CalibriBold', 11)
+        c.drawString(5*cm, y, 'ISOTANK')
+
+        # Cleaning details
+        y -= 1.2*cm
+        c.setFont('Calibri', 11)
+        c.drawString(1.5*cm, y, 'Cleaning details:')
+
+        def checkmark(val):
+            return '✓' if val else ''
+
+        y -= 0.7*cm
+        rows = [
+            ('Hot water', wash_cycle.wash_hot_water, 'Steam [IT]', wash_cycle.wash_steam, 'Drying', wash_cycle.wash_drying),
+            ('Cold water', wash_cycle.wash_cold_water, 'Aceton [IT]', wash_cycle.wash_aceton, '', False),
+            ('Detergent', wash_cycle.wash_detergent, 'Xylen [IT]', wash_cycle.wash_xylen, '', False),
+        ]
+
+        for row in rows:
+            c.setFont('Calibri', 10)
+            c.rect(1.5*cm, y - 0.1*cm, 3*cm, 0.6*cm)
+            c.drawString(1.6*cm, y + 0.1*cm, row[0])
+            c.drawString(4.6*cm, y + 0.1*cm, checkmark(row[1]))
+            c.rect(5*cm, y - 0.1*cm, 3*cm, 0.6*cm)
+            c.drawString(5.1*cm, y + 0.1*cm, row[2])
+            if row[3] is not False:
+                c.drawString(8.1*cm, y + 0.1*cm, checkmark(row[3]))
+            if row[4]:
+                c.rect(8.5*cm, y - 0.1*cm, 3*cm, 0.6*cm)
+                c.drawString(8.6*cm, y + 0.1*cm, row[4])
+                c.drawString(11.6*cm, y + 0.1*cm, checkmark(row[5]))
+            y -= 0.7*cm
+
+        # Additional services
+        y -= 0.5*cm
+        c.setFont('Calibri', 11)
+        c.drawString(1.5*cm, y, 'Additional services:')
+        y -= 0.7*cm
+
+        services_left = [
+            ('Transportation', wash_cycle.service_transportation),
+            ('Polish', wash_cycle.service_polish),
+            ('Repair', wash_cycle.service_repair),
+            ('Test', wash_cycle.service_test),
+            ('Maintenance', wash_cycle.service_maintenance),
+        ]
+        services_right = [
+            ('Photo set', wash_cycle.service_photo_set),
+            ('Vacuum test', wash_cycle.service_vacuum_test),
+            ('Storage', wash_cycle.service_storage),
+        ]
+
+        max_rows = max(len(services_left), len(services_right))
+        for i in range(max_rows):
+            c.setFont('Calibri', 10)
+            if i < len(services_left):
+                c.rect(1.5*cm, y - 0.1*cm, 4*cm, 0.6*cm)
+                c.drawString(1.6*cm, y + 0.1*cm, services_left[i][0])
+                c.drawString(5.6*cm, y + 0.1*cm, checkmark(services_left[i][1]))
+            if i < len(services_right):
+                c.rect(7*cm, y - 0.1*cm, 4*cm, 0.6*cm)
+                c.drawString(7.1*cm, y + 0.1*cm, services_right[i][0])
+                c.drawString(11.1*cm, y + 0.1*cm, checkmark(services_right[i][1]))
+            y -= 0.7*cm
+
+        # חתימה
+        c.setFont('Calibri', 11)
+        c.drawRightString(width - 1.5*cm, y - 0.5*cm, 'Regards')
+        c.drawRightString(width - 1.5*cm, y - 1.1*cm, 'Yoav Toueg')
+        c.drawRightString(width - 1.5*cm, y - 1.7*cm, 'Eco Oil Ltd.')
+
+        sig_path = str(Path(__file__).parent / 'templates' / 'signature_yoav.png')
+        c.drawImage(sig_path, width - 5*cm, y - 3.5*cm, width=3*cm, height=2*cm, preserveAspectRatio=True, mask='auto')
+       
+        c.save()
+        return str(output_path), None
+
+    except Exception as e:
+        return None, str(e)
 
 def generate_disposal_certificate_pdf(event, cert):
     try:
@@ -1953,6 +2284,9 @@ def close_disposal_event(event_id):
     )
     db.session.add(cert)
     db.session.commit()
+
+
+
     # יצירת PDF אוטומטית
     pdf_path, pdf_error = generate_disposal_certificate_pdf(event, cert)
     return {
@@ -2083,7 +2417,6 @@ def create_producer_declaration():
     client_id = data.get("client_id")
     if not client_id:
         return {"error": "client_id is required"}, 400
-
     client = Client.query.get(client_id)
     if not client:
         return {"error": "Client not found"}, 404
@@ -2102,7 +2435,7 @@ def create_producer_declaration():
     try:
         valid_from = datetime.fromisoformat(valid_from)
     except Exception:
-        return {"error": "valid_from must be a valid ISO date (e.g. '2026-01-01T00:00:00')"}, 400
+        return {"error": "valid_from must be ISO date (e.g. '2026-01-01T00:00:00')"}, 400
 
     valid_until = data.get("valid_until")
     if not valid_until:
@@ -2110,7 +2443,7 @@ def create_producer_declaration():
     try:
         valid_until = datetime.fromisoformat(valid_until)
     except Exception:
-        return {"error": "valid_until must be a valid ISO date (e.g. '2026-12-31T00:00:00')"}, 400
+        return {"error": "valid_until must be ISO date (e.g. '2026-12-31T00:00:00')"}, 400
 
     declaration = ProducerDeclaration(
         client_id=client_id,
@@ -2118,8 +2451,30 @@ def create_producer_declaration():
         material_classification=material_classification,
         valid_from=valid_from,
         valid_until=valid_until,
-        annual_quantity_tons=data.get("annual_quantity_tons"),
-        basel_code=data.get("basel_code"),
+        # פרטי לקוח
+        client_address=data.get("client_address"),
+        business_id=data.get("business_id"),
+        permit_number=data.get("permit_number"),
+        ceo_name=data.get("ceo_name"),
+        client_email=data.get("client_email"),
+        addressed_to=data.get("addressed_to"),
+        producer_size=data.get("producer_size"),
+        # פרטי זרם
+        waste_stream_number=data.get("waste_stream_number"),
+        production_facility=data.get("production_facility"),
+        basel_y_code=data.get("basel_y_code"),
+        basel_annexviii_code=data.get("basel_annexviii_code"),
+        basel_h_code=data.get("basel_h_code"),
+        un_risk_group=data.get("un_risk_group"),
+        european_catalog_code=data.get("european_catalog_code"),
+        treatment_facility_type=data.get("treatment_facility_type"),
+        basel_r_code=data.get("basel_r_code"),
+        basel_d_code=data.get("basel_d_code"),
+        annual_quantity_text=data.get("annual_quantity_text"),
+        packaging_type=data.get("packaging_type"),
+        waste_main_characteristic=data.get("waste_main_characteristic"),
+        pollutant_type=data.get("pollutant_type"),
+        concentration_range=data.get("concentration_range"),
         notes=data.get("notes"),
         is_active=True,
     )
@@ -2134,9 +2489,246 @@ def create_producer_declaration():
             "client_name": client.name,
             "material_name": declaration.material_name,
             "material_classification": declaration.material_classification,
-            "valid_from": declaration.valid_from,
-            "valid_until": declaration.valid_until,
-            "annual_quantity_tons": declaration.annual_quantity_tons,
+            "producer_size": declaration.producer_size,
+            "valid_from": declaration.valid_from.isoformat(),
+            "valid_until": declaration.valid_until.isoformat(),
             "is_active": declaration.is_active,
         }
     }, 201
+
+def generate_agreement_pdf(agreement, declaration, client):
+    from docxtpl import DocxTemplate
+    import subprocess, os
+
+    # בחירת תבנית לפי סיווג החומר
+    mineral_types = ["mineral", "emulsion", "gasoil"]
+    acid_types = ["acid", "base", "washwater"]
+
+    base_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
+    if declaration.material_classification in mineral_types:
+        template_path = os.path.join(base_dir, "artifacts", "templates", "הסכמה_מינרלי, אמולסיה, מזוט_מקושר.docx")
+    else:
+        template_path = os.path.join(base_dir, "artifacts", "templates", "הסכמה_חומצה, בסיס, מי שטיפה_מקושר.docx")
+
+    # תיקיית שמירה
+    year = agreement.issued_at.strftime("%Y")
+    month = agreement.issued_at.strftime("%m")
+    client_folder = f"client_{client.id}"
+    base_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", ".."))
+    folder = os.path.join(base_dir, "output", "לקוחות", client_folder, "הסכמים", year, month)
+    os.makedirs(folder, exist_ok=True)
+
+    docx_path = os.path.join(folder, f"הסכם_{agreement.id}.docx")
+    pdf_path = os.path.join(folder, f"הסכם_{agreement.id}.pdf")
+
+    # מילוי התבנית
+    tpl = DocxTemplate(template_path)
+    context = {
+        "תאריך_הוצאת_הצהרת_יצרן": agreement.issued_at.strftime("%d/%m/%Y"),
+        "יצרן_הפסולת_לקוח": client.name,
+        "מכותב": declaration.addressed_to or client.name,
+        "מס_חפ": declaration.business_id or "",
+        "מס_היתר": declaration.permit_number or "",
+        "כתובת": declaration.client_address or "",
+        "שם_זרם_הפסולת_": declaration.material_name or "",
+        "מספר_זרם_פסולת_": declaration.waste_stream_number or "",
+        "מתקן_הייצור_ממנו_יוצרה_הפסולת": declaration.production_facility or "",
+        "קוד_Y_נספח_I_ו_II_לאמנת_באזל__קוד_ות": declaration.basel_y_code or "",
+        "סווג_הפסולת_נספח_VIII_לאמנת_באזל__סיו": declaration.basel_annexviii_code or "",
+        "קוד_סיכון_H_לאמנת_באזל": declaration.basel_h_code or "",
+        "קבוצת_סיכון_עפ_האום": declaration.un_risk_group or "",
+        "סיווג_עפ_קטלוג_הפסולות_האירופאי": declaration.european_catalog_code or "",
+        "מתקן_סוג_טיפול": declaration.treatment_facility_type or "",
+        "קוד_פעולות_השבה_R__לאמנת_באזל": declaration.basel_r_code or "",
+        "קוד_טיפול_בפסולת_D_לאמנת_באזל": declaration.basel_d_code or "",
+        "כמות_שנתית_טון": declaration.annual_quantity_text or "",
+        "סוג_האריזה": declaration.packaging_type or "",
+        "מאפיין_עיקרי_של_הפסולות": declaration.waste_main_characteristic or "",
+        "סוג_המזהם": declaration.pollutant_type or "",
+    }
+    tpl.render(context)
+    tpl.save(docx_path)
+
+    # המרה ל-PDF עם LibreOffice
+    soffice = r"C:\Program Files\LibreOffice\program\soffice.exe"
+    subprocess.run([
+        soffice, "--headless", "--convert-to", "pdf",
+        "--outdir", folder, docx_path
+    ], check=True)
+
+    return pdf_path
+
+@main.route("/eco-oil/agreements", methods=["POST"])
+def create_agreement():
+    data = request.get_json() or {}
+
+    declaration_id = data.get("declaration_id")
+    if not declaration_id:
+        return {"error": "declaration_id is required"}, 400
+    declaration = ProducerDeclaration.query.get(declaration_id)
+    if not declaration:
+        return {"error": "ProducerDeclaration not found"}, 404
+
+    issued_by_name = data.get("issued_by_name")
+    if not issued_by_name:
+        return {"error": "issued_by_name is required"}, 400
+
+    valid_from = data.get("valid_from")
+    if not valid_from:
+        return {"error": "valid_from is required"}, 400
+    try:
+        valid_from = datetime.fromisoformat(valid_from)
+    except Exception:
+        return {"error": "valid_from must be ISO date (e.g. '2026-01-01T00:00:00')"}, 400
+
+    valid_until = data.get("valid_until")
+    if not valid_until:
+        return {"error": "valid_until is required"}, 400
+    try:
+        valid_until = datetime.fromisoformat(valid_until)
+    except Exception:
+        return {"error": "valid_until must be ISO date (e.g. '2026-12-31T00:00:00')"}, 400
+
+    agreement = AgreementDocument(
+        declaration_id=declaration_id,
+        issued_by_name=issued_by_name,
+        valid_from=valid_from,
+        valid_until=valid_until,
+        notes=data.get("notes"),
+    )
+    db.session.add(agreement)
+    db.session.commit()
+
+    return {
+        "message": "Agreement created",
+        "agreement": {
+            "id": agreement.id,
+            "declaration_id": agreement.declaration_id,
+            "client_name": declaration.client.name,
+            "material_name": declaration.material_name,
+            "issued_by_name": agreement.issued_by_name,
+            "valid_from": agreement.valid_from.isoformat(),
+            "valid_until": agreement.valid_until.isoformat(),
+        }
+    }, 201
+
+@main.route("/eco-oil/agreements", methods=["GET"])
+def list_agreements():
+    agreements = AgreementDocument.query.order_by(AgreementDocument.issued_at.desc()).all()
+    result = []
+    for ag in agreements:
+        result.append({
+            "id": ag.id,
+            "declaration_id": ag.declaration_id,
+            "client_name": ag.declaration.client.name,
+            "material_name": ag.declaration.material_name,
+            "issued_by_name": ag.issued_by_name,
+            "issued_at": ag.issued_at.isoformat(),
+            "valid_from": ag.valid_from.isoformat(),
+            "valid_until": ag.valid_until.isoformat(),
+        })
+    return {"agreements": result}, 200
+
+@main.route("/eco-oil/agreements/<int:agreement_id>/pdf", methods=["GET"])
+def get_agreement_pdf(agreement_id):
+    agreement = AgreementDocument.query.get(agreement_id)
+    if not agreement:
+        return {"error": "Agreement not found"}, 404
+
+    declaration = agreement.declaration
+    client = declaration.client
+
+    filepath = generate_agreement_pdf(agreement, declaration, client)
+
+    from flask import send_file
+    return send_file(filepath, as_attachment=True) 
+
+@main.route("/eco-oil/disposal-certificates/<int:cert_id>/pdf", methods=["GET"])
+def get_disposal_certificate_pdf(cert_id):
+    cert = DisposalCertificate.query.get(cert_id)
+    if not cert:
+        return {"error": "Certificate not found"}, 404
+
+    event = cert.disposal_event
+    base_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
+    client_folder = f"client_{event.client_id}" if event.client_id else "client_unknown"
+    year = cert.issued_at.strftime("%Y")
+    month = cert.issued_at.strftime("%m")
+    pdf_path = os.path.join(base_dir, "output", "לקוחות", client_folder, "אישורים", year, month, f"אישור_פריקה_{event.certificate_number}.pdf")
+
+    if not os.path.exists(pdf_path):
+        pdf_path, pdf_error = generate_disposal_certificate_pdf(event, cert)
+        if pdf_error:
+            return {"error": pdf_error}, 500
+
+    from flask import send_file
+    return send_file(pdf_path, as_attachment=True)
+
+@main.route("/eco-oil/clients/<int:client_id>/portal", methods=["GET"])
+def eco_oil_client_portal(client_id):
+    client = Client.query.get(client_id)
+    if not client:
+        return {"error": "Client not found"}, 404
+
+    # הצהרות יצרן
+    declarations = ProducerDeclaration.query.filter_by(client_id=client_id).all()
+    declarations_data = []
+    for d in declarations:
+        declarations_data.append({
+            "id": d.id,
+            "material_name": d.material_name,
+            "material_classification": d.material_classification,
+            "producer_size": d.producer_size,
+            "valid_from": d.valid_from.isoformat(),
+            "valid_until": d.valid_until.isoformat(),
+            "is_active": d.is_active,
+        })
+
+    # הסכמים
+    agreements_data = []
+    for d in declarations:
+        for ag in d.agreement_documents:
+            agreements_data.append({
+                "id": ag.id,
+                "declaration_id": ag.declaration_id,
+                "material_name": d.material_name,
+                "issued_by_name": ag.issued_by_name,
+                "issued_at": ag.issued_at.isoformat(),
+                "valid_from": ag.valid_from.isoformat(),
+                "valid_until": ag.valid_until.isoformat(),
+                "pdf_url": f"/eco-oil/agreements/{ag.id}/pdf",
+            })
+
+    # אירועי פריקה
+    events = DisposalEvent.query.filter_by(client_id=client_id).all()
+    events_data = []
+    for e in events:
+        events_data.append({
+            "id": e.id,
+            "certificate_number": e.certificate_number,
+            "event_date": e.event_date.isoformat(),
+            "material_classification": e.material_classification,
+            "weight_net": e.weight_net,
+            "billed_to": e.billed_to,
+        })
+
+    # אישורי פריקה
+    certs_data = []
+    for e in events:
+        for cert in e.disposal_certificate:
+            certs_data.append({
+                "id": cert.id,
+                "certificate_number": e.certificate_number,
+                "issued_at": cert.issued_at.isoformat(),
+                "verification_code": cert.verification_code,
+                "pdf_url": f"/eco-oil/disposal-certificates/{cert.id}/pdf",
+            })
+
+    return {
+        "client_id": client_id,
+        "client_name": client.name,
+        "declarations": declarations_data,
+        "agreements": agreements_data,
+        "disposal_events": events_data,
+        "disposal_certificates": certs_data,
+    }, 200              

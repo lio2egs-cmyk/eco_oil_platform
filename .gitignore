@@ -8,3 +8,5 @@ fix_font.py
 *.xlsx
 prepare_data.py
 .env
+test_*.pdf
+output/

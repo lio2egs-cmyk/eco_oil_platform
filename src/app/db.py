@@ -97,6 +97,25 @@ class WashCycle(db.Model):
     result = db.Column(db.String(50))  # pass / fail
     notes = db.Column(db.Text)
 
+    # שיטות שטיפה
+    wash_hot_water = db.Column(db.Boolean, default=False)
+    wash_cold_water = db.Column(db.Boolean, default=False)
+    wash_steam = db.Column(db.Boolean, default=False)
+    wash_aceton = db.Column(db.Boolean, default=False)
+    wash_xylen = db.Column(db.Boolean, default=False)
+    wash_detergent = db.Column(db.Boolean, default=False)
+    wash_drying = db.Column(db.Boolean, default=False)
+
+    # שירותים נוספים
+    service_transportation = db.Column(db.Boolean, default=False)
+    service_polish = db.Column(db.Boolean, default=False)
+    service_photo_set = db.Column(db.Boolean, default=False)
+    service_vacuum_test = db.Column(db.Boolean, default=False)
+    service_repair = db.Column(db.Boolean, default=False)
+    service_test = db.Column(db.Boolean, default=False)
+    service_maintenance = db.Column(db.Boolean, default=False)
+    service_storage = db.Column(db.Boolean, default=False)
+
     checked_by_role = db.Column(db.String(50), default="qc")
     checked_by_name = db.Column(db.String(100))
 
@@ -180,6 +199,25 @@ class IsotankWashCycle(db.Model):
     chemical_used = db.Column(db.Text)
     result = db.Column(db.String(50))  # pass / fail
     notes = db.Column(db.Text)
+
+    # שיטות שטיפה
+    wash_hot_water = db.Column(db.Boolean, default=False)
+    wash_cold_water = db.Column(db.Boolean, default=False)
+    wash_steam = db.Column(db.Boolean, default=False)
+    wash_aceton = db.Column(db.Boolean, default=False)
+    wash_xylen = db.Column(db.Boolean, default=False)
+    wash_detergent = db.Column(db.Boolean, default=False)
+    wash_drying = db.Column(db.Boolean, default=False)
+
+    # שירותים נוספים
+    service_transportation = db.Column(db.Boolean, default=False)
+    service_polish = db.Column(db.Boolean, default=False)
+    service_photo_set = db.Column(db.Boolean, default=False)
+    service_vacuum_test = db.Column(db.Boolean, default=False)
+    service_repair = db.Column(db.Boolean, default=False)
+    service_test = db.Column(db.Boolean, default=False)
+    service_maintenance = db.Column(db.Boolean, default=False)
+    service_storage = db.Column(db.Boolean, default=False)
 
     checked_by_name = db.Column(db.String(100))
     checked_by_role = db.Column(db.String(50), default="qc")
@@ -277,10 +315,33 @@ class ProducerDeclaration(db.Model):
     client_id = db.Column(db.Integer, db.ForeignKey("clients.id"), nullable=False)
     client = db.relationship("Client", backref="producer_declarations")
 
+    # פרטי לקוח
+    client_address = db.Column(db.String(300))
+    business_id = db.Column(db.String(50))        # מספר ח.פ.
+    permit_number = db.Column(db.String(100))      # מספר היתר רעלים
+    ceo_name = db.Column(db.String(100))           # שם מנכ"ל / אחראי היתר
+    client_email = db.Column(db.String(200))       # מייל
+    addressed_to = db.Column(db.String(200))       # מכותב
+    producer_size = db.Column(db.String(20))       # קטן / גדול
+
+    # פרטי זרם
     material_name = db.Column(db.String(200), nullable=False)
-    material_classification = db.Column(db.String(100))  # בסיס / אמולסיה / מי שטיפה / מינרלי / חומצה
-    basel_code = db.Column(db.String(50))  # קוד באזל
-    annual_quantity_tons = db.Column(db.Float)
+    material_classification = db.Column(db.String(100))  # english: mineral / emulsion / acid / base / washwater / gasoil
+    waste_stream_number = db.Column(db.String(50))        # מספר זרם פסולת
+    production_facility = db.Column(db.String(300))       # מתקן הייצור
+    basel_y_code = db.Column(db.String(200))              # קוד Y
+    basel_annexviii_code = db.Column(db.String(300))      # נספח VIII
+    basel_h_code = db.Column(db.String(50))               # קוד סיכון H
+    un_risk_group = db.Column(db.String(50))              # קבוצת סיכון האו"ם
+    european_catalog_code = db.Column(db.String(300))     # סיווג אירופאי
+    treatment_facility_type = db.Column(db.String(200))   # מתקן/סוג טיפול
+    basel_r_code = db.Column(db.String(100))              # קוד השבה R
+    basel_d_code = db.Column(db.String(100))              # קוד טיפול D
+    annual_quantity_text = db.Column(db.String(100))      # כמות שנתית כטקסט
+    packaging_type = db.Column(db.String(100))            # סוג האריזה
+    waste_main_characteristic = db.Column(db.Text)        # מאפיין עיקרי
+    pollutant_type = db.Column(db.String(200))            # סוג המזהם
+    concentration_range = db.Column(db.String(200))       # טווח ריכוזים
 
     valid_from = db.Column(db.DateTime, nullable=False)
     valid_until = db.Column(db.DateTime, nullable=False)
@@ -291,7 +352,6 @@ class ProducerDeclaration(db.Model):
 
     def __repr__(self):
         return f"<ProducerDeclaration client={self.client_id} material={self.material_name}>"
-
 
 class AgreementDocument(db.Model):
     __tablename__ = "agreement_documents"
