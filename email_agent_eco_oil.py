@@ -137,10 +137,124 @@ def weekly_send_job():
 
     print(f"[Agent] סיים — נשלחו {sent_count}/{len(certs)} אישורים.")
 
+# ===== התראות פקיעת תוקף הצהרות יצרן =====
+
+def get_expiring_declarations(days_ahead=30):
+    """שולף הצהרות יצרן שפוקעות בתוך X ימים"""
+    from app import create_app
+    from app.db import ProducerDeclaration, Client
+
+    app = create_app()
+    with app.app_context():
+        from datetime import timedelta
+        cutoff_date = datetime.utcnow() + timedelta(days=days_ahead)
+
+        expiring = ProducerDeclaration.query.filter(
+            ProducerDeclaration.valid_until <= cutoff_date,
+            ProducerDeclaration.valid_until >= datetime.utcnow(),
+            ProducerDeclaration.is_active == True
+        ).all()
+
+        results = []
+        for d in expiring:
+            days_left = (d.valid_until - datetime.utcnow()).days
+            results.append({
+                "declaration_id": d.id,
+                "client_id": d.client_id,
+                "client_name": d.client.name,
+                "client_email": d.client_email or "",
+                "material_name": d.material_name,
+                "valid_until": d.valid_until.strftime("%d/%m/%Y"),
+                "days_left": days_left,
+            })
+        return results
+
+
+def send_expiry_warning_email(declaration_data):
+    """שולח מייל התראה ללקוח על פקיעת תוקף הצהרה"""
+    client_id = declaration_data["client_id"]
+    portal_url = f"{FLASK_BASE_URL}/eco-oil/clients/{client_id}/portal"
+
+    subject = f"התראה: הצהרת יצרן עומדת לפוג — {declaration_data['material_name']}"
+
+    body = f"""שלום {declaration_data['client_name']},
+
+הצהרת היצרן שלך עבור החומר "{declaration_data['material_name']}" עומדת לפוג בתאריך {declaration_data['valid_until']} (בעוד {declaration_data['days_left']} ימים).
+
+על מנת להמשיך לפנות פסולת מסוכנת למתקן אקו אויל, יש לחדש את ההצהרה לפני תאריך הפקיעה.
+
+לחידוש ההצהרה, אנא היכנסו לפורטל הלקוחות:
+{portal_url}
+
+לפרטים נוספים ניתן לפנות למשרד אקו אויל.
+טל: 04-8494996
+office@eco-oil.co.il
+
+בברכה,
+אקו אויל חץ וירומטל בע"מ
+"""
+
+    recipient = declaration_data.get("client_email") or "unknown@client.com"
+
+    if DEMO_MODE:
+        print("=" * 60)
+        print(f"[DEMO] התראת פקיעה — {datetime.now().strftime('%d/%m/%Y %H:%M')}")
+        print(f"  אל: {recipient}")
+        print(f"  לקוח: {declaration_data['client_name']}")
+        print(f"  חומר: {declaration_data['material_name']}")
+        print(f"  פוקע: {declaration_data['valid_until']} (בעוד {declaration_data['days_left']} ימים)")
+        print(f"  נושא: {subject}")
+        print(f"  קישור לפורטל: {portal_url}")
+        print("=" * 60)
+        return True
+    else:
+        import smtplib
+        from email.mime.text import MIMEText
+        from email.mime.multipart import MIMEMultipart
+
+        try:
+            msg = MIMEMultipart()
+            msg["From"] = SMTP_USER
+            msg["To"] = recipient
+            msg["Subject"] = subject
+            msg.attach(MIMEText(body, "plain", "utf-8"))
+
+            with smtplib.SMTP("smtp.office365.com", 587) as server:
+                server.starttls()
+                server.login(SMTP_USER, SMTP_PASSWORD)
+                server.send_message(msg)
+
+            return True
+        except Exception as e:
+            print(f"[שגיאה] שליחת התראה נכשלה: {e}")
+            return False
+
+
+def expiry_warning_job():
+    """משימה יומית — בודקת ושולחת התראות פקיעה"""
+    print(f"\n[Agent] בודק הצהרות שעומדות לפוג — {datetime.now().strftime('%d/%m/%Y %H:%M')}")
+
+    expiring = get_expiring_declarations(days_ahead=30)
+
+    if not expiring:
+        print("[Agent] אין הצהרות שעומדות לפוג ב-30 הימים הקרובים.")
+        return
+
+    print(f"[Agent] נמצאו {len(expiring)} הצהרות שעומדות לפוג.")
+
+    sent_count = 0
+    for declaration in expiring:
+        print(f"[Agent] שולח התראה ל: {declaration['client_name']} — {declaration['material_name']}")
+        if send_expiry_warning_email(declaration):
+            sent_count += 1
+
+    print(f"[Agent] סיים — נשלחו {sent_count}/{len(expiring)} התראות.")
+
 def run_now():
     """הרצה מיידית לצורך בדיקה והדגמה"""
     print("[Agent] הרצה ידנית לצורך הדגמה...")
     weekly_send_job()
+    expiry_warning_job()
 
 if __name__ == "__main__":
     if len(sys.argv) > 1 and sys.argv[1] == "--now":
@@ -153,7 +267,9 @@ if __name__ == "__main__":
         print("[Agent] להרצה מיידית: python email_agent_eco_oil.py --now")
 
         schedule.every().thursday.at("12:00").do(weekly_send_job)
+        schedule.every().day.at("08:00").do(expiry_warning_job)
 
         while True:
             schedule.run_pending()
             time.sleep(60)
+
