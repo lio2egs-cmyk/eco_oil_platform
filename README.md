@@ -13,7 +13,7 @@
 
 ## 📋 Project Overview
 
-This platform is a real-world AI-powered operations management system built for **Eco-Oil Virometel Ltd.** — an industrial hazardous waste treatment facility in Haifa, Israel.
+This platform is a real-world AI-powered operations management system built for **Eco-Oil Arrow Virometel Ltd.** — an industrial hazardous waste treatment facility in Haifa, Israel.
 
 The system replaces manual, Excel-based workflows with a fully digital platform that includes:
 
@@ -26,7 +26,7 @@ The system replaces manual, Excel-based workflows with a fully digital platform 
 
 ## 🏢 Business Background
 
-Eco-Oil Virometel operates two distinct business units:
+Eco-Oil Arrow Virometel Ltd. operates two distinct business units:
 
 | Unit | Function |
 |------|----------|
@@ -321,7 +321,7 @@ Run `seed_demo_data.py` to populate the database with anonymized demo data:
 
 ## 👩‍💻 Developer
 
-**Limor** — Operations Manager, Eco-Oil Virometel Ltd.  
+**Limor** — Operations Manager, Eco-Oil Arrow Virometel Ltd.  
 Final Project — AI Development Course  
 March 2026
 
@@ -331,4 +331,4 @@ March 2026
 
 ## 📄 License
 
-This project was developed as a university final project and is intended for internal use at Eco-Oil Virometel Ltd.
+This project was developed as a university final project and is intended for internal use at Eco-Oil Arrow Virometel Ltd.
