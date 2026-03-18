@@ -2731,4 +2731,94 @@ def eco_oil_client_portal(client_id):
         "agreements": agreements_data,
         "disposal_events": events_data,
         "disposal_certificates": certs_data,
-    }, 200              
+    }, 200
+
+@main.route("/depot/clients/<int:client_id>/portal", methods=["GET"])
+def depot_client_portal(client_id):
+    client = Client.query.get(client_id)
+    if not client:
+        return {"error": "Client not found"}, 404
+
+    # PreArrivals
+    pre_arrivals = DepotPreArrival.query.filter_by(client_id=client_id).all()
+    pre_arrivals_data = []
+    for pa in pre_arrivals:
+        pre_arrivals_data.append({
+            "id": pa.id,
+            "asset_identifier": pa.asset.identifier if pa.asset else None,
+            "asset_type": pa.asset.asset_type if pa.asset else None,
+            "msds_chemical_name": pa.msds_chemical_name,
+            "requested_service": pa.requested_service,
+            "status": pa.status,
+        })
+
+    # נכסים
+    assets_data = []
+    seen_assets = set()
+    for pa in pre_arrivals:
+        if pa.asset_id not in seen_assets:
+            seen_assets.add(pa.asset_id)
+            asset = pa.asset
+            assets_data.append({
+                "id": asset.id,
+                "identifier": asset.identifier,
+                "asset_type": asset.asset_type,
+                "status": asset.status,
+                "process_stage": asset.process_stage,
+                "status_url": f"/assets/{asset.id}/status",
+            })
+
+    # תעודות שטיפה
+    wash_certs_data = []
+    for asset_id in seen_assets:
+        cert = WashCertificate.query.filter_by(asset_id=asset_id).first()
+        if cert:
+            wash_certs_data.append({
+                "id": cert.id,
+                "asset_id": cert.asset_id,
+                "asset_identifier": cert.asset.identifier,
+                "issued_at": cert.issued_at.isoformat(),
+                "issued_by_name": cert.issued_by_name,
+                "status": cert.status,
+                "pdf_url": f"/depot/assets/{cert.asset_id}/wash-certificate/pdf",
+            })
+
+    # מסמכי שחרור
+    release_docs_data = []
+    for asset_id in seen_assets:
+        docs = ReleaseDocument.query.filter_by(asset_id=asset_id).all()
+        for doc in docs:
+            release_docs_data.append({
+                "id": doc.id,
+                "asset_identifier": doc.asset.identifier,
+                "issued_at": doc.issued_at.isoformat(),
+                "is_ready_for_pickup": doc.is_ready_for_pickup,
+                "destination": doc.destination,
+            })
+
+    return {
+        "client_id": client_id,
+        "client_name": client.name,
+        "pre_arrivals": pre_arrivals_data,
+        "assets": assets_data,
+        "wash_certificates": wash_certs_data,
+        "release_documents": release_docs_data,
+    }, 200
+
+@main.route("/eco-oil/producer-declarations", methods=["GET"])
+def list_producer_declarations():
+    declarations = ProducerDeclaration.query.order_by(ProducerDeclaration.issued_at.desc()).all()
+    result = []
+    for d in declarations:
+        result.append({
+            "id": d.id,
+            "client_id": d.client_id,
+            "client_name": d.client.name,
+            "material_name": d.material_name,
+            "material_classification": d.material_classification,
+            "producer_size": d.producer_size,
+            "valid_from": d.valid_from.isoformat(),
+            "valid_until": d.valid_until.isoformat(),
+            "is_active": d.is_active,
+        })
+    return {"producer_declarations": result}, 200              

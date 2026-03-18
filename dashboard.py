@@ -12,7 +12,21 @@ st.set_page_config(
 # כותרת ראשית
 st.title("🌿 אקו-סיסטם — מערכת ניהול חכמה")
 st.markdown('**אקו-אויל ווירומטל בע"מ** | ניהול תפעולי ורגולציה חכמה')
-
+st.markdown("""
+<style>
+    * { font-size: 26px !important; line-height: 1.6 !important; }
+    h1 { font-size: 4rem !important; font-weight: 700 !important; }
+    h2 { font-size: 3.5rem !important; font-weight: 600 !important; }
+    h3 { font-size: 3rem !important; font-weight: 600 !important; }
+    .stButton button { font-size: 24px !important; padding: 8px 20px !important; }
+    .stTextInput input { font-size: 24px !important; }
+    .stSelectbox select { font-size: 24px !important; }
+    label { font-size: 24px !important; font-weight: 500 !important; }
+    .stMetric { font-size: 26px !important; }
+    .stMetric [data-testid="metric-container"] { font-size: 26px !important; }
+    p { font-size: 26px !important; }
+</style>
+""", unsafe_allow_html=True)
 st.divider()
 
 # תפריט ניווט
@@ -259,3 +273,44 @@ with tab3:
             st.info("אין הסכמים במערכת עדיין.")
     else:
         st.warning("לא ניתן להתחבר לשרת Flask.")
+
+    st.divider()
+
+    # --- התראות פקיעת תוקף ---
+    st.subheader("⚠️ התראות פקיעת תוקף הצהרות יצרן")
+    import requests
+    decl_res = requests.get("http://127.0.0.1:5000/eco-oil/producer-declarations")
+    if decl_res.status_code == 200:
+            from datetime import datetime, timedelta
+            declarations = decl_res.json().get("producer_declarations", [])
+            expiring_soon = []
+            expired = []
+            today = datetime.now()
+            for d in declarations:
+                valid_until = datetime.fromisoformat(d["valid_until"])
+                days_left = (valid_until - today).days
+                d["days_left"] = days_left
+                if days_left < 0:
+                    expired.append(d)
+                elif days_left <= 30:
+                    expiring_soon.append(d)
+
+            if expired:
+                st.error(f"🔴 {len(expired)} הצהרות פגו תוקף!")
+                for d in expired:
+                    st.error(f"❌ {d['client_name']} — {d['material_name']} | פג ב-{d['valid_until'][:10]}")
+
+            if expiring_soon:
+                st.warning(f"🟡 {len(expiring_soon)} הצהרות עומדות לפוג ב-30 הימים הקרובים")
+                for d in expiring_soon:
+                    col1, col2 = st.columns([3, 1])
+                    with col1:
+                        st.warning(f"⚠️ {d['client_name']} — {d['material_name']} | נותרו {d['days_left']} ימים")
+                    with col2:
+                        if st.button(f"שלח התראה", key=f"warn_{d['id']}"):
+                            st.info(f"התראה נשלחה ל-{d['client_name']}")
+
+            if not expired and not expiring_soon:
+                st.success("✅ כל ההצהרות בתוקף — אין התראות.")
+            else:
+                st.info("לא ניתן לטעון הצהרות.")
