@@ -1,0 +1,211 @@
+/* ============================================================
+   EXPORT PAGE — export.css
+   ============================================================ */
+
+/* ---------- Process Steps ---------- */
+.export-process {
+    border-top: 1px solid rgba(0,0,0,.06);
+}
+
+.export-steps {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 2.5rem;
+    margin-top: 2rem;
+}
+
+.export-step {
+    padding: 2rem 1.8rem;
+    border: 1px solid rgba(0,0,0,.06);
+    border-radius: 40px 0 40px 0;
+    text-align: center;
+}
+
+.export-step:nth-child(1) { background: rgba(218, 239, 234, .45); }  /* mint — light */
+.export-step:nth-child(2) { background: rgba(132, 161, 167, .3); }   /* gray-teal — medium */
+.export-step:nth-child(3) { background: rgba(91, 158, 150, .3); }    /* teal — darker */
+
+.step-num {
+    font-family: var(--font-heading);
+    font-size: 2.4rem;
+    font-weight: 700;
+    color: rgba(91, 158, 150, .3);
+    line-height: 1;
+    margin-bottom: .6rem;
+}
+
+.export-step h3 {
+    font-family: var(--font-heading);
+    font-size: 1.3rem;
+    font-weight: 700;
+    color: #000;
+    margin-bottom: .8rem;
+}
+
+.export-step p {
+    text-align: center !important;
+    font-size: 1rem !important;
+}
+
+/* ---------- Permits Table ---------- */
+.export-permits {
+    border-top: 1px solid rgba(0,0,0,.06);
+}
+
+.permits-table-wrap {
+    overflow-x: auto;
+    margin-top: 1.5rem;
+    border-radius: 16px;
+    border: 1px solid rgba(0,0,0,.08);
+}
+
+.permits-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-family: var(--font-body);
+    font-size: .95rem;
+}
+
+.permits-table thead {
+    background: var(--purple);
+}
+
+.permits-table th {
+    color: #fff;
+    font-family: var(--font-heading);
+    font-weight: 600;
+    font-size: .95rem;
+    padding: 1rem 1.2rem;
+    text-align: right;
+    white-space: nowrap;
+}
+
+.permits-table td {
+    padding: 1rem 1.2rem;
+    border-bottom: 1px solid rgba(0,0,0,.06);
+    vertical-align: top;
+    color: #000;
+}
+
+.permits-table tbody tr:last-child td {
+    border-bottom: none;
+}
+
+.permits-table tbody tr:hover {
+    background: rgba(218, 239, 234, .2);
+}
+
+.permit-id {
+    font-family: var(--font-heading);
+    font-weight: 700;
+    font-size: 1rem;
+    color: var(--teal);
+    white-space: nowrap;
+}
+
+.permit-desc-he {
+    display: block;
+    font-weight: 500;
+    margin-bottom: .2rem;
+}
+
+.permit-desc-en {
+    display: block;
+    font-size: .85rem;
+    color: #666;
+    font-style: italic;
+    direction: ltr;
+    text-align: left;
+}
+
+.permit-code {
+    display: block;
+    font-weight: 600;
+    font-size: .9rem;
+    white-space: nowrap;
+}
+
+.permit-ewc {
+    display: block;
+    font-size: .82rem;
+    color: #666;
+    margin-top: .15rem;
+}
+
+.permit-download {
+    display: inline-flex;
+    align-items: center;
+    gap: .4rem;
+    color: var(--teal);
+    text-decoration: none;
+    font-family: var(--font-heading);
+    font-weight: 600;
+    font-size: .95rem;
+    padding: .4rem .8rem;
+    border: 1px solid var(--teal);
+    border-radius: 8px;
+    transition: background .2s, color .2s;
+    white-space: nowrap;
+}
+
+.permit-download:hover {
+    background: var(--teal);
+    color: #fff;
+}
+
+.permits-note {
+    margin-top: 1.2rem;
+    font-size: .9rem !important;
+    font-style: normal !important;
+    color: #666 !important;
+    text-align: center !important;
+}
+
+/* ---------- Why Export ---------- */
+.export-why {
+    border-top: 1px solid rgba(0,0,0,.06);
+}
+
+.export-advantages {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 2.5rem;
+    margin-top: 2rem;
+}
+
+.export-adv {
+    text-align: center;
+    padding: 2rem 1.5rem;
+}
+
+.adv-icon {
+    display: block;
+    margin-bottom: 1rem;
+}
+
+.export-adv h3 {
+    font-family: var(--font-heading);
+    font-size: 1.25rem;
+    font-weight: 700;
+    color: #000;
+    margin-bottom: .7rem;
+}
+
+.export-adv p {
+    text-align: center !important;
+    font-size: 1rem !important;
+}
+
+/* ---------- Responsive ---------- */
+@media (max-width: 900px) {
+    .export-steps { grid-template-columns: 1fr; }
+    .export-advantages { grid-template-columns: 1fr; }
+    .permits-table { font-size: .85rem; }
+    .permits-table th,
+    .permits-table td { padding: .7rem .8rem; }
+}
+
+@media (max-width: 640px) {
+    .permits-table th { font-size: .82rem; }
+    .permit-desc-en { font-size: .75rem; }
+}

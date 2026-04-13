@@ -1,7 +1,13 @@
 import os
+from datetime import timedelta
 from flask import Flask
+from flask_jwt_extended import JWTManager
+from werkzeug.security import generate_password_hash
 from .routes import main
+from .auth import auth
 from .db import db
+
+jwt = JWTManager()
 
 def create_app():
     app = Flask(__name__)
@@ -16,13 +22,54 @@ def create_app():
     app.config["SQLALCHEMY_DATABASE_URI"] = f"sqlite:///{DB_PATH.as_posix()}"
     app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
 
+    # JWT configuration
+    app.config["JWT_SECRET_KEY"] = os.environ.get("JWT_SECRET_KEY", "dev-secret-change-in-production-32ch")
+    app.config["JWT_ACCESS_TOKEN_EXPIRES"] = timedelta(hours=1)
+    app.config["JWT_REFRESH_TOKEN_EXPIRES"] = timedelta(days=30)
+
     db.init_app(app)
+    jwt.init_app(app)
+
+    # Token blocklist loader
+    from .db import TokenBlocklist
+
+    @jwt.token_in_blocklist_loader
+    def check_if_token_revoked(jwt_header, jwt_payload):
+        jti = jwt_payload["jti"]
+        return TokenBlocklist.query.filter_by(jti=jti).first() is not None
+
     with app.app_context():
-    # חשוב: לטעון את כל המודלים לפני create_all, אחרת טבלאות לא יווצרו
-        from .db import Client, Asset, DepotPreArrival, Compartment, WashCycle, WashCertificate, TransportEvent, IsotankWashCycle, RepairEvent, ReleaseDocument, PhotoRecord, Carrier, ProducerDeclaration, AgreementDocument, DisposalEvent, DisposalCertificate
+        # חשוב: לטעון את כל המודלים לפני create_all, אחרת טבלאות לא יווצרו
+        from .db import (
+            Client, Asset, DepotPreArrival, Compartment, WashCycle,
+            WashCertificate, TransportEvent, IsotankWashCycle, RepairEvent,
+            ReleaseDocument, PhotoRecord, Carrier, ProducerDeclaration,
+            AgreementDocument, DisposalEvent, DisposalCertificate,
+            User, TokenBlocklist,
+        )
         db.create_all()
 
+        # Migrate: add parent_client_id to existing clients table
+        try:
+            db.session.execute(db.text(
+                "ALTER TABLE clients ADD COLUMN parent_client_id INTEGER REFERENCES clients(id)"
+            ))
+            db.session.commit()
+        except Exception:
+            db.session.rollback()
+
+        # Seed default admin user if none exists
+        if not User.query.filter_by(role="admin").first():
+            admin_user = User(
+                username="admin",
+                password_hash=generate_password_hash("changeme123"),
+                role="admin",
+            )
+            db.session.add(admin_user)
+            db.session.commit()
+
     app.register_blueprint(main)
+    app.register_blueprint(auth)
 
     @app.route("/health")
     def health():

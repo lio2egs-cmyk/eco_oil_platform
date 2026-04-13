@@ -1,0 +1,262 @@
+/* ============================================================
+   ABOUT PAGE — about.css
+   ============================================================ */
+
+/* ---------- Sections ---------- */
+.abt-section {
+    padding: 60px 0;
+}
+
+.abt-container {
+    max-width: none;
+    padding: 0 3.5rem;
+}
+
+/* ---------- Titles ---------- */
+.abt-page-title {
+    font-family: var(--font-heading);
+    font-size: 2.6rem;
+    font-weight: 700;
+    color: #000;
+    margin-bottom: 1.5rem;
+    text-align: right;
+}
+
+.abt-title {
+    font-family: var(--font-heading);
+    font-size: 2rem;
+    font-weight: 700;
+    color: #000;
+    margin-bottom: 1.8rem;
+    text-align: right;
+}
+
+.abt-subtitle {
+    font-family: var(--font-heading);
+    font-size: 1.6rem;
+    font-weight: 700;
+    color: #000;
+    margin-bottom: 1.2rem;
+}
+
+/* ---------- Body text ---------- */
+.abt-section p {
+    font-family: var(--font-body);
+    font-size: 1.15rem;
+    font-weight: 400;
+    font-style: italic;
+    color: #000;
+    line-height: 1.85;
+    text-align: right;
+    margin-bottom: 1rem;
+}
+
+.abt-lead {
+    font-family: var(--font-heading) !important;
+    font-size: 1.9rem !important;
+    font-weight: 600 !important;
+    font-style: normal !important;
+    color: var(--purple) !important;
+    margin-bottom: 1.5rem !important;
+}
+
+/* ---------- Intro ---------- */
+.abt-intro {
+    padding-top: 50px;
+    border-bottom: 1px solid rgba(0,0,0,.06);
+}
+
+/* ---------- Why Choose Us — Cards ---------- */
+.abt-cards {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 2.5rem;
+    margin-top: 1.5rem;
+}
+
+.abt-card {
+    border: 1px solid rgba(0,0,0,.06);
+    border-radius: 80px 0 80px 0;
+    padding: 2.5rem 2rem;
+    text-align: center;
+    transition: transform .25s ease, box-shadow .25s ease;
+}
+
+.abt-card:nth-child(1) { background: rgba(218, 239, 234, .45); }  /* mint — light */
+.abt-card:nth-child(2) { background: rgba(132, 161, 167, .3); }   /* gray-teal — medium */
+.abt-card:nth-child(3) { background: rgba(91, 158, 150, .3); }    /* teal — darker */
+
+.abt-card:hover {
+    transform: translateY(-4px);
+    box-shadow: 0 8px 24px rgba(0,0,0,.08);
+}
+
+.abt-card-icon {
+    margin-bottom: 1.2rem;
+}
+
+.abt-card-title {
+    font-family: var(--font-heading);
+    font-size: 1.35rem;
+    font-weight: 700;
+    color: #000;
+    margin-bottom: .8rem;
+}
+
+.abt-card p {
+    font-size: 1rem !important;
+    text-align: center !important;
+}
+
+/* ---------- Commitment ---------- */
+.abt-commitment {
+    text-align: center;
+    border-top: 1px solid rgba(0,0,0,.06);
+    border-bottom: 1px solid rgba(0,0,0,.06);
+}
+
+.abt-highlight {
+    font-family: var(--font-heading) !important;
+    font-size: 1.8rem !important;
+    font-weight: 700 !important;
+    font-style: normal !important;
+    color: #000 !important;
+    text-align: center !important;
+    margin-bottom: .8rem !important;
+}
+
+.abt-commitment p {
+    text-align: center !important;
+}
+
+/* ---------- Numbers ---------- */
+.abt-zero-stat {
+    font-family: var(--font-heading) !important;
+    font-size: 1.8rem !important;
+    font-weight: 700 !important;
+    font-style: normal !important;
+    color: #fff !important;
+    text-align: center !important;
+    margin-top: 2rem !important;
+    padding: 1.8rem 2rem;
+    background: var(--purple);
+    border-radius: 40px 0 40px 0;
+}
+
+/* ---------- Team — Person cards ---------- */
+.abt-person {
+    display: grid;
+    grid-template-columns: 280px 1fr;
+    gap: 3rem;
+    margin-bottom: 4rem;
+    align-items: start;
+}
+
+.abt-person-photo {
+    position: sticky;
+    top: 120px;
+}
+
+.abt-photo-placeholder {
+    width: 100%;
+    aspect-ratio: 3 / 4;
+    background: #c8c4b8;
+    border-radius: 40px 0 40px 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-family: var(--font-heading);
+    font-size: 1.1rem;
+    color: #888;
+}
+
+.abt-photo-placeholder--wide {
+    aspect-ratio: 16 / 9;
+    max-width: 600px;
+}
+
+.abt-person-name {
+    font-family: var(--font-heading);
+    font-size: 1.8rem;
+    font-weight: 700;
+    color: #000;
+    margin-bottom: .3rem;
+}
+
+.abt-person-role {
+    display: inline-block;
+    font-family: var(--font-heading);
+    font-size: 1.1rem;
+    font-weight: 500;
+    color: var(--teal);
+    margin-bottom: 1.2rem;
+}
+
+.abt-person-closing {
+    font-weight: 700 !important;
+    font-style: normal !important;
+    margin-top: 1rem !important;
+}
+
+/* ---------- Full Team ---------- */
+.abt-team-full {
+    margin-top: 3rem;
+    padding-top: 3rem;
+    border-top: 1px solid rgba(0,0,0,.08);
+}
+
+.abt-team-photo-area {
+    margin-bottom: 2rem;
+}
+
+/* ---------- Footer — vector factory image ---------- */
+.about-footer {
+    background: var(--bg);
+    padding: 0;
+    line-height: 0;
+}
+
+.about-footer-img {
+    width: 100%;
+    height: auto;
+    display: block;
+    opacity: .55;
+}
+
+/* ---------- Responsive — Tablet ---------- */
+@media (max-width: 900px) {
+    .abt-cards {
+        grid-template-columns: 1fr;
+        gap: 1.5rem;
+    }
+
+    .abt-person {
+        grid-template-columns: 200px 1fr;
+        gap: 2rem;
+    }
+}
+
+/* ---------- Responsive — Mobile ---------- */
+@media (max-width: 640px) {
+    .abt-container {
+        padding: 0 1.5rem;
+    }
+
+    .abt-page-title { font-size: 2rem; }
+    .abt-title { font-size: 1.6rem; }
+    .abt-lead { font-size: 1.3rem !important; }
+    .abt-highlight { font-size: 1.4rem !important; }
+    .abt-zero-stat { font-size: 1.4rem !important; }
+
+    .abt-person {
+        grid-template-columns: 1fr;
+        gap: 1.5rem;
+    }
+
+    .abt-photo-placeholder {
+        max-width: 220px;
+        margin: 0 auto;
+    }
+
+    .abt-person-name { font-size: 1.4rem; }
+}

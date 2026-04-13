@@ -1,0 +1,9 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(mkdir -p c:/Users/lio2e/Documents/AI_DEV/eco_oil_platform/website/images)",
+      "Bash(cp c:/Users/lio2e/Documents/AI_DEV/eco_oil_platform/logo_eco-oil.png c:/Users/lio2e/Documents/AI_DEV/eco_oil_platform/website/images/logo_eco-oil.png)",
+      "Bash(cp c:/Users/lio2e/Documents/AI_DEV/eco_oil_platform/footer_logo.png c:/Users/lio2e/Documents/AI_DEV/eco_oil_platform/website/images/footer_info.png)"
+    ]
+  }
+}

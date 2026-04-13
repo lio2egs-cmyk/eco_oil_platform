@@ -11,9 +11,37 @@ class Client(db.Model):
     name = db.Column(db.String(200), nullable=False)
     division = db.Column(db.String(50), nullable=False)  # eco_oil / eco_depot
     client_type = db.Column(db.String(50))  # direct / indirect / agent
+    parent_client_id = db.Column(db.Integer, db.ForeignKey("clients.id"), nullable=True)
+
+    sub_clients = db.relationship("Client", backref=db.backref("parent_client", remote_side="Client.id"), lazy="dynamic")
 
     def __repr__(self):
         return f"<Client {self.name}>"
+
+
+class User(db.Model):
+    __tablename__ = "users"
+
+    id = db.Column(db.Integer, primary_key=True)
+    username = db.Column(db.String(80), unique=True, nullable=False)
+    password_hash = db.Column(db.String(256), nullable=False)
+    role = db.Column(db.String(50), nullable=False)  # admin / eco_oil_client / eco_depot_client / transport_company
+    client_id = db.Column(db.Integer, db.ForeignKey("clients.id"), nullable=True)
+    is_active = db.Column(db.Boolean, default=True)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+    client = db.relationship("Client", backref="users")
+
+    def __repr__(self):
+        return f"<User {self.username}>"
+
+
+class TokenBlocklist(db.Model):
+    __tablename__ = "token_blocklist"
+
+    id = db.Column(db.Integer, primary_key=True)
+    jti = db.Column(db.String(36), nullable=False, index=True)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
 
 class Asset(db.Model):

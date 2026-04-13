@@ -1,0 +1,481 @@
+/* ============================================================
+   SUBPAGE SHARED STYLES — subpage.css
+   Reusable across all subpages (waste types, services, etc.)
+   ============================================================ */
+
+/* ---------- Sections ---------- */
+.sub-section { padding: 55px 0; }
+.sub-container { max-width: none; padding: 0 3.5rem; }
+
+.sub-intro {
+    padding-top: 45px;
+    border-bottom: 1px solid rgba(0,0,0,.06);
+}
+
+/* ---------- Typography ---------- */
+.sub-page-title {
+    font-family: var(--font-heading);
+    font-size: 2.6rem;
+    font-weight: 700;
+    color: #000;
+    margin-bottom: 1.3rem;
+    text-align: right;
+}
+
+.sub-title {
+    font-family: var(--font-heading);
+    font-size: 2rem;
+    font-weight: 700;
+    color: #000;
+    margin-bottom: 1.8rem;
+    text-align: right;
+}
+
+.sub-lead {
+    font-family: var(--font-heading);
+    font-size: 1.6rem;
+    font-weight: 600;
+    color: var(--teal);
+    margin-bottom: 1.3rem;
+    text-align: right;
+}
+
+.sub-section p {
+    font-family: var(--font-body);
+    font-size: 1.15rem;
+    font-weight: 400;
+    font-style: italic;
+    color: #000;
+    line-height: 1.85;
+    text-align: right;
+    margin-bottom: 1rem;
+}
+
+/* ============================================================
+   WASTE TYPE CARDS
+   ============================================================ */
+.waste-grid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 2.2rem;
+    margin-top: 1rem;
+}
+
+.waste-card {
+    border-radius: 60px 0 60px 0;
+    overflow: hidden;
+    border: 1px solid rgba(0,0,0,.06);
+    transition: transform .25s ease, box-shadow .25s ease;
+}
+
+.waste-card:hover {
+    transform: translateY(-4px);
+    box-shadow: 0 8px 28px rgba(0,0,0,.1);
+}
+
+.waste-card-header {
+    padding: 1.8rem 2rem 1.2rem;
+    display: flex;
+    align-items: baseline;
+    gap: 1rem;
+}
+
+.waste-card-header h3 {
+    font-family: var(--font-heading);
+    font-size: 1.4rem;
+    font-weight: 700;
+    color: #fff;
+}
+
+.waste-card-number {
+    font-family: var(--font-heading);
+    font-size: 2.4rem;
+    font-weight: 700;
+    color: rgba(255,255,255,.35);
+    line-height: 1;
+}
+
+/* Color variants */
+.wc-mineral  { background: #5B9E96; }
+.wc-organic  { background: #84A1A7; }
+.wc-hazmat   { background: #806080; }
+.wc-process  { background: #6b8a5e; }
+.wc-fuel     { background: #8a7a5e; }
+.wc-acid     { background: #7a6a8a; }
+
+.waste-card-body {
+    padding: 1.6rem 2rem 2rem;
+    background: rgba(224, 222, 209, .35);
+}
+
+.waste-card-body p {
+    font-size: 1rem !important;
+    margin-bottom: .8rem !important;
+}
+
+.waste-sources {
+    background: rgba(218, 239, 234, .4);
+    padding: .7rem 1rem;
+    border-radius: 8px;
+    font-style: normal !important;
+    font-size: .95rem !important;
+}
+
+/* ============================================================
+   SHARED: Triple card gradient (mint → gray-teal → teal)
+   Use on any page with 3 side-by-side cards
+   ============================================================ */
+.tri-gradient:nth-child(1) { background: rgba(218, 239, 234, .45); }
+.tri-gradient:nth-child(2) { background: rgba(132, 161, 167, .3); }
+.tri-gradient:nth-child(3) { background: rgba(91, 158, 150, .3); }
+
+/* ============================================================
+   WASTE CLASSIFICATION
+   ============================================================ */
+.waste-class-grid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 2.2rem;
+    margin-top: 1.5rem;
+}
+
+.waste-class-box {
+    border-radius: 24px;
+    padding: 2rem 2rem 1.5rem;
+}
+
+.wclass-organic {
+    background: rgba(218, 239, 234, .4);
+    border: 1px solid rgba(91, 158, 150, .2);
+}
+
+.wclass-inorganic {
+    background: rgba(128, 96, 128, .12);
+    border: 1px solid rgba(128, 96, 128, .2);
+}
+
+.waste-class-box h3 {
+    font-family: var(--font-heading);
+    font-size: 1.4rem;
+    font-weight: 700;
+    color: #000;
+    margin-bottom: .8rem;
+}
+
+.waste-class-box ul {
+    list-style: none;
+    padding: 0;
+    margin: .8rem 0;
+}
+
+.waste-class-box li {
+    font-family: var(--font-body);
+    font-size: 1rem;
+    color: #000;
+    line-height: 1.8;
+    padding: .4rem 0 .4rem 0;
+    padding-right: 1.2rem;
+    position: relative;
+    border-bottom: 1px solid rgba(0,0,0,.05);
+}
+
+.waste-class-box li:last-child { border-bottom: none; }
+
+.waste-class-box li::before {
+    content: '\25B8';
+    position: absolute;
+    right: 0;
+    color: var(--teal);
+    font-size: .8rem;
+    top: .6rem;
+}
+
+.waste-class-tag {
+    display: inline-block;
+    font-family: var(--font-heading) !important;
+    font-size: .85rem !important;
+    font-weight: 500 !important;
+    font-style: normal !important;
+    color: var(--teal) !important;
+    background: rgba(218, 239, 234, .5);
+    padding: .3rem .9rem;
+    border-radius: 999px;
+    margin-bottom: .6rem !important;
+}
+
+/* ============================================================
+   TECHNOLOGY CARDS
+   ============================================================ */
+.tech-grid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 2rem;
+    margin-top: 1.5rem;
+}
+
+.tech-card {
+    background: rgba(224, 222, 209, .4);
+    border: 1px solid rgba(0,0,0,.06);
+    border-radius: 16px;
+    padding: 2rem;
+    transition: transform .25s ease, box-shadow .25s ease;
+}
+
+.tech-card:hover {
+    transform: translateY(-3px);
+    box-shadow: 0 6px 20px rgba(0,0,0,.08);
+}
+
+.tech-num {
+    font-family: var(--font-heading);
+    font-size: 2rem;
+    font-weight: 700;
+    color: rgba(91, 158, 150, .3);
+    line-height: 1;
+    margin-bottom: .6rem;
+}
+
+.tech-card h3 {
+    font-family: var(--font-heading);
+    font-size: 1.25rem;
+    font-weight: 700;
+    color: #000;
+    margin-bottom: .7rem;
+}
+
+.tech-card p {
+    font-size: 1rem !important;
+    margin-bottom: 0 !important;
+}
+
+/* ============================================================
+   TREATMENT RESULTS
+   ============================================================ */
+.treatment-results {
+    border-top: 1px solid rgba(0,0,0,.06);
+}
+
+/* ============================================================
+   TREATMENT PROCESS
+   ============================================================ */
+.treatment-section {
+    border-top: 1px solid rgba(0,0,0,.06);
+}
+
+.treatment-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 2.5rem;
+    margin-top: 2rem;
+}
+
+.treatment-item {
+    text-align: center;
+    padding: 2rem 1.5rem;
+    background: rgba(218, 239, 234, .3);
+    border-radius: 40px 0 40px 0;
+    border: 1px solid rgba(91, 158, 150, .15);
+}
+
+.treatment-icon { margin-bottom: 1rem; }
+
+.treatment-item h3 {
+    font-family: var(--font-heading);
+    font-size: 1.3rem;
+    font-weight: 700;
+    color: #000;
+    margin-bottom: .8rem;
+}
+
+.treatment-item p {
+    text-align: center !important;
+    font-size: 1rem !important;
+}
+
+/* ============================================================
+   TRANSPORT
+   ============================================================ */
+.transport-section {
+    border-top: 1px solid rgba(0,0,0,.06);
+}
+
+.transport-points {
+    margin-top: 1.5rem;
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+}
+
+.transport-point {
+    display: flex;
+    align-items: flex-start;
+    gap: 1rem;
+    padding: 1rem 1.5rem;
+    background: rgba(224, 222, 209, .4);
+    border-radius: 12px;
+}
+
+.tp-check {
+    font-size: 1.4rem;
+    color: var(--teal);
+    font-weight: 700;
+    flex-shrink: 0;
+    line-height: 1.85;
+}
+
+.transport-point p {
+    margin-bottom: 0 !important;
+}
+
+/* ============================================================
+   CTA SECTION
+   ============================================================ */
+.sub-cta-section {
+    text-align: center;
+    padding: 50px 0 0;
+    border-top: 1px solid rgba(0,0,0,.06);
+}
+
+.sub-cta-text {
+    font-family: var(--font-heading) !important;
+    font-size: 1.5rem !important;
+    font-weight: 600 !important;
+    font-style: normal !important;
+    color: #000 !important;
+    text-align: center !important;
+    margin-bottom: 1.5rem !important;
+}
+
+.sub-cta-btn {
+    display: inline-block;
+    background: #000;
+    color: #fff;
+    font-family: var(--font-heading);
+    font-size: 1.2rem;
+    font-weight: 500;
+    padding: .9rem 3rem;
+    border-radius: 999px;
+    text-decoration: none;
+    transition: background .25s ease, transform .25s ease;
+}
+
+.sub-cta-btn:hover {
+    background: #333;
+    transform: translateY(-2px);
+}
+
+/* ============================================================
+   CONSULTING — cards & certifications
+   ============================================================ */
+.consult-grid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 2rem;
+}
+
+.consult-card {
+    background: rgba(218, 239, 234, .3);
+    border: 1px solid rgba(91, 158, 150, .15);
+    border-radius: 40px 0 40px 0;
+    padding: 2rem 1.8rem;
+}
+
+.consult-card h3 {
+    font-family: var(--font-heading);
+    font-size: 1.3rem;
+    font-weight: 700;
+    color: #000;
+    margin-bottom: .8rem;
+}
+
+.consult-card p {
+    font-size: 1.05rem !important;
+}
+
+.cert-section {
+    border-top: 1px solid rgba(0,0,0,.06);
+}
+
+.cert-grid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 2.5rem;
+    margin-top: 1.5rem;
+}
+
+.cert-group {
+    background: rgba(224, 222, 209, .4);
+    border: 1px solid rgba(0,0,0,.06);
+    border-radius: 16px;
+    padding: 2rem;
+}
+
+.cert-group h3 {
+    font-family: var(--font-heading);
+    font-size: 1.25rem;
+    font-weight: 700;
+    color: var(--purple);
+    margin-bottom: 1rem;
+}
+
+.cert-group ul {
+    list-style: none;
+    padding: 0;
+}
+
+.cert-group li {
+    font-family: var(--font-body);
+    font-size: 1.05rem;
+    color: #000;
+    padding: .5rem 0;
+    border-bottom: 1px solid rgba(0,0,0,.06);
+    padding-right: 1.2rem;
+    position: relative;
+}
+
+.cert-group li:last-child { border-bottom: none; }
+
+.cert-group li::before {
+    content: '\2713';
+    position: absolute;
+    right: 0;
+    color: var(--teal);
+    font-weight: 700;
+}
+
+/* ============================================================
+   FOOTER — vector image
+   ============================================================ */
+.sub-footer {
+    background: var(--bg);
+    padding: 0;
+    line-height: 0;
+    margin-top: -40px;
+}
+
+.sub-footer-img {
+    width: 100%;
+    height: auto;
+    display: block;
+    opacity: .55;
+    -webkit-mask-image: linear-gradient(to bottom, transparent 0%, black 15%);
+    mask-image: linear-gradient(to bottom, transparent 0%, black 15%);
+}
+
+/* ============================================================
+   RESPONSIVE
+   ============================================================ */
+@media (max-width: 900px) {
+    .waste-grid { grid-template-columns: 1fr; }
+    .treatment-grid { grid-template-columns: 1fr; }
+}
+
+@media (max-width: 640px) {
+    .sub-container { padding: 0 1.5rem; }
+    .sub-page-title { font-size: 2rem; }
+    .sub-title { font-size: 1.6rem; }
+    .sub-lead { font-size: 1.3rem; }
+    .waste-card-header h3 { font-size: 1.2rem; }
+    .waste-card-number { font-size: 1.8rem; }
+    .sub-cta-text { font-size: 1.2rem !important; }
+}

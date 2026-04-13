@@ -1,0 +1,294 @@
+/* ============================================================
+   ECO-DEPOT PAGE — eco-depot.css
+   ============================================================ */
+
+/* ---------- Wash Types ---------- */
+.depot-wash-section { border-top: 1px solid rgba(0,0,0,.06); }
+
+.depot-wash-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 2rem;
+    margin-top: 1.5rem;
+}
+
+.depot-wash-card {
+    border-radius: 40px 0 40px 0;
+    overflow: hidden;
+    border: 1px solid rgba(0,0,0,.06);
+    transition: transform .25s ease, box-shadow .25s ease;
+}
+
+.depot-wash-card:hover {
+    transform: translateY(-4px);
+    box-shadow: 0 8px 24px rgba(0,0,0,.1);
+}
+
+.dwc-header {
+    padding: 1.5rem 1.8rem;
+    text-align: center;
+}
+
+.dwc-header h3 {
+    font-family: var(--font-heading);
+    font-size: 1.35rem;
+    font-weight: 700;
+    color: #fff;
+}
+
+.dwc-isotank    { background: var(--teal); }
+.dwc-tanker     { background: #84A1A7; }
+.dwc-packaging  { background: var(--purple); }
+
+.dwc-body {
+    padding: 1.5rem 1.8rem;
+    background: rgba(224, 222, 209, .3);
+}
+
+.dwc-body p { font-size: 1rem !important; }
+
+/* ---------- Wash Methods ---------- */
+.depot-methods-section { border-top: 1px solid rgba(0,0,0,.06); }
+
+.methods-grid {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 1rem;
+    margin: 1.5rem 0;
+    justify-content: center;
+}
+
+.method-tag {
+    background: var(--teal);
+    color: #fff;
+    font-family: var(--font-heading);
+    font-size: 1.05rem;
+    font-weight: 500;
+    padding: .7rem 1.6rem;
+    border-radius: 999px;
+}
+
+/* ---------- Additional Services ---------- */
+.depot-services-section { border-top: 1px solid rgba(0,0,0,.06); }
+
+.depot-svc-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 2rem;
+    margin-top: 1.5rem;
+}
+
+.depot-svc-item {
+    text-align: center;
+    padding: 1.5rem 1.2rem;
+}
+
+.depot-svc-icon { display: block; margin-bottom: .8rem; }
+
+.depot-svc-item h3 {
+    font-family: var(--font-heading);
+    font-size: 1.2rem;
+    font-weight: 700;
+    color: #000;
+    margin-bottom: .5rem;
+}
+
+.depot-svc-item p {
+    text-align: center !important;
+    font-size: .95rem !important;
+}
+
+/* ---------- Workflow ---------- */
+.depot-workflow-section { border-top: 1px solid rgba(0,0,0,.06); }
+
+.workflow-steps {
+    margin-top: 2rem;
+    display: flex;
+    flex-direction: column;
+    gap: .5rem;
+}
+
+.wf-step {
+    display: flex;
+    align-items: flex-start;
+    gap: 1.5rem;
+    padding: 1.2rem 1.5rem;
+    background: rgba(224, 222, 209, .3);
+    border-radius: 12px;
+    border-right: 4px solid var(--teal);
+}
+
+.wf-step-num {
+    font-family: var(--font-heading);
+    font-size: 1.8rem;
+    font-weight: 700;
+    color: var(--teal);
+    line-height: 1;
+    flex-shrink: 0;
+    width: 2.5rem;
+    text-align: center;
+}
+
+.wf-step-content h3 {
+    font-family: var(--font-heading);
+    font-size: 1.15rem;
+    font-weight: 700;
+    color: #000;
+    margin-bottom: .3rem;
+}
+
+.wf-step-content p {
+    font-size: .95rem !important;
+    margin-bottom: 0 !important;
+}
+
+/* ---------- Pricing ---------- */
+.depot-pricing-section { border-top: 1px solid rgba(0,0,0,.06); }
+
+.pricing-tables {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 2rem;
+    margin-top: 1.5rem;
+}
+
+.pricing-table {
+    border: 1px solid rgba(0,0,0,.08);
+    border-radius: 16px;
+    overflow: hidden;
+}
+
+.pricing-table-title {
+    font-family: var(--font-heading);
+    font-size: 1.15rem;
+    font-weight: 700;
+    color: #fff;
+    background: var(--purple);
+    padding: 1rem 1.2rem;
+    text-align: center;
+}
+
+.pricing-table table {
+    width: 100%;
+    border-collapse: collapse;
+}
+
+.pricing-table th {
+    font-family: var(--font-heading);
+    font-size: .9rem;
+    font-weight: 600;
+    padding: .7rem 1rem;
+    text-align: right;
+    background: rgba(224, 222, 209, .4);
+    border-bottom: 1px solid rgba(0,0,0,.08);
+}
+
+.pricing-table td {
+    font-family: var(--font-body);
+    font-size: .9rem;
+    padding: .65rem 1rem;
+    border-bottom: 1px solid rgba(0,0,0,.04);
+    color: #000;
+}
+
+.pricing-table tr:last-child td { border-bottom: none; }
+
+.pricing-note {
+    margin-top: 1rem;
+    font-size: .9rem !important;
+    font-style: normal !important;
+    color: #888 !important;
+    text-align: center !important;
+}
+
+/* ---------- Documents ---------- */
+.depot-docs-section { border-top: 1px solid rgba(0,0,0,.06); }
+
+.depot-docs-grid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 2rem;
+    margin-top: 1.5rem;
+}
+
+.depot-doc {
+    padding: 1.8rem;
+    background: rgba(218, 239, 234, .3);
+    border: 1px solid rgba(91, 158, 150, .15);
+    border-radius: 16px;
+}
+
+.depot-doc h3 {
+    font-family: var(--font-heading);
+    font-size: 1.2rem;
+    font-weight: 700;
+    color: var(--teal);
+    margin-bottom: .6rem;
+}
+
+.depot-doc p { font-size: .95rem !important; }
+
+/* ---------- Advantages ---------- */
+.depot-advantages { border-top: 1px solid rgba(0,0,0,.06); }
+
+.depot-adv-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 2rem;
+    margin-top: 1.5rem;
+}
+
+.depot-adv {
+    padding: 2rem 1.5rem;
+    border: 1px solid rgba(0,0,0,.06);
+    border-radius: 40px 0 40px 0;
+    text-align: center;
+}
+
+.depot-adv h3 {
+    font-family: var(--font-heading);
+    font-size: 1.25rem;
+    font-weight: 700;
+    color: #000;
+    margin-bottom: .7rem;
+}
+
+.depot-adv p {
+    text-align: center !important;
+    font-size: 1rem !important;
+}
+
+/* ---------- Clients ---------- */
+.depot-clients-section { border-top: 1px solid rgba(0,0,0,.06); }
+
+.depot-clients-logos {
+    margin-top: 1.5rem;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 2rem;
+    justify-content: center;
+}
+
+.depot-logo-placeholder {
+    padding: 2rem 3rem;
+    background: rgba(224, 222, 209, .4);
+    border-radius: 12px;
+    font-family: var(--font-heading);
+    font-size: 1rem;
+    color: #888;
+}
+
+/* ---------- Responsive ---------- */
+@media (max-width: 900px) {
+    .depot-wash-grid { grid-template-columns: 1fr; }
+    .depot-svc-grid { grid-template-columns: repeat(2, 1fr); }
+    .pricing-tables { grid-template-columns: 1fr; }
+    .depot-docs-grid { grid-template-columns: 1fr; }
+    .depot-adv-grid { grid-template-columns: 1fr; }
+}
+
+@media (max-width: 640px) {
+    .depot-svc-grid { grid-template-columns: 1fr; }
+    .methods-grid { gap: .6rem; }
+    .method-tag { font-size: .9rem; padding: .5rem 1rem; }
+}
