@@ -91,7 +91,7 @@
                         <img src="images/services.png" alt="מגוון השירותים המוצעים" class="svc-img">
                         <span class="svc-label">מגוון השירותים המוצעים</span>
                     </a>
-                    <a href="#clients" class="svc-item" id="clients">
+                    <a href="#our-clients" class="svc-item" id="clients">
                         <img src="images/clients.png" alt="לקוחותינו" class="svc-img">
                         <span class="svc-label">לקוחותינו</span>
                     </a>
@@ -119,6 +119,35 @@
             </div>
         </section>
 
+        <!-- ===== CLIENTS ===== -->
+        <section class="oil-clients-section" id="our-clients">
+            <div class="container">
+                <h2 class="oil-clients-title">לקוחותינו</h2>
+                <p class="oil-clients-text">אקו אויל נותנת שירות למגוון רחב של מפעלים, חברות תעשייה ויצרנים ברחבי הארץ.</p>
+                <div class="oil-clients-logos">
+                    <div class="oil-client-logo">
+                        <img src="images/clients/oil_clients/WhatsApp Image 2026-04-14 at 14.28.58.jpeg" alt="BeerBazaar">
+                    </div>
+                    <div class="oil-client-logo">
+                        <img src="images/clients/oil_clients/WhatsApp Image 2026-04-14 at 14.28.58 (1).jpeg" alt="Cortex Dental Implants">
+                    </div>
+                    <div class="oil-client-logo">
+                        <img src="images/clients/oil_clients/WhatsApp Image 2026-04-14 at 14.28.58 (2).jpeg" alt="Dr. Kadir">
+                    </div>
+                    <div class="oil-client-logo">
+                        <img src="images/clients/oil_clients/WhatsApp Image 2026-04-14 at 14.28.58 (3).jpeg" alt="טיסונג — מקבוצת אינרום תעשיות בנייה">
+                    </div>
+                    <div class="oil-client-logo">
+                        <img src="images/clients/oil_clients/WhatsApp Image 2026-04-14 at 14.28.58 (4).jpeg" alt="שטראוס — תלמה">
+                    </div>
+                    <div class="oil-client-logo">
+                        <img src="images/clients/oil_clients/WhatsApp Image 2026-04-14 at 14.28.58 (5).jpeg" alt="PCB Technologies">
+                    </div>
+                    <!-- לוגואים נוספים יתווספו בהמשך -->
+                </div>
+            </div>
+        </section>
+
         <!-- ===== CONTACT FORM ===== -->
         <section class="contact" id="contact">
             <div class="contact-bg"></div>
@@ -126,6 +155,7 @@
             <div class="container contact-inner">
                 <h2 class="contact-title">צור קשר</h2>
                 <form class="contact-form" id="contactForm" novalidate>
+                    <input type="hidden" name="department" value="eco_oil">
                     <div class="form-row">
                         <div class="form-group">
                             <label for="fullName">שם מלא</label>
@@ -139,22 +169,41 @@
                     <div class="form-row">
                         <div class="form-group">
                             <label for="company">שם החברה</label>
-                            <input type="text" id="company" name="company" placeholder="מלא כאן">
+                            <input type="text" id="company" name="company" placeholder="שם החברה">
                         </div>
                         <div class="form-group">
                             <label for="phone">טלפון</label>
                             <input type="tel" id="phone" name="phone" placeholder="050-5505500">
                         </div>
                     </div>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="wasteType">סוג שפכים / פסולת</label>
+                            <select id="wasteType" name="wasteType">
+                                <option value="" disabled selected>בחרו סוג</option>
+                                <option value="mineral_oils">שומנים מינרליים</option>
+                                <option value="organic_oils">שומנים אורגניים</option>
+                                <option value="hazardous">חומרים מסוכנים</option>
+                                <option value="process_water">מי תהליך</option>
+                                <option value="solvents">ממיסים</option>
+                                <option value="mixed">מעורב / לא ידוע</option>
+                                <option value="consulting">ייעוץ בלבד</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label for="estimatedQty">כמות משוערת</label>
+                            <input type="text" id="estimatedQty" name="estimatedQty" placeholder="למשל: 20 טון / חודש">
+                        </div>
+                    </div>
                     <div class="form-group form-group--full">
                         <label for="message">הודעה</label>
-                        <textarea id="message" name="message" placeholder="מלא כאן" rows="5"></textarea>
+                        <textarea id="message" name="message" placeholder="פרטו את הצורך שלכם — סוג הפסולת, כמויות, תדירות, מיקום..." rows="5"></textarea>
                     </div>
                     <div class="form-submit">
                         <button type="submit" class="btn-submit">שלח</button>
                     </div>
                     <div class="form-success" id="formSuccess" aria-live="polite" hidden>
-                        תודה! הפנייה שלך התקבלה ונחזור אליך בהקדם.
+                        תודה! הפנייה שלך התקבלה בצוות אקו אויל ונחזור אליך בהקדם.
                     </div>
                 </form>
             </div>

@@ -100,6 +100,67 @@
         });
     }
 
+    /* ---------- Depot contact form ---------- */
+    const depotForm       = document.getElementById('depotContactForm');
+    const depotSuccessMsg = document.getElementById('depotFormSuccess');
+
+    if (depotForm) {
+        depotForm.addEventListener('submit', e => {
+            e.preventDefault();
+            let valid = true;
+
+            const required = depotForm.querySelectorAll('[required]');
+            required.forEach(field => {
+                field.classList.remove('invalid');
+                if (!field.value.trim()) {
+                    field.classList.add('invalid');
+                    valid = false;
+                }
+            });
+
+            const emailField = depotForm.querySelector('[type="email"]');
+            if (emailField && emailField.value.trim()) {
+                const emailRe = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+                if (!emailRe.test(emailField.value.trim())) {
+                    emailField.classList.add('invalid');
+                    valid = false;
+                }
+            }
+
+            if (!valid) return;
+
+            const btn = depotForm.querySelector('.btn-submit');
+            btn.disabled = true;
+            btn.textContent = 'שולח...';
+
+            setTimeout(() => {
+                depotForm.reset();
+                btn.disabled = false;
+                btn.textContent = 'שלח פנייה';
+                if (depotSuccessMsg) {
+                    depotSuccessMsg.hidden = false;
+                    depotSuccessMsg.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+                    setTimeout(() => { depotSuccessMsg.hidden = true; }, 6000);
+                }
+            }, 900);
+        });
+
+        depotForm.addEventListener('input', e => {
+            e.target.classList.remove('invalid');
+        });
+
+        // Show selected MSDS filename
+        const msdsInput = document.getElementById('depotMsdsFile');
+        const msdsName  = document.getElementById('msdsFileName');
+        if (msdsInput && msdsName) {
+            msdsInput.addEventListener('change', () => {
+                msdsName.textContent = msdsInput.files.length
+                    ? msdsInput.files[0].name
+                    : '';
+            });
+        }
+    }
+
     /* ---------- Smooth scroll for anchor links ---------- */
     document.querySelectorAll('a[href^="#"]').forEach(anchor => {
         anchor.addEventListener('click', e => {

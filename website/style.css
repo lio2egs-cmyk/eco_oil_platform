@@ -7,7 +7,7 @@
 
 /* ---------- Custom Properties ---------- */
 :root {
-    --bg:           #E0DED1;
+    --bg:           #EDE8DC;
     --pill:         #DAEFEA;
     --teal:         #5B9E96;
     --teal-dark:    #4a8a82;
@@ -88,12 +88,12 @@ a   { color: inherit; text-decoration: none; }
 
 .nav-link {
     font-family: var(--font-heading);
-    font-size: .8rem;
+    font-size: 1.05rem;
     font-weight: 500;
     font-style: italic;
     color: #000000;
     background: var(--pill);
-    padding: .4rem 1rem;
+    padding: .6rem 1.5rem;
     border-radius: 999px;
     transition: background var(--transition), transform var(--transition);
 }
@@ -404,6 +404,59 @@ a   { color: inherit; text-decoration: none; }
 }
 
 /* ============================================================
+   CLIENTS
+   ============================================================ */
+.oil-clients-section {
+    padding: 50px 0;
+    text-align: center;
+}
+
+.oil-clients-title {
+    font-family: var(--font-heading);
+    font-size: 2rem;
+    font-weight: 700;
+    color: var(--text);
+    margin-bottom: .5rem;
+}
+
+.oil-clients-text {
+    font-family: var(--font-body);
+    font-size: 1.05rem;
+    font-style: italic;
+    color: var(--text-mid);
+    margin-bottom: 2rem;
+}
+
+.oil-clients-logos {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 1.5rem;
+    justify-content: center;
+    align-items: center;
+}
+
+.oil-client-logo {
+    padding: 1rem 1.5rem;
+    background: #fff;
+    border-radius: 12px;
+    border: 1px solid rgba(0,0,0,.06);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: box-shadow .25s ease;
+}
+
+.oil-client-logo:hover {
+    box-shadow: 0 4px 16px rgba(0,0,0,.08);
+}
+
+.oil-client-logo img {
+    max-height: 55px;
+    max-width: 140px;
+    object-fit: contain;
+}
+
+/* ============================================================
    CONTACT
    ============================================================ */
 .contact {
@@ -474,6 +527,7 @@ a   { color: inherit; text-decoration: none; }
 }
 
 .form-group input,
+.form-group select,
 .form-group textarea {
     width: 100%;
     padding: .65rem .9rem;
@@ -487,7 +541,17 @@ a   { color: inherit; text-decoration: none; }
     transition: border-color var(--transition), box-shadow var(--transition);
 }
 
+.form-group select {
+    cursor: pointer;
+    appearance: none;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='7' viewBox='0 0 12 7'%3E%3Cpath d='M1 1l5 5 5-5' fill='none' stroke='%23666' stroke-width='1.5'/%3E%3C/svg%3E");
+    background-repeat: no-repeat;
+    background-position: left .9rem center;
+    padding-left: 2.5rem;
+}
+
 .form-group input:focus,
+.form-group select:focus,
 .form-group textarea:focus {
     outline: none;
     border-color: var(--teal);
@@ -610,10 +674,24 @@ a   { color: inherit; text-decoration: none; }
     .service-card { height: 220px; }
     .card-label { font-size: 1.25rem; }
 
-    .why-us { padding: 40px 0; }
-    .why-us-title { font-size: 1.25rem; }
-    .why-us-subtitle { font-size: 1rem; }
-    .why-us-logo-box { max-width: 180px; margin-inline: auto; }
+    .why-us { padding: 40px 1.2rem; }
+    .why-us-title {
+        font-size: 1.35rem;
+        padding-right: 0;
+        text-align: center;
+    }
+    .why-us-subtitle {
+        font-size: 1rem;
+        padding-top: 0;
+        text-align: center;
+    }
+    .why-us-logo-box {
+        float: none;
+        max-width: 180px;
+        margin: 0 auto 1rem;
+    }
+    .why-us-content p { text-align: right; }
+    .why-us-content p:nth-of-type(1) { padding-top: 0; }
 
     .contact { padding: 40px 0; }
     .contact-form { padding: 1.5rem 1rem; }

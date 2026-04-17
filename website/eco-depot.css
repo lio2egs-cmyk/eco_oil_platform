@@ -2,6 +2,15 @@
    ECO-DEPOT PAGE — eco-depot.css
    ============================================================ */
 
+/* ---------- Hero Image (Intro) ---------- */
+.depot-hero-img {
+    width: 100%;
+    height: 320px;
+    object-fit: fill;
+    border-radius: 40px 0 40px 0;
+    margin-top: 1.5rem;
+}
+
 /* ---------- Wash Types ---------- */
 .depot-wash-section { border-top: 1px solid rgba(0,0,0,.06); }
 
@@ -40,6 +49,13 @@
 .dwc-tanker     { background: #84A1A7; }
 .dwc-packaging  { background: var(--purple); }
 
+.dwc-img {
+    width: 100%;
+    height: 180px;
+    object-fit: cover;
+    display: block;
+}
+
 .dwc-body {
     padding: 1.5rem 1.8rem;
     background: rgba(224, 222, 209, .3);
@@ -50,12 +66,19 @@
 /* ---------- Wash Methods ---------- */
 .depot-methods-section { border-top: 1px solid rgba(0,0,0,.06); }
 
+.methods-layout {
+    display: grid;
+    grid-template-columns: 1fr 280px;
+    gap: 2.5rem;
+    align-items: center;
+}
+
 .methods-grid {
     display: flex;
     flex-wrap: wrap;
     gap: 1rem;
     margin: 1.5rem 0;
-    justify-content: center;
+    justify-content: flex-start;
 }
 
 .method-tag {
@@ -66,6 +89,18 @@
     font-weight: 500;
     padding: .7rem 1.6rem;
     border-radius: 999px;
+}
+
+.methods-img-wrap {
+    border-radius: 40px 0 40px 0;
+    overflow: hidden;
+}
+
+.methods-img {
+    width: 100%;
+    height: 360px;
+    object-fit: cover;
+    display: block;
 }
 
 /* ---------- Additional Services ---------- */
@@ -80,7 +115,23 @@
 
 .depot-svc-item {
     text-align: center;
-    padding: 1.5rem 1.2rem;
+    padding: 0;
+    border-radius: 40px 0 40px 0;
+    overflow: hidden;
+    border: 1px solid rgba(0,0,0,.06);
+    transition: transform .25s ease, box-shadow .25s ease;
+}
+
+.depot-svc-item:hover {
+    transform: translateY(-4px);
+    box-shadow: 0 8px 24px rgba(0,0,0,.1);
+}
+
+.depot-svc-photo {
+    width: 100%;
+    height: 160px;
+    object-fit: cover;
+    display: block;
 }
 
 .depot-svc-icon { display: block; margin-bottom: .8rem; }
@@ -90,12 +141,13 @@
     font-size: 1.2rem;
     font-weight: 700;
     color: #000;
-    margin-bottom: .5rem;
+    margin: .8rem 1.2rem .5rem;
 }
 
 .depot-svc-item p {
     text-align: center !important;
     font-size: .95rem !important;
+    padding: 0 1.2rem 1.2rem;
 }
 
 /* ---------- Workflow ---------- */
@@ -201,6 +253,19 @@
     text-align: center !important;
 }
 
+.pricing-note a {
+    color: var(--teal);
+    text-decoration: underline;
+}
+
+.pricing-table-note {
+    font-size: .8rem !important;
+    font-style: normal !important;
+    color: #888 !important;
+    padding: .5rem 1rem .8rem;
+    margin: 0 !important;
+}
+
 /* ---------- Documents ---------- */
 .depot-docs-section { border-top: 1px solid rgba(0,0,0,.06); }
 
@@ -239,10 +304,18 @@
 }
 
 .depot-adv {
-    padding: 2rem 1.5rem;
+    padding: 0;
     border: 1px solid rgba(0,0,0,.06);
     border-radius: 40px 0 40px 0;
     text-align: center;
+    overflow: hidden;
+}
+
+.depot-adv-img {
+    width: 100%;
+    height: 180px;
+    object-fit: cover;
+    display: block;
 }
 
 .depot-adv h3 {
@@ -250,12 +323,13 @@
     font-size: 1.25rem;
     font-weight: 700;
     color: #000;
-    margin-bottom: .7rem;
+    margin: 1.2rem 1.5rem .7rem;
 }
 
 .depot-adv p {
     text-align: center !important;
     font-size: 1rem !important;
+    padding: 0 1.5rem 1.5rem;
 }
 
 /* ---------- Clients ---------- */
@@ -269,18 +343,228 @@
     justify-content: center;
 }
 
-.depot-logo-placeholder {
-    padding: 2rem 3rem;
-    background: rgba(224, 222, 209, .4);
+.depot-client-logo {
+    padding: 1.2rem 2rem;
+    background: #fff;
     border-radius: 12px;
+    border: 1px solid rgba(0,0,0,.06);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: box-shadow .25s ease;
+}
+
+.depot-client-logo:hover {
+    box-shadow: 0 4px 16px rgba(0,0,0,.08);
+}
+
+.depot-client-logo img {
+    max-height: 50px;
+    max-width: 160px;
+    object-fit: contain;
+}
+
+/* ---------- Contact Form ---------- */
+.depot-contact-section {
+    border-top: 1px solid rgba(0,0,0,.06);
+}
+
+.depot-contact-form {
+    margin-top: 1.5rem;
+    background: rgba(255,255,255,.5);
+    border: 1px solid rgba(0,0,0,.06);
+    border-radius: 16px;
+    padding: 2rem;
+}
+
+.depot-contact-form .form-row {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 1.2rem;
+    margin-bottom: 1.2rem;
+}
+
+.depot-contact-form .form-group {
+    display: flex;
+    flex-direction: column;
+}
+
+.depot-contact-form .form-group--full {
+    margin-bottom: 1.2rem;
+}
+
+.depot-contact-form label {
     font-family: var(--font-heading);
-    font-size: 1rem;
-    color: #888;
+    font-size: .95rem;
+    font-weight: 600;
+    color: #000;
+    margin-bottom: .4rem;
+}
+
+.depot-contact-form input,
+.depot-contact-form select,
+.depot-contact-form textarea {
+    font-family: var(--font-body);
+    font-size: .95rem;
+    padding: .75rem 1rem;
+    border: 1px solid rgba(0,0,0,.12);
+    border-radius: var(--radius);
+    background: #fff;
+    color: #000;
+    transition: border-color var(--transition);
+}
+
+.depot-contact-form input:focus,
+.depot-contact-form select:focus,
+.depot-contact-form textarea:focus {
+    outline: none;
+    border-color: var(--teal);
+    box-shadow: 0 0 0 3px rgba(91,158,150,.15);
+}
+
+.depot-contact-form input::placeholder,
+.depot-contact-form textarea::placeholder {
+    color: #aaa;
+}
+
+.depot-contact-form textarea {
+    resize: vertical;
+    min-height: 80px;
+}
+
+.depot-contact-form select {
+    cursor: pointer;
+    appearance: none;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='7' viewBox='0 0 12 7'%3E%3Cpath d='M1 1l5 5 5-5' fill='none' stroke='%23666' stroke-width='1.5'/%3E%3C/svg%3E");
+    background-repeat: no-repeat;
+    background-position: left 1rem center;
+    padding-left: 2.5rem;
+}
+
+.depot-contact-form .form-submit {
+    text-align: center;
+    margin-top: .5rem;
+}
+
+.depot-contact-form .btn-submit {
+    font-family: var(--font-heading);
+    font-size: 1.1rem;
+    font-weight: 600;
+    padding: .85rem 3rem;
+    background: var(--teal);
+    color: #fff;
+    border: none;
+    border-radius: 999px;
+    cursor: pointer;
+    transition: background var(--transition), transform var(--transition);
+}
+
+.depot-contact-form .btn-submit:hover {
+    background: var(--teal-dark);
+    transform: translateY(-2px);
+}
+
+.depot-contact-form .form-success {
+    text-align: center;
+    margin-top: 1rem;
+    padding: 1rem;
+    background: rgba(218,239,234,.5);
+    border-radius: var(--radius);
+    font-family: var(--font-heading);
+    font-size: 1.05rem;
+    color: var(--teal);
+}
+
+.depot-contact-form input.invalid,
+.depot-contact-form select.invalid,
+.depot-contact-form textarea.invalid {
+    border-color: #c0392b;
+    box-shadow: 0 0 0 3px rgba(192,57,43,.1);
+}
+
+/* Checkbox group */
+.checkbox-group {
+    display: flex;
+    flex-wrap: wrap;
+    gap: .5rem .8rem;
+    padding: .6rem 0;
+}
+
+.checkbox-label {
+    display: flex;
+    align-items: center;
+    gap: .4rem;
+    font-family: var(--font-body);
+    font-size: .9rem;
+    color: #000;
+    cursor: pointer;
+    padding: .35rem .7rem;
+    background: rgba(255,255,255,.7);
+    border: 1px solid rgba(0,0,0,.1);
+    border-radius: 6px;
+    transition: background var(--transition), border-color var(--transition);
+}
+
+.checkbox-label:hover {
+    background: rgba(218,239,234,.3);
+    border-color: var(--teal);
+}
+
+.checkbox-label input[type="checkbox"] {
+    width: auto;
+    accent-color: var(--teal);
+    cursor: pointer;
+}
+
+/* File upload */
+.file-upload-wrap {
+    display: flex;
+    align-items: center;
+    gap: .8rem;
+    flex-wrap: wrap;
+}
+
+.file-input {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip: rect(0,0,0,0);
+}
+
+.file-upload-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: .5rem;
+    padding: .7rem 1.2rem;
+    background: var(--teal);
+    color: #fff;
+    font-family: var(--font-heading) !important;
+    font-size: .9rem !important;
+    font-weight: 500;
+    border-radius: var(--radius);
+    cursor: pointer;
+    transition: background var(--transition);
+    margin: 0 !important;
+}
+
+.file-upload-btn:hover {
+    background: var(--teal-dark);
+}
+
+.file-name {
+    font-family: var(--font-body);
+    font-size: .85rem;
+    color: #666;
 }
 
 /* ---------- Responsive ---------- */
 @media (max-width: 900px) {
+    .depot-hero-img { height: 220px; }
     .depot-wash-grid { grid-template-columns: 1fr; }
+    .methods-layout { grid-template-columns: 1fr; }
+    .methods-img-wrap { max-width: 320px; margin: 0 auto; }
+    .methods-img { height: 280px; }
     .depot-svc-grid { grid-template-columns: repeat(2, 1fr); }
     .pricing-tables { grid-template-columns: 1fr; }
     .depot-docs-grid { grid-template-columns: 1fr; }
@@ -288,7 +572,13 @@
 }
 
 @media (max-width: 640px) {
+    .depot-hero-img { height: 180px; }
     .depot-svc-grid { grid-template-columns: 1fr; }
     .methods-grid { gap: .6rem; }
     .method-tag { font-size: .9rem; padding: .5rem 1rem; }
+    .dwc-img { height: 140px; }
+    .depot-svc-photo { height: 140px; }
+    .depot-adv-img { height: 140px; }
+    .depot-contact-form .form-row { grid-template-columns: 1fr; }
+    .depot-contact-form { padding: 1.2rem; }
 }
