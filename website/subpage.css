@@ -469,6 +469,132 @@
 }
 
 /* ============================================================
+   PARTNERS PAGE — partner cards (zigzag layout)
+   ============================================================ */
+.partners-section { padding-top: 30px; }
+
+.partner-card {
+    display: flex;
+    align-items: center;
+    gap: 3rem;
+    padding: 2.8rem 2.4rem;
+    margin-bottom: 2.5rem;
+    background: #fff;
+    border-radius: 18px;
+    box-shadow: 0 4px 24px rgba(0,0,0,.06);
+    border: 1px solid rgba(0,0,0,.05);
+}
+
+.partner-card:last-child { margin-bottom: 0; }
+
+.partner-logo-box {
+    flex: 0 0 320px;
+    height: 240px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0.5rem;
+}
+
+.partner-logo {
+    max-width: 100%;
+    max-height: 100%;
+    object-fit: contain;
+}
+
+.partner-content {
+    flex: 1;
+    min-width: 0;
+}
+
+.partner-name {
+    font-family: var(--font-heading);
+    font-size: 1.85rem;
+    font-weight: 700;
+    color: var(--text);
+    margin: 0 0 1.1rem;
+    text-align: right;
+    line-height: 1.25;
+}
+
+.partner-text {
+    font-family: var(--font-body);
+    font-size: 1.05rem;
+    line-height: 1.75;
+    color: var(--text-dark);
+    margin: 0 0 1rem;
+    text-align: right;
+}
+
+.partner-text:last-child { margin-bottom: 0; }
+
+/* Eco-Oil partnership highlight box (Avraham Haviv) */
+.partner-eco-highlight {
+    margin-top: 1.6rem;
+    padding: 1.4rem 1.6rem;
+    background: var(--pill);
+    border-radius: 12px;
+    border-right: 4px solid var(--teal);
+}
+
+.partner-eco-title {
+    font-family: var(--font-heading);
+    font-size: 1.25rem;
+    font-weight: 700;
+    color: var(--text);
+    margin: 0 0 .55rem;
+    text-align: right;
+}
+
+.partner-eco-highlight p {
+    font-family: var(--font-body);
+    font-size: 1rem;
+    line-height: 1.65;
+    color: var(--text-dark);
+    margin: 0;
+    text-align: right;
+}
+
+/* Direct contact phone for each partner */
+.partner-contact {
+    margin-top: 1.5rem;
+    padding-top: 1.2rem;
+    border-top: 1px solid rgba(0,0,0,.08);
+    display: flex;
+    align-items: center;
+    gap: .7rem;
+    flex-wrap: wrap;
+}
+
+.partner-contact-label {
+    font-family: var(--font-body);
+    font-size: 1rem;
+    color: var(--text-mid);
+}
+
+.partner-phone {
+    font-family: var(--font-heading);
+    font-size: 1.2rem;
+    font-weight: 600;
+    color: var(--teal-dark);
+    direction: ltr;
+    unicode-bidi: embed;
+    text-decoration: none;
+    transition: color var(--transition);
+}
+
+.partner-phone:hover,
+.partner-phone:focus-visible {
+    color: var(--teal);
+    text-decoration: underline;
+}
+
+.partner-phone-icon {
+    font-size: 1rem;
+    margin-inline-end: .15rem;
+}
+
+/* ============================================================
    FOOTER — vector image
    ============================================================ */
 .sub-footer {
@@ -493,6 +619,21 @@
 @media (max-width: 900px) {
     .waste-grid { grid-template-columns: 1fr; }
     .treatment-grid { grid-template-columns: 1fr; }
+
+    /* Stack partner cards vertically on tablet/mobile */
+    .partner-card {
+        flex-direction: column;
+        gap: 1.8rem;
+        padding: 2.2rem 1.6rem;
+    }
+    .partner-logo-box {
+        flex: 0 0 auto;
+        width: 100%;
+        max-width: 360px;
+        height: 200px;
+        align-self: center;
+    }
+    .partner-name { font-size: 1.55rem; }
 }
 
 @media (max-width: 640px) {
@@ -503,4 +644,11 @@
     .waste-card-header h3 { font-size: 1.2rem; }
     .waste-card-number { font-size: 1.8rem; }
     .sub-cta-text { font-size: 1.2rem !important; }
+
+    .partner-card { padding: 1.8rem 1.2rem; }
+    .partner-logo-box { height: 150px; padding: 1rem; }
+    .partner-name { font-size: 1.4rem; }
+    .partner-text { font-size: .98rem; }
+    .partner-eco-highlight { padding: 1.1rem 1.2rem; }
+    .partner-eco-title { font-size: 1.15rem; }
 }

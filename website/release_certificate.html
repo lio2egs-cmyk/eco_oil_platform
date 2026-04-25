@@ -1,0 +1,457 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<title>אקו אויל — תעודת שחרור לטנק</title>
+<!-- QR code library -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+<style>
+  /* ====== Page setup ====== */
+  @page { size: A4; margin: 0; }
+  * { box-sizing: border-box; }
+  html, body {
+    margin: 0;
+    padding: 0;
+    background: #e6e6e6;
+    font-family: "Arial", "David", "Tahoma", sans-serif;
+    color: #000;
+    direction: rtl;
+  }
+
+  /* ====== A4 sheet ====== */
+  .sheet {
+    width: 210mm;
+    height: 297mm;
+    margin: 10mm auto;
+    background: #fff;
+    position: relative;
+    padding: 8mm 10mm 6mm 10mm;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+    display: flex;
+    flex-direction: column;
+  }
+
+  /* ====== Decorative side borders (EFTCO style) ====== */
+  .sheet::before,
+  .sheet::after {
+    content: "";
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    width: 8mm;
+    background:
+      repeating-linear-gradient(
+        135deg,
+        #6e7bbf 0px, #6e7bbf 1px,
+        transparent 1px, transparent 4px
+      );
+    opacity: 0.55;
+  }
+  .sheet::before { left: 0; }
+  .sheet::after  { right: 0; }
+
+  /* ====== Watermark ====== */
+  .watermark {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%) rotate(-20deg);
+    font-size: 100px;
+    font-style: italic;
+    color: rgba(120, 120, 120, 0.10);
+    font-weight: bold;
+    letter-spacing: 6px;
+    pointer-events: none;
+    z-index: 0;
+    white-space: nowrap;
+  }
+
+  .content {
+    position: relative;
+    z-index: 1;
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+  }
+
+  /* ====== Top header ====== */
+  .top-header {
+    border: 1px solid #000;
+    display: grid;
+    grid-template-columns: 90px 1fr 90px;
+    align-items: center;
+    background: #fff;
+  }
+  .top-header .logo-cell {
+    padding: 4px;
+    text-align: center;
+    border-left: 1px solid #000;
+  }
+  .top-header .logo-cell img { max-width: 80px; max-height: 60px; }
+  .top-header .right-cell {
+    padding: 4px;
+    text-align: center;
+    border-right: 1px solid #000;
+    font-size: 9px;
+  }
+  .top-header .title-cell { text-align: center; }
+  .top-header .title-bar {
+    background: #000;
+    color: #fff;
+    padding: 6px;
+    font-weight: bold;
+    font-size: 16px;
+  }
+  .top-header .cert-no {
+    background: #000;
+    color: #fff;
+    padding: 6px;
+    font-weight: bold;
+    font-size: 18px;
+    border-top: 1px solid #fff;
+    direction: ltr;
+  }
+  .top-header .subtitle {
+    font-size: 10px;
+    padding: 4px;
+    color: #333;
+  }
+  .top-header .url {
+    font-size: 9px;
+    color: #1a4ea0;
+    padding-bottom: 3px;
+    direction: ltr;
+  }
+  .qr-box {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    padding: 4px;
+  }
+  #qrcode { width: 70px; height: 70px; }
+  #qrcode img, #qrcode canvas { width: 70px !important; height: 70px !important; }
+  .tank-no {
+    text-align: center;
+    font-size: 10px;
+    margin-top: 2px;
+    direction: ltr;
+    font-weight: bold;
+  }
+
+  /* ====== Main form table ====== */
+  table.form {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 13px;
+    flex: 1;
+  }
+  table.form td {
+    border: 1px solid #000;
+    padding: 8px 10px;
+    vertical-align: top;
+    background: #fff;
+  }
+  td.idx {
+    width: 30px;
+    text-align: center;
+    font-weight: bold;
+  }
+  .field-label {
+    font-weight: bold;
+    font-size: 13px;
+    margin-bottom: 4px;
+  }
+  .field-value {
+    font-size: 13px;
+    padding-top: 2px;
+    min-height: 22px;
+  }
+  /* Big field heights to fill A4 */
+  .row-tall  td { height: 50px; }
+  .row-xtall td { height: 70px; }
+  .row-comments td { height: 90px; }
+
+  /* Tank number prominent block */
+  .tank-block {
+    border: 1px solid #000;
+    border-top: none;
+    background: #f7f7f7;
+    padding: 12px;
+    text-align: center;
+  }
+  .tank-block .lbl { font-size: 13px; font-weight: bold; }
+  .tank-block .val {
+    font-size: 26px;
+    font-weight: bold;
+    letter-spacing: 2px;
+    direction: ltr;
+    margin-top: 4px;
+  }
+
+  /* Signature & Stamp row */
+  .sig-stamp-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    margin-top: 2px;
+  }
+  .sig-stamp-cell {
+    padding: 8px 14px 10px 14px;
+    text-align: center;
+  }
+  .sig-stamp-cell + .sig-stamp-cell {
+    border-right: 1px solid #ccc;
+  }
+  .sig-stamp-img-wrap {
+    height: 120px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 4px;
+  }
+  .sig-stamp-img-wrap img {
+    max-height: 110px;
+    max-width: 90%;
+    object-fit: contain;
+  }
+  .sig-stamp-divider {
+    border-top: 1px solid #000;
+    margin: 4px 10%;
+  }
+  .sig-stamp-caption {
+    font-weight: bold;
+    font-size: 12px;
+    margin-top: 4px;
+  }
+
+  /* Greeting */
+  .greeting {
+    text-align: center;
+    padding: 8px;
+    font-size: 13px;
+    background: #fff;
+    border: 1px solid #000;
+    border-top: none;
+  }
+
+  /* Print styles */
+  @media print {
+    body { background: #fff; }
+    .sheet { box-shadow: none; margin: 0; }
+    .no-print { display: none !important; }
+  }
+
+  /* Toolbar (manual mode helper) */
+  .toolbar {
+    max-width: 210mm;
+    margin: 6mm auto 0 auto;
+    padding: 8px;
+    background: #fff;
+    border: 1px solid #ccc;
+    border-radius: 4px;
+    font-size: 12px;
+    display: flex;
+    gap: 8px;
+    align-items: center;
+    direction: rtl;
+  }
+  .toolbar button {
+    padding: 6px 12px;
+    cursor: pointer;
+    border: 1px solid #888;
+    background: #f5f5f5;
+    border-radius: 3px;
+  }
+  .toolbar button:hover { background: #eaeaea; }
+
+  [contenteditable="true"]:hover { background: #fffbe6; }
+  [contenteditable="true"]:focus { background: #fff7c0; outline: 1px dashed #c0a000; }
+</style>
+</head>
+<body>
+
+<!-- ====== Toolbar ====== -->
+<div class="toolbar no-print">
+  <strong>מצב מילוי ידני:</strong>
+  <button onclick="window.print()">הדפסה / שמירה כ-PDF</button>
+  <button onclick="toggleEdit()">החלפת מצב עריכה</button>
+  <span style="margin-right:auto;color:#666;">לחיצה על כל ערך לעריכה.</span>
+</div>
+
+<!-- ====== A4 sheet ====== -->
+<div class="sheet">
+  <div class="watermark">Eco Oil</div>
+  <div class="content">
+
+    <!-- ============ Top header ============ -->
+    <div class="top-header">
+      <div class="logo-cell">
+        <img src="images/cert/eco-oil-logo.png" alt="Eco Oil">
+      </div>
+      <div class="title-cell">
+        <div class="title-bar">תעודת שחרור לטנק (איזוטנק)</div>
+        <div class="cert-no" data-field="cert_number" contenteditable="false">ECO-REL-2026-0001</div>
+        <div class="subtitle">תעודה רשמית — אקו אויל חץ וירומטל בע"מ</div>
+        <div class="url">www.eco-oil.co.il</div>
+      </div>
+      <div class="right-cell">
+        <div class="qr-box"><div id="qrcode"></div></div>
+        <div class="tank-no" data-field="tank_no_top" contenteditable="false">RLTU2615055</div>
+      </div>
+    </div>
+
+    <!-- ============ Tank number block ============ -->
+    <div class="tank-block">
+      <div class="lbl">מספר טנק (איזוטנק):</div>
+      <div class="val" data-field="tank_number" contenteditable="false">RLTU2615055</div>
+    </div>
+
+    <!-- ============ Form table ============ -->
+    <table class="form">
+
+      <!-- 1 - תחנת שחרור -->
+      <tr class="row-tall">
+        <td class="idx">1</td>
+        <td>
+          <div class="field-label">תחנת שחרור</div>
+          <div class="field-value" data-field="station" contenteditable="false">
+            אקו אויל חץ וירומטל בע"מ&nbsp;|&nbsp;
+            רחוב המסילה 1, נשר&nbsp;|&nbsp;
+            ת.ד. 116, נשר 3660101&nbsp;|&nbsp;
+            טל': +972-54-323-2617&nbsp;|&nbsp;
+            shtifot@eco-oil.co.il
+          </div>
+        </td>
+      </tr>
+
+      <!-- 2 - חברת ההובלה -->
+      <tr class="row-tall">
+        <td class="idx">2</td>
+        <td>
+          <div class="field-label">חברת ההובלה:</div>
+          <div class="field-value" data-field="carrier" contenteditable="false">&nbsp;</div>
+        </td>
+      </tr>
+
+      <!-- 3 - צפי יציאה -->
+      <tr class="row-tall">
+        <td class="idx">3</td>
+        <td>
+          <div class="field-label">צפי יציאה:</div>
+          <div class="field-value" data-field="expected_departure" contenteditable="false">&nbsp;</div>
+        </td>
+      </tr>
+
+      <!-- 4 - באחסון מתאריך -->
+      <tr class="row-tall">
+        <td class="idx">4</td>
+        <td>
+          <div class="field-label">באחסון מתאריך:</div>
+          <div class="field-value" data-field="storage_from" contenteditable="false">&nbsp;</div>
+        </td>
+      </tr>
+
+      <!-- 5 - יעד -->
+      <tr class="row-tall">
+        <td class="idx">5</td>
+        <td>
+          <div class="field-label">יעד:</div>
+          <div class="field-value" data-field="destination" contenteditable="false">&nbsp;</div>
+        </td>
+      </tr>
+
+      <!-- 6 - הערות -->
+      <tr class="row-comments">
+        <td class="idx">6</td>
+        <td>
+          <div class="field-label">הערות:</div>
+          <div class="field-value" data-field="comments" contenteditable="false">&nbsp;</div>
+        </td>
+      </tr>
+
+      <!-- 7 - חתימה וחותמת -->
+      <tr>
+        <td class="idx">7</td>
+        <td>
+          <div class="field-label">חתימה וחותמת</div>
+          <div class="sig-stamp-grid">
+            <div class="sig-stamp-cell">
+              <div class="sig-stamp-img-wrap">
+                <img src="images/cert/signature-yoav.png" alt="חתימת מנכ&quot;ל">
+              </div>
+              <div class="sig-stamp-divider"></div>
+              <div class="sig-stamp-caption">חתימת מנכ"ל – אקו אויל</div>
+            </div>
+            <div class="sig-stamp-cell">
+              <div class="sig-stamp-img-wrap">
+                <img src="images/cert/stamp.png" alt="חותמת החברה">
+              </div>
+              <div class="sig-stamp-divider"></div>
+              <div class="sig-stamp-caption">חותמת החברה</div>
+            </div>
+          </div>
+        </td>
+      </tr>
+
+      <!-- Greeting -->
+      <tr>
+        <td colspan="2" style="text-align:center;font-weight:bold;font-size:13px;">
+          בברכה,&nbsp;&nbsp;&nbsp;אקו אויל חץ וירומטל בע"מ
+        </td>
+      </tr>
+
+      <!-- 8 - Footer -->
+      <tr>
+        <td colspan="2" style="padding:8px;text-align:center;background:#fff;">
+          <img src="images/cert/footer-contact.png" alt="פרטי קשר אקו אויל" style="max-width:95%;height:auto;">
+        </td>
+      </tr>
+      <tr>
+        <td colspan="2" style="padding:4px 8px;background:#fff;font-size:9px;color:#444;">
+          <div style="display:flex;justify-content:space-between;align-items:center;direction:ltr;">
+            <span>1 / 1</span>
+            <span>Printed on <span id="print_date"></span> · status <strong>SIGNED</strong> · www.eco-oil.co.il</span>
+          </div>
+        </td>
+      </tr>
+
+    </table>
+
+  </div><!-- /.content -->
+</div><!-- /.sheet -->
+
+<script>
+  // ====== QR code ======
+  (function() {
+    var certNo = document.querySelector('[data-field="cert_number"]').textContent.trim();
+    // Future per-cert URL pattern:
+    // var url = "https://www.eco-oil.co.il/release/" + encodeURIComponent(certNo);
+    var url = "https://www.eco-oil.co.il";
+    new QRCode(document.getElementById("qrcode"), {
+      text: url,
+      width: 70,
+      height: 70,
+      colorDark: "#000",
+      colorLight: "#fff",
+      correctLevel: QRCode.CorrectLevel.M
+    });
+  })();
+
+  // ====== Print date ======
+  (function() {
+    var d = new Date();
+    var pad = function(n){ return n<10 ? '0'+n : n; };
+    var s = pad(d.getDate())+'/'+pad(d.getMonth()+1)+'/'+d.getFullYear()+
+            ' '+pad(d.getHours())+':'+pad(d.getMinutes());
+    document.getElementById('print_date').textContent = s;
+  })();
+
+  // ====== Manual mode helpers ======
+  function toggleEdit() {
+    var fields = document.querySelectorAll('[data-field]');
+    var on = fields[0].getAttribute('contenteditable') !== 'true';
+    fields.forEach(function(el){ el.setAttribute('contenteditable', on ? 'true' : 'false'); });
+  }
+</script>
+
+</body>
+</html>

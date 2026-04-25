@@ -1,0 +1,600 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Eco Oil — Cleaning Certificate</title>
+<!-- QR code library (works offline if cached). Replace with local copy for production. -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+<style>
+  /* ====== Page setup ====== */
+  @page { size: A4; margin: 0; }
+  * { box-sizing: border-box; }
+  html, body {
+    margin: 0;
+    padding: 0;
+    background: #e6e6e6;
+    font-family: Arial, Helvetica, sans-serif;
+    color: #000;
+  }
+
+  /* ====== A4 sheet ====== */
+  .sheet {
+    width: 210mm;
+    min-height: 297mm;
+    margin: 10mm auto;
+    background: #fff;
+    position: relative;
+    padding: 8mm 10mm 6mm 10mm;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+  }
+
+  /* ====== Decorative side borders (EFTCO style) ====== */
+  .sheet::before,
+  .sheet::after {
+    content: "";
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    width: 8mm;
+    background:
+      repeating-linear-gradient(
+        135deg,
+        #6e7bbf 0px, #6e7bbf 1px,
+        transparent 1px, transparent 4px
+      );
+    opacity: 0.55;
+  }
+  .sheet::before { left: 0; }
+  .sheet::after  { right: 0; }
+
+  /* ====== Watermark ====== */
+  .watermark {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%) rotate(-20deg);
+    font-size: 90px;
+    font-style: italic;
+    color: rgba(120, 120, 120, 0.10);
+    font-weight: bold;
+    letter-spacing: 6px;
+    pointer-events: none;
+    z-index: 0;
+    white-space: nowrap;
+  }
+
+  .content { position: relative; z-index: 1; }
+
+  /* ====== Top header ====== */
+  .top-header {
+    border: 1px solid #000;
+    display: grid;
+    grid-template-columns: 90px 1fr 90px;
+    align-items: center;
+    background: #fff;
+  }
+  .top-header .logo-cell {
+    padding: 4px;
+    text-align: center;
+    border-right: 1px solid #000;
+  }
+  .top-header .logo-cell img { max-width: 80px; max-height: 50px; }
+  .top-header .right-cell {
+    padding: 4px;
+    text-align: center;
+    border-left: 1px solid #000;
+    font-size: 9px;
+  }
+  .top-header .title-cell {
+    text-align: center;
+  }
+  .top-header .title-bar {
+    background: #000;
+    color: #fff;
+    padding: 4px;
+    font-weight: bold;
+    font-size: 14px;
+  }
+  .top-header .cert-no {
+    background: #000;
+    color: #fff;
+    padding: 4px;
+    font-weight: bold;
+    font-size: 18px;
+    border-top: 1px solid #fff;
+  }
+  .top-header .subtitle {
+    font-size: 9px;
+    padding: 3px;
+    color: #333;
+  }
+  .top-header .url {
+    font-size: 8px;
+    color: #1a4ea0;
+    padding-bottom: 2px;
+  }
+
+  /* ====== Main form table ====== */
+  table.form {
+    width: 100%;
+    border-collapse: collapse;
+    margin-top: 0;
+    font-size: 11px;
+  }
+  table.form td {
+    border: 1px solid #000;
+    padding: 4px 6px;
+    vertical-align: top;
+  }
+  td.idx {
+    width: 22px;
+    text-align: center;
+    font-weight: bold;
+    background: #fff;
+  }
+  td.label {
+    font-weight: bold;
+    background: #fff;
+    width: auto;
+  }
+  td.value {
+    min-height: 22px;
+    background: #fff;
+  }
+  .field-label {
+    font-weight: bold;
+    font-size: 11px;
+  }
+  .field-value {
+    font-size: 11px;
+    padding-top: 2px;
+    min-height: 16px;
+  }
+
+  /* row helpers */
+  .two-col { display: grid; grid-template-columns: 1fr 1fr; }
+  .two-col > div { padding: 4px 6px; }
+  .two-col > div + div { border-left: 1px solid #000; }
+
+  /* QR cell */
+  .qr-box {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    padding: 4px;
+  }
+  #qrcode { width: 70px; height: 70px; }
+  #qrcode img, #qrcode canvas { width: 70px !important; height: 70px !important; }
+  .equipment-id {
+    text-align: center;
+    font-size: 9px;
+    margin-top: 2px;
+  }
+
+  /* Cleaning procedures - codes */
+  .codes-grid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 0;
+  }
+  .code-item {
+    display: grid;
+    grid-template-columns: 18px 70px 1fr;
+    border-bottom: 1px solid #ddd;
+    padding: 2px 4px;
+    font-size: 10px;
+    align-items: center;
+  }
+  .code-item .chk {
+    width: 14px;
+    height: 14px;
+    border: 1px solid #000;
+    text-align: center;
+    font-weight: bold;
+    background: #fff;
+    line-height: 12px;
+  }
+  .code-item .code { font-weight: bold; }
+  .code-item .desc { color: #222; }
+
+  /* Additional services */
+  .services-grid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 0;
+  }
+  .svc-item {
+    display: grid;
+    grid-template-columns: 1fr 18px;
+    border-bottom: 1px solid #ddd;
+    padding: 2px 6px;
+    font-size: 10px;
+    align-items: center;
+  }
+  .svc-item .chk {
+    width: 14px;
+    height: 14px;
+    border: 1px solid #000;
+    text-align: center;
+    font-weight: bold;
+    background: #fff;
+    line-height: 12px;
+    justify-self: end;
+  }
+
+  /* Signature & Stamp row (section 12) */
+  .sig-stamp-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    margin-top: 4px;
+  }
+  .sig-stamp-cell {
+    padding: 6px 12px 8px 12px;
+    text-align: center;
+  }
+  .sig-stamp-cell + .sig-stamp-cell {
+    border-left: 1px solid #ccc;
+  }
+  .sig-stamp-img-wrap {
+    height: 110px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 4px;
+  }
+  .sig-stamp-img-wrap img {
+    max-height: 100px;
+    max-width: 90%;
+    object-fit: contain;
+  }
+  .sig-stamp-divider {
+    border-top: 1px solid #000;
+    margin: 4px 10%;
+  }
+  .sig-stamp-caption {
+    font-weight: bold;
+    font-size: 11px;
+    margin-top: 4px;
+  }
+
+  .declaration {
+    background: #fff;
+    border: 1px solid #000;
+    padding: 4px 8px;
+    font-size: 11px;
+    border-top: none;
+  }
+
+  /* Footer */
+  .footer {
+    margin-top: 6px;
+    text-align: center;
+    font-size: 9px;
+    color: #444;
+    border-top: 1px solid #000;
+    padding-top: 4px;
+  }
+  .footer img { max-width: 90%; height: auto; }
+  .print-info {
+    font-size: 8px;
+    color: #555;
+    text-align: center;
+    margin-top: 4px;
+  }
+  .page-num {
+    position: absolute;
+    right: 12mm;
+    bottom: 4mm;
+    font-size: 9px;
+    color: #444;
+  }
+
+  /* Print styles */
+  @media print {
+    body { background: #fff; }
+    .sheet { box-shadow: none; margin: 0; }
+    .no-print { display: none !important; }
+  }
+
+  /* Toolbar (manual mode helper) */
+  .toolbar {
+    max-width: 210mm;
+    margin: 6mm auto 0 auto;
+    padding: 8px;
+    background: #fff;
+    border: 1px solid #ccc;
+    border-radius: 4px;
+    font-size: 12px;
+    display: flex;
+    gap: 8px;
+    align-items: center;
+  }
+  .toolbar button {
+    padding: 6px 12px;
+    cursor: pointer;
+    border: 1px solid #888;
+    background: #f5f5f5;
+    border-radius: 3px;
+  }
+  .toolbar button:hover { background: #eaeaea; }
+
+  /* Editable fields highlight (manual mode) */
+  [contenteditable="true"]:hover { background: #fffbe6; }
+  [contenteditable="true"]:focus { background: #fff7c0; outline: 1px dashed #c0a000; }
+</style>
+</head>
+<body>
+
+<!-- ====== Toolbar (only visible on screen) ====== -->
+<div class="toolbar no-print">
+  <strong>Manual mode:</strong>
+  <button onclick="window.print()">Print / Save as PDF</button>
+  <button onclick="toggleEdit()">Toggle edit</button>
+  <span style="margin-left:auto;color:#666;">Click any value to edit. Click checkboxes to toggle ✓.</span>
+</div>
+
+<!-- ====== A4 sheet ====== -->
+<div class="sheet">
+  <div class="watermark">Eco Oil</div>
+  <div class="content">
+
+    <!-- ============ Top header ============ -->
+    <div class="top-header">
+      <div class="logo-cell">
+        <img src="images/cert/eco-oil-logo.png" alt="Eco Oil">
+      </div>
+      <div class="title-cell">
+        <div class="title-bar">Cleaning Certificate</div>
+        <div class="cert-no" data-field="cert_number" contenteditable="false">ECO-2026-0001</div>
+        <div class="subtitle">Eco Oil Original Cleaning Certificate — please check validity online via QR code</div>
+        <div class="url">www.eco-oil.co.il</div>
+      </div>
+      <div class="right-cell">
+        <div class="qr-box"><div id="qrcode"></div></div>
+        <div class="equipment-id" data-field="equipment_id_top">034480673</div>
+      </div>
+    </div>
+
+    <!-- ============ Form table ============ -->
+    <table class="form">
+
+      <!-- 1 - Cleaning station -->
+      <tr>
+        <td class="idx">1</td>
+        <td colspan="3">
+          <div class="field-label">Cleaning station</div>
+          <div class="field-value" data-field="station" contenteditable="false">
+            Eco Oil Arrow Virometal Ltd.<br>
+            27 Haashlag St., Haifa 3660101<br>
+            P.O. Box 116, Nesher, 3660101<br>
+            P: +972-54-3232617<br>
+            Website: www.eco-oil.co.il
+          </div>
+        </td>
+      </tr>
+
+      <!-- 2 / 3 - Customer ref / Internal ref -->
+      <tr>
+        <td class="idx">2</td>
+        <td style="width:48%;">
+          <div class="field-label">Customer ref. number</div>
+          <div class="field-value" data-field="customer_ref" contenteditable="false">CS56432163</div>
+        </td>
+        <td class="idx">3</td>
+        <td>
+          <div class="field-label">Internal ref.</div>
+          <div class="field-value" data-field="internal_ref" contenteditable="false">Y42152J</div>
+        </td>
+      </tr>
+
+      <!-- 4 / 5 - Customer / Identification numbers -->
+      <tr>
+        <td class="idx">4</td>
+        <td>
+          <div class="field-label">Customer</div>
+          <div class="field-value" data-field="customer" contenteditable="false">
+            TANKO<br>
+            Address: ____________________
+          </div>
+        </td>
+        <td class="idx">5</td>
+        <td>
+          <div class="field-label">Identification numbers</div>
+          <div class="field-value">
+            <strong>Equipment type:</strong>
+            <span data-field="equipment_type" contenteditable="false">ISOTANK</span><br><br>
+            <strong>Equipment N°:</strong>
+            <span data-field="equipment_no" contenteditable="false">HGTU2402716</span>
+          </div>
+        </td>
+      </tr>
+
+      <!-- 6 - Nature of product -->
+      <tr>
+        <td class="idx">6</td>
+        <td colspan="3">
+          <div class="field-label">Nature of product</div>
+          <div class="field-value" data-field="nature" contenteditable="false">CHEMICAL</div>
+        </td>
+      </tr>
+
+      <!-- 7 - Previous load -->
+      <tr>
+        <td class="idx">7</td>
+        <td colspan="3">
+          <div class="field-label">Previous load</div>
+          <table style="width:100%;border-collapse:collapse;margin-top:4px;font-size:10px;">
+            <thead>
+              <tr style="background:#f0f0f0;">
+                <td style="border:1px solid #000;width:10%;text-align:center;"><strong>Comp</strong></td>
+                <td style="border:1px solid #000;width:18%;"><strong>UN N°</strong></td>
+                <td style="border:1px solid #000;"><strong>Name</strong></td>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td style="border:1px solid #000;text-align:center;" data-field="prev_comp" contenteditable="false">1</td>
+                <td style="border:1px solid #000;" data-field="prev_un" contenteditable="false">&nbsp;</td>
+                <td style="border:1px solid #000;" data-field="prev_name" contenteditable="false">PETRELAB 550Q</td>
+              </tr>
+            </tbody>
+          </table>
+        </td>
+      </tr>
+
+      <!-- 8 - Cleaning procedures (EFTCO codes + descriptions) -->
+      <tr>
+        <td class="idx">8</td>
+        <td colspan="3">
+          <div class="field-label">Cleaning procedures (EFTCO codes)</div>
+          <div class="codes-grid">
+            <div class="code-item"><div class="chk" data-chk="F01">✓</div><div class="code">F01</div><div class="desc">Cold water</div></div>
+            <div class="code-item"><div class="chk" data-chk="F02">✓</div><div class="code">F02</div><div class="desc">Hot water</div></div>
+            <div class="code-item"><div class="chk" data-chk="F08">✓</div><div class="code">F08</div><div class="desc">Detergent</div></div>
+            <div class="code-item"><div class="chk" data-chk="E95">✓</div><div class="code">E95</div><div class="desc">Steam</div></div>
+            <div class="code-item"><div class="chk" data-chk="F60"></div><div class="code">F60</div><div class="desc">Acetone</div></div>
+            <div class="code-item"><div class="chk" data-chk="F61"></div><div class="code">F61</div><div class="desc">Xylene</div></div>
+            <div class="code-item"><div class="chk" data-chk="F95">✓</div><div class="code">F95</div><div class="desc">Drying</div></div>
+            <div class="code-item"><div class="chk" data-chk="T45"></div><div class="code">T45</div><div class="desc">Visual inspection</div></div>
+          </div>
+        </td>
+      </tr>
+
+      <!-- 9 - Additional services -->
+      <tr>
+        <td class="idx">9</td>
+        <td colspan="3">
+          <div class="field-label">Additional services</div>
+          <div class="services-grid">
+            <div class="svc-item"><span>Transportation</span><div class="chk" data-chk="transportation"></div></div>
+            <div class="svc-item"><span>Photo set</span><div class="chk" data-chk="photoset">✓</div></div>
+            <div class="svc-item"><span>Polish</span><div class="chk" data-chk="polish"></div></div>
+            <div class="svc-item"><span>Vacuum test</span><div class="chk" data-chk="vacuum">✓</div></div>
+            <div class="svc-item"><span>Repair</span><div class="chk" data-chk="repair"></div></div>
+            <div class="svc-item"><span>Storage</span><div class="chk" data-chk="storage">✓</div></div>
+            <div class="svc-item"><span>Test</span><div class="chk" data-chk="test"></div></div>
+            <div class="svc-item"><span>Maintenance</span><div class="chk" data-chk="maintenance"></div></div>
+          </div>
+        </td>
+      </tr>
+
+      <!-- 10 - Comments -->
+      <tr>
+        <td class="idx">10</td>
+        <td colspan="3">
+          <div class="field-label">Comments</div>
+          <div class="field-value" data-field="comments" contenteditable="false">pump checked and ok as requested</div>
+        </td>
+      </tr>
+
+      <!-- 11 - Date / Time -->
+      <tr>
+        <td class="idx">11</td>
+        <td colspan="3">
+          <div class="two-col">
+            <div>
+              <div class="field-label">Date, Time in</div>
+              <div class="field-value" data-field="time_in" contenteditable="false">05/03/2026 12:32</div>
+            </div>
+            <div>
+              <div class="field-label">End of Cleaning — Date, Time out</div>
+              <div class="field-value" data-field="time_out" contenteditable="false">05/03/2026 13:15</div>
+            </div>
+          </div>
+        </td>
+      </tr>
+
+      <!-- Declaration -->
+      <tr>
+        <td colspan="4" class="declaration">
+          The cleaning station and the driver confirm that the above service(s) to clean the tank have been carried out.
+        </td>
+      </tr>
+
+      <!-- 12 - Cleaning station signature & stamp -->
+      <tr>
+        <td class="idx">12</td>
+        <td colspan="3">
+          <div class="field-label">Cleaning station</div>
+          <div class="sig-stamp-grid">
+            <div class="sig-stamp-cell">
+              <div class="sig-stamp-img-wrap">
+                <img src="images/cert/signature-yoav.png" alt="CEO Signature">
+              </div>
+              <div class="sig-stamp-divider"></div>
+              <div class="sig-stamp-caption">CEO Signature – Eco Oil</div>
+            </div>
+            <div class="sig-stamp-cell">
+              <div class="sig-stamp-img-wrap">
+                <img src="images/cert/stamp.png" alt="Company Stamp">
+              </div>
+              <div class="sig-stamp-divider"></div>
+              <div class="sig-stamp-caption">Company Stamp</div>
+            </div>
+          </div>
+        </td>
+      </tr>
+
+      <!-- Footer (inside the bordered frame) -->
+      <tr>
+        <td colspan="4" style="padding:6px 8px;text-align:center;background:#fff;">
+          <img src="images/cert/footer-contact.png" alt="Eco Oil contact" style="max-width:95%;height:auto;">
+        </td>
+      </tr>
+      <tr>
+        <td colspan="4" style="padding:4px 8px;background:#fff;font-size:9px;color:#444;">
+          <div style="display:flex;justify-content:space-between;align-items:center;">
+            <span>Printed on <span id="print_date"></span> with status <strong>SIGNED</strong> by Eco Oil — www.eco-oil.co.il</span>
+            <span style="font-weight:bold;">1 / 1</span>
+          </div>
+        </td>
+      </tr>
+    </table>
+
+  </div><!-- /.content -->
+</div><!-- /.sheet -->
+
+<script>
+  // ====== QR code ======
+  // Today: links to company website. Later: replace with per-cert URL.
+  (function() {
+    var certNo = document.querySelector('[data-field="cert_number"]').textContent.trim();
+    // Future per-cert URL pattern:
+    // var url = "https://www.eco-oil.co.il/cert/" + encodeURIComponent(certNo);
+    var url = "https://www.eco-oil.co.il";
+    new QRCode(document.getElementById("qrcode"), {
+      text: url,
+      width: 70,
+      height: 70,
+      colorDark: "#000",
+      colorLight: "#fff",
+      correctLevel: QRCode.CorrectLevel.M
+    });
+  })();
+
+  // ====== Print date ======
+  (function() {
+    var d = new Date();
+    var pad = function(n){ return n<10 ? '0'+n : n; };
+    var s = pad(d.getDate())+'/'+pad(d.getMonth()+1)+'/'+d.getFullYear()+
+            ' '+pad(d.getHours())+':'+pad(d.getMinutes())+' (UTC'+
+            (d.getTimezoneOffset()<=0?'+':'-')+Math.abs(d.getTimezoneOffset()/60)+')';
+    document.getElementById('print_date').textContent = s;
+  })();
+
+  // ====== Manual mode helpers ======
+  function toggleEdit() {
+    var fields = document.querySelectorAll('[data-field]');
+    var on = fields[0].getAttribute('contenteditable') !== 'true';
+    fields.forEach(function(el){ el.setAttribute('contenteditable', on ? 'true' : 'false'); });
+  }
+  // Toggle ✓ on checkboxes
+  document.querySelectorAll('.chk').forEach(function(el){
+    el.addEventListener('click', function(){
+      el.textContent = el.textContent.trim() === '✓' ? '' : '✓';
+    });
+  });
+</script>
+
+</body>
+</html>

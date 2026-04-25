@@ -188,6 +188,98 @@ The website includes (or will include) \*\*two fully separate client portals\*\*
 
 
 
+\## Certificates (Cleaning & Release) — Built April 2026
+
+Two A4-format certificate templates were built as standalone HTML files. They are designed to work in two modes: \*\*manual fill\*\* (via browser) now, and \*\*system-generated\*\* (from the management system) later.
+
+
+
+\### Files
+
+\- `cleaning_certificate.html` — \*\*English\*\*, EFTCO-inspired design.
+
+\- `release_certificate.html` — \*\*Hebrew (RTL)\*\*, same design language.
+
+\- Shared assets in `images/cert/`: `eco-oil-logo.png`, `stamp.png`, `signature-yoav.png`, `footer-contact.png`.
+
+
+
+\### Design language (shared)
+
+\- Decorative diagonal-stripe side borders (mimicking EFTCO's certificates).
+
+\- Black header bar with title + certificate number prominently displayed.
+
+\- Numbered fields in a bordered table.
+
+\- "Eco Oil" diagonal watermark.
+
+\- Footer with contact info \*\*inside\*\* the same black frame (not outside).
+
+\- Bottom-right: CEO signature (image of Yoav Toueg's signature) + Company stamp, each with a horizontal divider above and a caption below ("CEO Signature – Eco Oil" / "Company Stamp" — or Hebrew equivalents).
+
+\- QR code top-right (top-left in RTL).
+
+
+
+\### Key decisions
+
+\- \*\*Cleaning certificate\*\* mimics the EFTCO international format because Eco Oil plans to apply for EFTCO membership later. Visual similarity now means smooth transition when membership is approved.
+
+\- \*\*Compliancy score / stars block from EFTCO is intentionally removed\*\* — only relevant once Eco Oil is an EFTCO member. Add it back at that point.
+
+\- \*\*Cleaning codes\*\* use the format `F02 - Hot water` (EFTCO code + description). Codes used: F01, F02, F08, E95, F60, F61, F95, T45 — these should be verified against the official EFTCO code list before going live.
+
+\- \*\*Certificate numbering:\*\* `ECO-YYYY-NNNN` for cleaning, `ECO-REL-YYYY-NNNN` for release. Tank/equipment number is shown separately (Equipment N° field on cleaning, prominent block on release).
+
+\- \*\*QR code\*\* currently links to `https://www.eco-oil.co.il` (static). When the management system is live, switch to per-certificate URLs like `https://www.eco-oil.co.il/cert/<cert_number>` (cleaning) or `/release/<cert_number>`. The placeholder pattern is already in the JS comment in each file.
+
+\- \*\*Two different addresses are correct, do not "fix" them:\*\*
+
+&#x20;  - Cleaning certificate: \*\*27 Haashlag St., Haifa\*\* (cleaning facility location).
+
+&#x20;  - Release certificate: \*\*1 Hamesila St., Nesher\*\* (storage yard location).
+
+\- \*\*Phone in section 1\*\* on release cert intentionally matches the footer: `+972-54-323-2617`.
+
+\- \*\*Cleaning cert language: English\*\* (international transport context). \*\*Release cert language: Hebrew\*\* (handed to Israeli truck drivers).
+
+
+
+\### Cleaning certificate fields (13 numbered)
+
+1\. Cleaning station, 2. Customer ref. number, 3. Internal ref., 4. Customer, 5. Identification numbers (Equipment type + N°), 6. Nature of product, 7. Previous load (Comp / UN N° / Name), 8. Cleaning procedures (EFTCO codes), 9. Additional services (Transportation, Polish, Repair, Test, Maintenance, Photo set, Vacuum test, Storage), 10. Comments, 11. Date Time in / End of Cleaning, 12. Cleaning station signature + stamp.
+
+
+
+Note: original EFTCO sections 7 (Next load) and 12 (Cleaner name) and 16 (Compliancy score) were intentionally removed at the CEO's request. Numbering is renumbered 1–12 (sequential, no gaps).
+
+
+
+\### Release certificate fields (Hebrew, 6 numbered)
+
+1\. תחנת שחרור (release station), 2. חברת ההובלה (transport company), 3. צפי יציאה (expected departure), 4. באחסון מתאריך (in storage from date), 5. יעד (destination), 6. הערות (comments). Then section 7 = signature + stamp (matching cleaning cert's pattern).
+
+
+
+\### Manual fill mode
+
+Both files include a top toolbar (`.no-print`) with two buttons: "Print / Save as PDF" and "Toggle edit". When edit mode is on, every value field becomes `contenteditable` and checkboxes toggle ✓ on click. The toolbar is hidden in print.
+
+
+
+\### When integrating with the management system
+
+Each fillable field has a `data-field="..."` attribute (e.g. `data-field="customer_ref"`, `data-field="tank_number"`). The system can target these by selector and replace the inner text. Checkbox states are toggled by setting the `.chk` element's text content to `'✓'` or `''`.
+
+
+
+\### Image preparation note
+
+The signature and stamp PNGs originally had large transparent margins, which made them appear tiny inside the layout. They were auto-cropped to their content bounding box (with 15px padding) using PIL/numpy. If new versions of these images are added, they should be cropped the same way for consistent visual proportion.
+
+
+
 \## Golden Rules
 
 1\. One step at a time. Wait for confirmation.

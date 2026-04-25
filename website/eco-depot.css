@@ -293,6 +293,181 @@
 
 .depot-doc p { font-size: .95rem !important; }
 
+/* ---------- Clickable doc cards ---------- */
+.depot-docs-hint {
+    text-align: center;
+    font-family: var(--font-body);
+    font-size: .98rem !important;
+    color: var(--text-mid) !important;
+    margin: -.4rem 0 1.4rem !important;
+    font-style: italic;
+}
+
+.depot-doc--clickable {
+    cursor: pointer;
+    text-align: right;
+    font-family: inherit;
+    color: inherit;
+    width: 100%;
+    transition: transform var(--transition), box-shadow var(--transition), border-color var(--transition);
+}
+
+.depot-doc--clickable:hover,
+.depot-doc--clickable:focus-visible {
+    transform: translateY(-3px);
+    box-shadow: 0 8px 22px rgba(0,0,0,.10);
+    border-color: var(--teal);
+    outline: none;
+}
+
+.depot-doc-cta {
+    display: block;
+    margin-top: .9rem;
+    font-family: var(--font-heading);
+    font-size: .98rem;
+    font-weight: 600;
+    color: var(--teal-dark);
+}
+
+/* ---------- Certificate lightbox ---------- */
+.cert-lightbox {
+    position: fixed;
+    inset: 0;
+    z-index: 1000;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 2rem 1rem;
+}
+
+.cert-lightbox[hidden] { display: none; }
+
+.cert-lightbox-backdrop {
+    position: absolute;
+    inset: 0;
+    background: rgba(0,0,0,.72);
+    backdrop-filter: blur(2px);
+    cursor: pointer;
+}
+
+.cert-lightbox-content {
+    position: relative;
+    background: #fff;
+    border-radius: 12px;
+    padding: 2.2rem 1.6rem 1.6rem;
+    max-width: 720px;
+    width: 100%;
+    max-height: 92vh;
+    overflow-y: auto;
+    box-shadow: 0 20px 60px rgba(0,0,0,.4);
+}
+
+.cert-lightbox-title {
+    font-family: var(--font-heading);
+    font-size: 1.35rem;
+    font-weight: 700;
+    color: var(--text);
+    margin: 0 0 1rem;
+    text-align: center;
+}
+
+.cert-lightbox-close {
+    position: absolute;
+    top: .4rem;
+    left: .4rem;
+    width: 40px;
+    height: 40px;
+    border: 0;
+    background: transparent;
+    font-size: 2rem;
+    line-height: 1;
+    color: var(--text-mid);
+    cursor: pointer;
+    border-radius: 50%;
+    transition: background var(--transition), color var(--transition);
+}
+
+.cert-lightbox-close:hover,
+.cert-lightbox-close:focus-visible {
+    background: rgba(0,0,0,.06);
+    color: var(--text);
+    outline: none;
+}
+
+.cert-lightbox-img {
+    display: block;
+    width: 100%;
+    height: auto;
+    border-radius: 6px;
+    border: 1px solid rgba(0,0,0,.08);
+}
+
+.cert-lightbox-img[hidden],
+.cert-lightbox-gallery[hidden],
+.cert-lightbox-pages[hidden] { display: none; }
+
+/* Gallery mode (multiple images) */
+.cert-lightbox-content--gallery { max-width: 980px; }
+.cert-lightbox-content--pages   { max-width: 820px; }
+
+/* Pages mode (multi-page document — vertical scroll) */
+.cert-lightbox-pages {
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+    padding: .25rem;
+}
+
+.cert-lightbox-pages img {
+    width: 100%;
+    height: auto;
+    display: block;
+    border: 1px solid rgba(0,0,0,.1);
+    border-radius: 4px;
+    background: #fff;
+    box-shadow: 0 2px 6px rgba(0,0,0,.06);
+}
+
+.cert-lightbox-pages-counter {
+    text-align: center;
+    font-family: var(--font-body);
+    font-size: .9rem;
+    color: var(--text-mid);
+    margin-bottom: .4rem;
+    direction: ltr;
+}
+
+.cert-lightbox-gallery {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: .8rem;
+}
+
+.cert-lightbox-gallery img {
+    width: 100%;
+    height: 200px;
+    object-fit: cover;
+    border-radius: 6px;
+    border: 1px solid rgba(0,0,0,.08);
+    background: #f5f3eb;
+}
+
+@media (max-width: 740px) {
+    .cert-lightbox-gallery { grid-template-columns: repeat(2, 1fr); }
+    .cert-lightbox-gallery img { height: 160px; }
+}
+
+@media (max-width: 480px) {
+    .cert-lightbox-gallery { grid-template-columns: 1fr; }
+    .cert-lightbox-gallery img { height: 200px; }
+}
+
+@media (max-width: 640px) {
+    .cert-lightbox { padding: 1rem .5rem; }
+    .cert-lightbox-content { padding: 2rem 1rem 1rem; }
+    .cert-lightbox-title { font-size: 1.15rem; }
+}
+
 /* ---------- Advantages ---------- */
 .depot-advantages { border-top: 1px solid rgba(0,0,0,.06); }
 
@@ -367,6 +542,121 @@
 /* ---------- Contact Form ---------- */
 .depot-contact-section {
     border-top: 1px solid rgba(0,0,0,.06);
+}
+
+/* ---------- Location & Contact Info ---------- */
+.depot-location-section {
+    border-top: 1px solid rgba(0,0,0,.06);
+}
+
+.depot-location-grid {
+    display: grid;
+    grid-template-columns: 1fr 1.2fr;
+    gap: 2.5rem;
+    margin-top: 1.8rem;
+    align-items: stretch;
+}
+
+.depot-location-info {
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+}
+
+.depot-info-item {
+    display: flex;
+    gap: 1rem;
+    align-items: flex-start;
+    padding: 1rem 1.3rem;
+    background: #fff;
+    border-radius: 12px;
+    border: 1px solid rgba(0,0,0,.06);
+    transition: box-shadow .25s ease, transform .25s ease;
+}
+
+.depot-info-item:hover {
+    box-shadow: 0 4px 16px rgba(0,0,0,.08);
+    transform: translateY(-2px);
+}
+
+.depot-info-icon {
+    font-size: 1.7rem;
+    line-height: 1;
+    flex-shrink: 0;
+}
+
+.depot-info-content {
+    flex: 1;
+    min-width: 0;
+}
+
+.depot-info-content h3 {
+    font-family: var(--font-heading);
+    font-size: 1.1rem;
+    font-weight: 700;
+    margin: 0 0 .25rem;
+    color: var(--text);
+    text-align: right;
+}
+
+.depot-info-content a,
+.depot-info-content p {
+    font-family: var(--font-body);
+    font-size: 1.05rem;
+    color: var(--text-dark);
+    text-decoration: none;
+    margin: 0;
+    text-align: right;
+    display: block;
+    word-break: break-word;
+}
+
+.depot-info-content a {
+    transition: color .25s ease;
+}
+
+.depot-info-content a:hover,
+.depot-info-content a:focus-visible {
+    color: var(--teal-dark);
+    text-decoration: underline;
+}
+
+.depot-info-phone {
+    direction: ltr;
+    unicode-bidi: embed;
+    font-family: var(--font-heading);
+    font-weight: 600;
+    font-size: 1.15rem !important;
+}
+
+.depot-location-map {
+    border-radius: 14px;
+    overflow: hidden;
+    box-shadow: 0 4px 20px rgba(0,0,0,.08);
+    border: 1px solid rgba(0,0,0,.06);
+    min-height: 380px;
+    background: #f0eee5;
+}
+
+.depot-location-map iframe {
+    width: 100%;
+    height: 100%;
+    min-height: 380px;
+    border: 0;
+    display: block;
+}
+
+@media (max-width: 900px) {
+    .depot-location-grid {
+        grid-template-columns: 1fr;
+        gap: 1.5rem;
+    }
+    .depot-location-map {
+        min-height: 300px;
+    }
+    .depot-location-map iframe {
+        min-height: 300px;
+    }
 }
 
 .depot-contact-form {

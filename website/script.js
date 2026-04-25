@@ -161,6 +161,88 @@
         }
     }
 
+    /* ---------- Certificate lightbox (eco-depot) ---------- */
+    const certLightbox = document.getElementById('certLightbox');
+    if (certLightbox) {
+        const lbContent = certLightbox.querySelector('.cert-lightbox-content');
+        const lbImg     = document.getElementById('certLightboxImg');
+        const lbGallery = document.getElementById('certLightboxGallery');
+        const lbPages   = document.getElementById('certLightboxPages');
+        const lbTitle   = document.getElementById('certLightboxTitle');
+        const triggers  = document.querySelectorAll('[data-cert-img], [data-cert-images], [data-cert-pages]');
+
+        const resetModes = () => {
+            lbImg.hidden = true; lbImg.src = '';
+            lbGallery.hidden = true; lbGallery.innerHTML = '';
+            lbPages.hidden = true; lbPages.innerHTML = '';
+            lbContent.classList.remove('cert-lightbox-content--gallery', 'cert-lightbox-content--pages');
+        };
+        const openSingle = (src, title) => {
+            resetModes();
+            lbImg.src = src;
+            lbImg.alt = title || '';
+            lbImg.hidden = false;
+        };
+        const openGallery = (sources, title) => {
+            resetModes();
+            sources.forEach(src => {
+                const im = document.createElement('img');
+                im.src = src;
+                im.alt = title || '';
+                im.loading = 'lazy';
+                lbGallery.appendChild(im);
+            });
+            lbGallery.hidden = false;
+            lbContent.classList.add('cert-lightbox-content--gallery');
+        };
+        const openPages = (sources, title) => {
+            resetModes();
+            const counter = document.createElement('div');
+            counter.className = 'cert-lightbox-pages-counter';
+            counter.textContent = sources.length + ' pages';
+            lbPages.appendChild(counter);
+            sources.forEach((src, i) => {
+                const im = document.createElement('img');
+                im.src = src;
+                im.alt = (title || '') + ' — page ' + (i + 1);
+                im.loading = 'lazy';
+                lbPages.appendChild(im);
+            });
+            lbPages.hidden = false;
+            lbContent.classList.add('cert-lightbox-content--pages');
+            lbContent.scrollTop = 0;
+        };
+        const openLightbox = (btn) => {
+            lbTitle.textContent = btn.dataset.certTitle || '';
+            if (btn.dataset.certPages) {
+                const list = btn.dataset.certPages.split('|').map(s => s.trim()).filter(Boolean);
+                openPages(list, btn.dataset.certTitle);
+            } else if (btn.dataset.certImages) {
+                const list = btn.dataset.certImages.split('|').map(s => s.trim()).filter(Boolean);
+                openGallery(list, btn.dataset.certTitle);
+            } else if (btn.dataset.certImg) {
+                openSingle(btn.dataset.certImg, btn.dataset.certTitle);
+            }
+            certLightbox.hidden = false;
+            document.body.style.overflow = 'hidden';
+        };
+        const closeLightbox = () => {
+            certLightbox.hidden = true;
+            document.body.style.overflow = '';
+            resetModes();
+        };
+
+        triggers.forEach(btn => {
+            btn.addEventListener('click', () => openLightbox(btn));
+        });
+        certLightbox.querySelectorAll('[data-cert-close]').forEach(el => {
+            el.addEventListener('click', closeLightbox);
+        });
+        document.addEventListener('keydown', e => {
+            if (e.key === 'Escape' && !certLightbox.hidden) closeLightbox();
+        });
+    }
+
     /* ---------- Smooth scroll for anchor links ---------- */
     document.querySelectorAll('a[href^="#"]').forEach(anchor => {
         anchor.addEventListener('click', e => {
