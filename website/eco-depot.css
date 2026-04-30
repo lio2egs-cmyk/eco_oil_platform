@@ -197,6 +197,30 @@
 /* ---------- Pricing ---------- */
 .depot-pricing-section { border-top: 1px solid rgba(0,0,0,.06); }
 
+.pricing-subtitle {
+    font-family: var(--font-heading);
+    font-size: 1.3rem;
+    font-weight: 700;
+    color: var(--purple);
+    margin-top: 2.5rem;
+    margin-bottom: 0.5rem;
+    text-align: right;
+}
+
+.pricing-cta {
+    margin-top: 1.5rem !important;
+    text-align: center !important;
+    font-style: normal !important;
+    font-size: 1.1rem !important;
+    color: #000 !important;
+}
+
+.pricing-cta a {
+    color: var(--teal);
+    text-decoration: underline;
+    font-weight: 600;
+}
+
 .pricing-tables {
     display: grid;
     grid-template-columns: repeat(3, 1fr);

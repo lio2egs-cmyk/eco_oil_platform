@@ -10,3 +10,11 @@ prepare_data.py
 .env
 test_*.pdf
 output/
+
+# Local IDE / agent settings
+.claude/
+
+# Temporary debug dumps and backups
+_*.json
+_*.txt
+website/images/cert/msds_demo_backup/

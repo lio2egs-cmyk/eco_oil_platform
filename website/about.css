@@ -2,6 +2,34 @@
    ABOUT PAGE — about.css
    ============================================================ */
 
+/* ---------- Hero ---------- */
+.abt-hero {
+    position: relative;
+    width: calc(100% - 7rem);
+    max-width: 1400px;
+    height: 400px;
+    margin: 30px auto 0;
+    overflow: hidden;
+    background: var(--bg);
+    border-radius: 80px 0 80px 0;
+}
+
+.abt-hero-img {
+    display: block;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    object-position: center;
+}
+
+@media (max-width: 900px) {
+    .abt-hero { height: 300px; }
+}
+
+@media (max-width: 640px) {
+    .abt-hero { height: 220px; }
+}
+
 /* ---------- Sections ---------- */
 .abt-section {
     padding: 60px 0;
@@ -130,6 +158,16 @@
 }
 
 /* ---------- Numbers ---------- */
+.abt-numbers {
+    padding-bottom: 0;
+    position: relative;
+    z-index: 2;
+}
+
+.abt-numbers + .sub-footer {
+    margin-top: -130px;
+}
+
 .abt-zero-stat {
     font-family: var(--font-heading) !important;
     font-size: 1.8rem !important;
@@ -206,6 +244,121 @@
     margin-top: 1rem !important;
 }
 
+/* ---------- Proof Gallery — Polishing System ---------- */
+.abt-proof {
+    margin-top: 1rem;
+    margin-bottom: 4rem;
+    padding-top: 2.5rem;
+    border-top: 1px solid rgba(0,0,0,.08);
+}
+
+.abt-proof-title {
+    font-family: var(--font-heading);
+    font-size: 1.5rem;
+    font-weight: 700;
+    color: #000;
+    margin-bottom: 1rem;
+    text-align: right;
+    line-height: 1.4;
+}
+
+.abt-proof-desc {
+    font-family: var(--font-body);
+    font-size: 1.1rem;
+    font-weight: 400;
+    font-style: italic;
+    color: #000;
+    line-height: 1.85;
+    text-align: right;
+    margin-bottom: 2rem;
+}
+
+.abt-proof-gallery {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 1.2rem;
+}
+
+.abt-proof-img {
+    width: 100%;
+    aspect-ratio: 3 / 4;
+    object-fit: cover;
+    border-radius: 40px 0 40px 0;
+    display: block;
+    box-shadow: 0 4px 14px rgba(0,0,0,.08);
+    transition: transform .25s ease, box-shadow .25s ease;
+}
+
+.abt-proof-img:hover {
+    transform: translateY(-3px);
+    box-shadow: 0 8px 22px rgba(0,0,0,.12);
+}
+
+@media (max-width: 900px) {
+    .abt-proof-gallery {
+        grid-template-columns: repeat(2, 1fr);
+    }
+    .abt-proof-title { font-size: 1.3rem; }
+}
+
+@media (max-width: 480px) {
+    .abt-proof-gallery {
+        grid-template-columns: 1fr;
+    }
+}
+
+/* ---------- Lab Sample Proof — under chemist ---------- */
+.abt-lab-proof {
+    margin-top: 1rem;
+    margin-bottom: 4rem;
+    padding-top: 2.5rem;
+    border-top: 1px solid rgba(0,0,0,.08);
+    display: grid;
+    grid-template-columns: 1.8fr 1fr;
+    gap: 2.5rem;
+    align-items: center;
+}
+
+.abt-lab-proof-title {
+    font-family: var(--font-heading);
+    font-size: 1.45rem;
+    font-weight: 700;
+    color: #000;
+    margin-bottom: 1rem;
+    line-height: 1.4;
+    text-align: right;
+}
+
+.abt-lab-proof-text p {
+    font-family: var(--font-body);
+    font-size: 1.1rem;
+    font-weight: 400;
+    font-style: italic;
+    color: #000;
+    line-height: 1.85;
+    text-align: right;
+    margin-bottom: 0;
+}
+
+.abt-lab-proof-img {
+    width: 100%;
+    max-width: 260px;
+    aspect-ratio: 3 / 4;
+    object-fit: cover;
+    border-radius: 40px 0 40px 0;
+    box-shadow: 0 4px 14px rgba(0,0,0,.08);
+    display: block;
+}
+
+@media (max-width: 800px) {
+    .abt-lab-proof {
+        grid-template-columns: 1fr;
+        gap: 1.5rem;
+    }
+    .abt-lab-proof-title { font-size: 1.25rem; }
+    .abt-lab-proof-img { aspect-ratio: 4 / 3; }
+}
+
 /* ---------- Full Team ---------- */
 .abt-team-full {
     margin-top: 3rem;
@@ -215,6 +368,79 @@
 
 .abt-team-photo-area {
     margin-bottom: 2rem;
+}
+
+/* ---------- Team Marquee — auto-scrolling film strip of worker photos ---------- */
+.abt-team-marquee {
+    overflow: hidden;
+    width: 100%;
+    margin-bottom: 1.5rem;
+    -webkit-mask-image: linear-gradient(to right, transparent 0, black 4%, black 96%, transparent 100%);
+    mask-image: linear-gradient(to right, transparent 0, black 4%, black 96%, transparent 100%);
+}
+
+.abt-team-track {
+    display: flex;
+    width: max-content;
+    animation: abt-team-scroll 80s linear infinite !important;
+    will-change: transform;
+}
+
+.abt-team-track:hover {
+    animation-play-state: paused;
+}
+
+.abt-team-thumb {
+    width: 110px;
+    height: 110px;
+    object-fit: cover;
+    border-radius: 8px;
+    display: block;
+    flex-shrink: 0;
+    margin-inline-end: 12px;
+    box-shadow: 0 2px 6px rgba(0,0,0,.08);
+}
+
+@keyframes abt-team-scroll {
+    from { transform: translateX(50%); }
+    to   { transform: translateX(0); }
+}
+
+/* ---------- Released Soldiers Callout — soft emphasis ---------- */
+.abt-soldiers-callout {
+    font-family: var(--font-heading) !important;
+    font-style: normal !important;
+    font-weight: 500 !important;
+    font-size: 1.1rem !important;
+    line-height: 1.8 !important;
+    color: #000 !important;
+    background: rgba(91, 158, 150, .10);
+    border-right: 4px solid var(--teal);
+    border-radius: 14px 0 14px 0;
+    padding: 1.4rem 1.6rem !important;
+    margin-top: 1.2rem !important;
+}
+
+.abt-soldiers-highlight {
+    display: block;
+    text-align: center;
+    margin-top: 1.1rem;
+    padding-top: 1rem;
+    border-top: 1px dashed rgba(91, 158, 150, .45);
+    font-weight: 700;
+    font-size: 1.15rem;
+    color: var(--purple);
+    line-height: 1.7;
+}
+
+@media (max-width: 640px) {
+    .abt-soldiers-callout {
+        font-size: 1rem !important;
+        padding: 1.1rem 1.2rem !important;
+    }
+    .abt-soldiers-highlight {
+        font-size: 1.05rem;
+    }
 }
 
 /* ---------- Footer — vector factory image ---------- */
@@ -264,6 +490,11 @@
     .abt-photo-placeholder {
         max-width: 220px;
         margin: 0 auto;
+    }
+
+    .abt-team-thumb {
+        width: 90px;
+        height: 90px;
     }
 
     .abt-person-name { font-size: 1.4rem; }

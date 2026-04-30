@@ -8,8 +8,8 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@400;500;600;700&family=Rubik:wght@300;400;500;600;700&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="style.css">
-    <link rel="stylesheet" href="subpage.css">
+    <link rel="stylesheet" href="style.css?v=2">
+    <link rel="stylesheet" href="subpage.css?v=4">
 </head>
 <body>
 
@@ -28,12 +28,12 @@
 
         <div class="services-bar">
             <nav class="services-nav" aria-label="ניווט שירותים">
-                <a href="#" class="srv-btn">ייעוץ למפעלים</a>
-                <a href="partners.html" class="srv-btn">שותפים</a>
-                <a href="#" class="srv-btn">ייצוא פסולות</a>
-                <a href="#" class="srv-btn">אקו דיפו</a>
-                <a href="#" class="srv-btn">מתקן שטיפה</a>
+                <a href="eco-depot.html" class="srv-btn srv-btn--featured">אקו דיפו</a>
                 <a href="types-of-waste-water.html" class="srv-btn">הפתרונות שלנו לשפכים</a>
+                <a href="export-of-waste.html" class="srv-btn">ייצוא פסולות</a>
+                <a href="eco-depot.html#washing" class="srv-btn">מתקן שטיפה</a>
+                <a href="industrial-consulting.html" class="srv-btn">ייעוץ למפעלים</a>
+                <a href="partners.html" class="srv-btn">שותפים</a>
             </nav>
         </div>
 
@@ -43,17 +43,24 @@
         <div class="mobile-menu" id="mobileMenu" aria-hidden="true">
             <a href="about.html" class="mobile-link" data-close>אודות</a>
             <a href="index.html#services" class="mobile-link" data-close>שירותים</a>
+            <a href="eco-depot.html" class="mobile-link mobile-link--featured" data-close>אקו דיפו</a>
             <a href="types-of-waste-water.html" class="mobile-link" data-close>הפתרונות שלנו לשפכים</a>
-            <a href="#" class="mobile-link" data-close>מתקן שטיפה</a>
-            <a href="#" class="mobile-link" data-close>אקו דיפו</a>
-            <a href="#" class="mobile-link" data-close>ייצוא פסולות</a>
-            <a href="#" class="mobile-link" data-close>ייעוץ למפעלים</a>
+            <a href="export-of-waste.html" class="mobile-link" data-close>ייצוא פסולות</a>
+            <a href="eco-depot.html#washing" class="mobile-link" data-close>מתקן שטיפה</a>
+            <a href="industrial-consulting.html" class="mobile-link" data-close>ייעוץ למפעלים</a>
             <a href="partners.html" class="mobile-link" data-close>שותפים</a>
             <a href="index.html#contact" class="mobile-link mobile-link--cta" data-close>צור קשר</a>
         </div>
     </header>
 
     <main>
+
+        <!-- ===== HERO ===== -->
+        <section class="sub-hero">
+            <img src="images/Vegetable Oil Treatment Facility/factory_panorama.png"
+                 alt="מתקן הטיפול של אקו אויל - תצפית פנורמית"
+                 class="sub-hero-img">
+        </section>
 
         <!-- ===== INTRO ===== -->
         <section class="sub-section sub-intro">
@@ -195,7 +202,7 @@
         <section class="sub-section treatment-results">
             <div class="sub-container">
                 <h2 class="sub-title">תוצרי הטיפול</h2>
-                <p>כל תהליך טיפול מסתיים ביעד מוסמך. פינוי מלווה באישור טיפול המוכר לביקורות רגולטוריות.</p>
+                <p>כל תהליך טיפול מסתיים ביעד מוסמך.<br>כל פינוי מלווה באישור טיפול המוכר לביקורות רגולטוריות.</p>
 
                 <div class="treatment-grid">
                     <div class="treatment-item">
@@ -227,30 +234,35 @@
         <section class="sub-section transport-section">
             <div class="sub-container">
                 <h2 class="sub-title">שירותי הובלה ופינוי</h2>
-                <p>ההובלה מתבצעת ישירות מאתר הלקוח, בכפוף לאישורי מנהל וטיפול ייעודי במתקנה.</p>
-                <div class="transport-points">
-                    <div class="transport-point">
-                        <span class="tp-check">&#10003;</span>
-                        <p>הובלת חומרים מסוכנים במיכלי IBC, חביות, צוברים וצורות איסוף נוספות</p>
+                <div class="transport-grid">
+                    <div class="transport-grid-text">
+                        <p>ההובלה מתבצעת ישירות מאתר הלקוח, בכפוף לאישורי מנהל וטיפול ייעודי במתקנה.</p>
+                        <div class="transport-points">
+                            <div class="transport-point">
+                                <span class="tp-check">&#10003;</span>
+                                <p>הובלת חומרים מסוכנים במיכלי IBC, חביות, צוברים וצורות איסוף נוספות</p>
+                            </div>
+                            <div class="transport-point">
+                                <span class="tp-check">&#10003;</span>
+                                <p>החברה מחזיקה בכלל ההיתרים והרישיונות הנדרשים להובלת חומרים מסוכנים</p>
+                            </div>
+                            <div class="transport-point">
+                                <span class="tp-check">&#10003;</span>
+                                <p>עמידה מדויקת בלוחות הזמנים שנקבעו עם הלקוח</p>
+                            </div>
+                            <div class="transport-point">
+                                <span class="tp-check">&#10003;</span>
+                                <p>עבודה על פי כל תקני האיכות, הבטיחות ואיכות הסביבה</p>
+                            </div>
+                        </div>
                     </div>
-                    <div class="transport-point">
-                        <span class="tp-check">&#10003;</span>
-                        <p>החברה מחזיקה בכלל ההיתרים והרישיונות הנדרשים להובלת חומרים מסוכנים</p>
-                    </div>
-                    <div class="transport-point">
-                        <span class="tp-check">&#10003;</span>
-                        <p>עמידה מדויקת בלוחות הזמנים שנקבעו עם הלקוח</p>
-                    </div>
-                    <div class="transport-point">
-                        <span class="tp-check">&#10003;</span>
-                        <p>עבודה על פי כל תקני האיכות, הבטיחות ואיכות הסביבה</p>
-                    </div>
+                    <img src="images/משאית שלנו.png" alt="משאית ממותגת של אקו אויל" class="transport-grid-img">
                 </div>
             </div>
         </section>
 
         <!-- ===== CTA ===== -->
-        <section class="sub-section sub-cta-section">
+        <section class="sub-section sub-cta-section sub-cta-section--overlap">
             <div class="sub-container">
                 <p class="sub-cta-text">צריכים פתרון לטיפול בשפכים תעשייתיים? פנו אלינו ונתאים עבורכם את מסלול הטיפול המדויק.</p>
                 <a href="index.html#contact" class="sub-cta-btn">צור קשר</a>
@@ -260,7 +272,7 @@
     </main>
 
     <!-- ===== FOOTER ===== -->
-    <footer class="sub-footer">
+    <footer class="sub-footer sub-footer--overlap">
         <img src="images/vector-Industrial Wastewater Treatment Facility.jpeg" alt="" class="sub-footer-img">
     </footer>
 

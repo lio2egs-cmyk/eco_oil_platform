@@ -8,9 +8,9 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@400;500;600;700&family=Rubik:wght@300;400;500;600;700&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="style.css?v=2">
     <link rel="stylesheet" href="subpage.css">
-    <link rel="stylesheet" href="export.css">
+    <link rel="stylesheet" href="export.css?v=6">
 </head>
 <body>
 
@@ -29,12 +29,12 @@
 
         <div class="services-bar">
             <nav class="services-nav" aria-label="ניווט שירותים">
+                <a href="eco-depot.html" class="srv-btn srv-btn--featured">אקו דיפו</a>
+                <a href="types-of-waste-water.html" class="srv-btn">הפתרונות שלנו לשפכים</a>
+                <a href="export-of-waste.html" class="srv-btn">ייצוא פסולות</a>
+                <a href="eco-depot.html#washing" class="srv-btn">מתקן שטיפה</a>
                 <a href="industrial-consulting.html" class="srv-btn">ייעוץ למפעלים</a>
                 <a href="partners.html" class="srv-btn">שותפים</a>
-                <a href="export-of-waste.html" class="srv-btn">ייצוא פסולות</a>
-                <a href="#" class="srv-btn">אקו דיפו</a>
-                <a href="#" class="srv-btn">מתקן שטיפה</a>
-                <a href="types-of-waste-water.html" class="srv-btn">הפתרונות שלנו לשפכים</a>
             </nav>
         </div>
 
@@ -44,10 +44,10 @@
         <div class="mobile-menu" id="mobileMenu" aria-hidden="true">
             <a href="about.html" class="mobile-link" data-close>אודות</a>
             <a href="services-offered.html" class="mobile-link" data-close>שירותים</a>
+            <a href="eco-depot.html" class="mobile-link mobile-link--featured" data-close>אקו דיפו</a>
             <a href="types-of-waste-water.html" class="mobile-link" data-close>הפתרונות שלנו לשפכים</a>
-            <a href="#" class="mobile-link" data-close>מתקן שטיפה</a>
-            <a href="#" class="mobile-link" data-close>אקו דיפו</a>
             <a href="export-of-waste.html" class="mobile-link" data-close>ייצוא פסולות</a>
+            <a href="eco-depot.html#washing" class="mobile-link" data-close>מתקן שטיפה</a>
             <a href="industrial-consulting.html" class="mobile-link" data-close>ייעוץ למפעלים</a>
             <a href="partners.html" class="mobile-link" data-close>שותפים</a>
             <a href="index.html#contact" class="mobile-link mobile-link--cta" data-close>צור קשר</a>
@@ -56,6 +56,13 @@
 
     <main>
 
+        <!-- ===== HERO ===== -->
+        <section class="sub-hero">
+            <img src="images/export/ship_in_port.png"
+                 alt="ייצוא פסולת מסוכנת לאירופה - מכולות בנמל"
+                 class="sub-hero-img">
+        </section>
+
         <!-- ===== INTRO ===== -->
         <section class="sub-section sub-intro">
             <div class="sub-container">
@@ -63,6 +70,31 @@
                 <p class="sub-lead">פתרונות ייצוא מקצועיים בהתאם לתקנים בינלאומיים.</p>
                 <p>אקו אויל מחזיקה בהיתרי ייצוא מטעם המשרד להגנת הסביבה ומבצעת ייצוא של פסולת מסוכנת ליעדים מורשים באירופה — בהתאם לאמנת באזל ולרגולציה האירופית (EC 1013/2006).</p>
                 <p>הייצוא מהווה חלופה סביבתית מועדפת על פני הטמנה: הפסולת מגיעה למפעלים מורשים באירופה המשתמשים בתהליכי שריפה מבוקרת לצורך הפקת אנרגיה — תרומה כפולה לסביבה ולכלכלה.</p>
+            </div>
+        </section>
+
+        <!-- ===== STATS ===== -->
+        <section class="sub-section export-stats">
+            <div class="sub-container">
+                <h2 class="sub-title">ניסיון מוכח במספרים</h2>
+                <p>מאז 2019 אקו אויל מובילה פעילות ייצוא פסולות תעשייתיות בהיקפים משמעותיים, תוך ניהול תהליכים מורכבים בסטנדרטים בינלאומיים.</p>
+
+                <div class="export-stats-grid">
+                    <div class="export-stat">
+                        <div class="export-stat-number">+140</div>
+                        <div class="export-stat-label">משלוחי ייצוא בינלאומיים</div>
+                    </div>
+                    <div class="export-stat">
+                        <div class="export-stat-number">3.7M</div>
+                        <div class="export-stat-label">ק"ג פסולות תעשייתיות שטופלו</div>
+                    </div>
+                    <div class="export-stat">
+                        <div class="export-stat-number">2019</div>
+                        <div class="export-stat-label">שנת תחילת פעילות הייצוא</div>
+                    </div>
+                </div>
+
+                <p class="export-stats-types">מגוון רחב של חומרים: שמנים אמולסיביים (Emulsion Oil) · שמנים ממוחזרים (Recycled Oil) · תרכובות גופרית (Sulfur Oil)</p>
             </div>
         </section>
 
@@ -97,6 +129,7 @@
             <div class="sub-container">
                 <h2 class="sub-title">היתרי ייצוא בתוקף</h2>
                 <p>ההיתרים שלהלן הונפקו על ידי המשרד להגנת הסביבה ומאשרים את ייצוא הפסולת המסוכנת מאקו אויל ליעדים מורשים באירופה.</p>
+                <p class="permits-note">* היתרי הייצוא הם שנתיים ומחודשים על ידי החברה מדי שנה מול המשרד להגנת הסביבה.</p>
 
                 <div class="permits-table-wrap">
                     <table class="permits-table">
@@ -176,6 +209,44 @@
             </div>
         </section>
 
+        <!-- ===== CASE STUDY ===== -->
+        <section class="sub-section export-case-study">
+            <div class="sub-container">
+                <h2 class="sub-title">סיפור לקוח — פתרון ייצוא בהיקף תעשייתי</h2>
+                <p class="export-cs-intro">חברה תעשייתית גדולה נדרשה לטפל בפסולת שמנים אמולסיביים בהיקף משמעותי ומתמשך, ללא פתרון מקומי יעיל. כך בנינו עבורה מערך ייצוא שעובד עד היום.</p>
+
+                <div class="export-cs-blocks">
+                    <div class="export-cs-block">
+                        <h3>האתגר</h3>
+                        <ul>
+                            <li>הצטברות עשרות טונות פסולת בכל מחזור ייצור</li>
+                            <li>חומר מורכב שלא מאפשר טיפול מקומי פשוט</li>
+                            <li>חוסר יציבות בפתרונות הקיימים בשוק</li>
+                            <li>צורך בתהליך מתמשך, לא חד־פעמי</li>
+                        </ul>
+                    </div>
+                    <div class="export-cs-block">
+                        <h3>הפתרון</h3>
+                        <ul>
+                            <li>שילוח באיזוטנקים ייעודיים, 25–30 טון למשלוח</li>
+                            <li>תכנון רצף משלוחים סדור לאורך זמן</li>
+                            <li>תיאום מלא מול נמלים, חברות ספנות וגורמי קליטה באירופה</li>
+                            <li>ליווי רגולטורי ולוגיסטי מקצה לקצה</li>
+                        </ul>
+                    </div>
+                    <div class="export-cs-block">
+                        <h3>התוצאה</h3>
+                        <ul>
+                            <li>סדרת משלוחים בהיקף של מאות אלפי ק"ג</li>
+                            <li>פתרון יציב, מתמשך וישים</li>
+                            <li>שליטה מלאה בתהליך ויכולת תכנון קדימה</li>
+                            <li>הסרת צוואר בקבוק תפעולי בייצור הלקוח</li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+        </section>
+
         <!-- ===== WHY EXPORT ===== -->
         <section class="sub-section export-why">
             <div class="sub-container">
@@ -207,9 +278,9 @@
         </section>
 
         <!-- ===== CTA ===== -->
-        <section class="sub-section sub-cta-section">
+        <section class="sub-section sub-cta-section sub-cta-section--overlap">
             <div class="sub-container">
-                <p class="sub-cta-text">צריכים פתרון ייצוא לפסולת מסוכנת? נשמח ללוות אתכם בתהליך.</p>
+                <p class="sub-cta-text">מתמודדים עם פסולת תעשייתית ומחפשים פתרון יעיל? אנחנו כאן לבחון יחד את האפשרות הנכונה עבורכם.</p>
                 <a href="index.html#contact" class="sub-cta-btn">צור קשר</a>
             </div>
         </section>
@@ -217,8 +288,8 @@
     </main>
 
     <!-- ===== FOOTER ===== -->
-    <footer class="sub-footer">
-        <img src="images/vector_factory_end_page.png" alt="" class="sub-footer-img">
+    <footer class="sub-footer sub-footer--overlap">
+        <img src="images/vector-Industrial Wastewater Treatment Facility.jpeg" alt="" class="sub-footer-img">
     </footer>
 
     <script src="script.js"></script>
