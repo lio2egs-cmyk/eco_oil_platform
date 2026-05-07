@@ -77,21 +77,32 @@
 
             if (!valid) return;
 
-            // Simulate successful submission
+            // Submit to Netlify Forms via AJAX
             const btn = form.querySelector('.btn-submit');
             btn.disabled = true;
             btn.textContent = 'שולח...';
 
-            setTimeout(() => {
+            fetch('/', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+                body: new URLSearchParams(new FormData(form)).toString()
+            })
+            .then(response => {
+                if (!response.ok) throw new Error('Submission failed');
                 form.reset();
-                btn.disabled = false;
-                btn.textContent = 'שלח';
                 if (successMsg) {
                     successMsg.hidden = false;
                     successMsg.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
                     setTimeout(() => { successMsg.hidden = true; }, 6000);
                 }
-            }, 900);
+            })
+            .catch(() => {
+                alert('אירעה שגיאה בשליחת הטופס. נסו שוב או צרו קשר טלפונית.');
+            })
+            .finally(() => {
+                btn.disabled = false;
+                btn.textContent = 'שלח';
+            });
         });
 
         // Clear invalid state on input
@@ -129,36 +140,37 @@
 
             if (!valid) return;
 
+            // Submit to Netlify Forms via AJAX
             const btn = depotForm.querySelector('.btn-submit');
             btn.disabled = true;
             btn.textContent = 'שולח...';
 
-            setTimeout(() => {
+            fetch('/', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+                body: new URLSearchParams(new FormData(depotForm)).toString()
+            })
+            .then(response => {
+                if (!response.ok) throw new Error('Submission failed');
                 depotForm.reset();
-                btn.disabled = false;
-                btn.textContent = 'שלח פנייה';
                 if (depotSuccessMsg) {
                     depotSuccessMsg.hidden = false;
                     depotSuccessMsg.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
                     setTimeout(() => { depotSuccessMsg.hidden = true; }, 6000);
                 }
-            }, 900);
+            })
+            .catch(() => {
+                alert('אירעה שגיאה בשליחת הטופס. נסו שוב או צרו קשר טלפונית.');
+            })
+            .finally(() => {
+                btn.disabled = false;
+                btn.textContent = 'שלח פנייה';
+            });
         });
 
         depotForm.addEventListener('input', e => {
             e.target.classList.remove('invalid');
         });
-
-        // Show selected MSDS filename
-        const msdsInput = document.getElementById('depotMsdsFile');
-        const msdsName  = document.getElementById('msdsFileName');
-        if (msdsInput && msdsName) {
-            msdsInput.addEventListener('change', () => {
-                msdsName.textContent = msdsInput.files.length
-                    ? msdsInput.files[0].name
-                    : '';
-            });
-        }
     }
 
     /* ---------- Certificate lightbox (eco-depot) ---------- */

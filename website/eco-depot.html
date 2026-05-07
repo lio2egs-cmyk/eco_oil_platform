@@ -423,91 +423,40 @@
                 <h2 class="sub-title">צור קשר — אקו דיפו</h2>
                 <p>צריכים שטיפה, אחסון או תחזוקה? מלאו את הפרטים ונחזור אליכם בהקדם.</p>
 
-                <form class="depot-contact-form" id="depotContactForm" novalidate>
+                <form class="contact-form" id="depotContactForm" novalidate
+                      name="depot-contact-form"
+                      method="POST"
+                      data-netlify="true"
+                      netlify-honeypot="bot-field">
+                    <input type="hidden" name="form-name" value="depot-contact-form">
+                    <p hidden>
+                        <label>Don't fill this out: <input name="bot-field"></label>
+                    </p>
                     <input type="hidden" name="department" value="eco_depot">
-
                     <div class="form-row">
                         <div class="form-group">
                             <label for="depotName">שם מלא</label>
                             <input type="text" id="depotName" name="fullName" placeholder="ישראל ישראלי" required>
                         </div>
                         <div class="form-group">
-                            <label for="depotCompany">שם החברה</label>
-                            <input type="text" id="depotCompany" name="company" placeholder="שם החברה">
-                        </div>
-                    </div>
-
-                    <div class="form-row">
-                        <div class="form-group">
                             <label for="depotEmail">Email</label>
                             <input type="email" id="depotEmail" name="email" placeholder="contact@example.com" required>
+                        </div>
+                    </div>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="depotCompany">שם החברה</label>
+                            <input type="text" id="depotCompany" name="company" placeholder="שם החברה">
                         </div>
                         <div class="form-group">
                             <label for="depotPhone">טלפון</label>
                             <input type="tel" id="depotPhone" name="phone" placeholder="050-5505500">
                         </div>
                     </div>
-
-                    <div class="form-row">
-                        <div class="form-group">
-                            <label for="depotTankType">סוג מיכל</label>
-                            <select id="depotTankType" name="tankType">
-                                <option value="" disabled selected>בחרו סוג</option>
-                                <option value="isotank">איזוטנק</option>
-                                <option value="road_tanker">מיכלית כביש</option>
-                                <option value="ibc">מיכל IBC (קוביה)</option>
-                                <option value="drum">חבית</option>
-                                <option value="other">אחר</option>
-                            </select>
-                        </div>
-                        <div class="form-group">
-                            <label>שירותים מבוקשים</label>
-                            <div class="checkbox-group">
-                                <label class="checkbox-label">
-                                    <input type="checkbox" name="services" value="washing"> שטיפה
-                                </label>
-                                <label class="checkbox-label">
-                                    <input type="checkbox" name="services" value="storage"> אחסון
-                                </label>
-                                <label class="checkbox-label">
-                                    <input type="checkbox" name="services" value="repair"> תיקון ותחזוקה
-                                </label>
-                                <label class="checkbox-label">
-                                    <input type="checkbox" name="services" value="transport"> שינוע
-                                </label>
-                                <label class="checkbox-label">
-                                    <input type="checkbox" name="services" value="vacuum_test"> בדיקת ואקום
-                                </label>
-                                <label class="checkbox-label">
-                                    <input type="checkbox" name="services" value="polish"> פוליש
-                                </label>
-                            </div>
-                        </div>
-                    </div>
-
-                    <div class="form-row">
-                        <div class="form-group">
-                            <label for="depotLastMaterial">החומר האחרון שהמיכל הכיל</label>
-                            <input type="text" id="depotLastMaterial" name="lastMaterial" placeholder="שם החומר, מספר UN">
-                        </div>
-                        <div class="form-group">
-                            <label for="depotMsdsFile">צירוף מסמך MSDS</label>
-                            <div class="file-upload-wrap">
-                                <input type="file" id="depotMsdsFile" name="msdsFile" accept=".pdf,.doc,.docx,.jpg,.jpeg,.png" class="file-input">
-                                <label for="depotMsdsFile" class="file-upload-btn">
-                                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
-                                    <span class="file-upload-text">בחרו קובץ</span>
-                                </label>
-                                <span class="file-name" id="msdsFileName"></span>
-                            </div>
-                        </div>
-                    </div>
-
                     <div class="form-group form-group--full">
-                        <label for="depotMessage">הערות נוספות</label>
-                        <textarea id="depotMessage" name="message" placeholder="פרטים נוספים, מועד רצוי, כמות מיכלים..." rows="4"></textarea>
+                        <label for="depotMessage">הודעה</label>
+                        <textarea id="depotMessage" name="message" placeholder="פרטו את הצורך שלכם — סוג הפסולת, כמויות, תדירות, מיקום..." rows="5"></textarea>
                     </div>
-
                     <div class="form-submit">
                         <button type="submit" class="btn-submit">שלח פנייה</button>
                     </div>

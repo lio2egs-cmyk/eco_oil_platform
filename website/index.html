@@ -170,7 +170,15 @@
             <div class="contact-overlay"></div>
             <div class="container contact-inner">
                 <h2 class="contact-title">צור קשר</h2>
-                <form class="contact-form" id="contactForm" novalidate>
+                <form class="contact-form" id="contactForm" novalidate
+                      name="contact-form"
+                      method="POST"
+                      data-netlify="true"
+                      netlify-honeypot="bot-field">
+                    <input type="hidden" name="form-name" value="contact-form">
+                    <p hidden>
+                        <label>Don't fill this out: <input name="bot-field"></label>
+                    </p>
                     <input type="hidden" name="department" value="eco_oil">
                     <div class="form-row">
                         <div class="form-group">
@@ -190,25 +198,6 @@
                         <div class="form-group">
                             <label for="phone">טלפון</label>
                             <input type="tel" id="phone" name="phone" placeholder="050-5505500">
-                        </div>
-                    </div>
-                    <div class="form-row">
-                        <div class="form-group">
-                            <label for="wasteType">סוג שפכים / פסולת</label>
-                            <select id="wasteType" name="wasteType">
-                                <option value="" disabled selected>בחרו סוג</option>
-                                <option value="mineral_oils">שומנים מינרליים</option>
-                                <option value="organic_oils">שומנים אורגניים</option>
-                                <option value="hazardous">חומרים מסוכנים</option>
-                                <option value="process_water">מי תהליך</option>
-                                <option value="solvents">ממיסים</option>
-                                <option value="mixed">מעורב / לא ידוע</option>
-                                <option value="consulting">ייעוץ בלבד</option>
-                            </select>
-                        </div>
-                        <div class="form-group">
-                            <label for="estimatedQty">כמות משוערת</label>
-                            <input type="text" id="estimatedQty" name="estimatedQty" placeholder="למשל: 20 טון / חודש">
                         </div>
                     </div>
                     <div class="form-group form-group--full">
