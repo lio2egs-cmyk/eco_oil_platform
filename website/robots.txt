@@ -1,0 +1,8 @@
+# robots.txt for eco-oil.co.il
+# Allows all search engines to crawl the public site.
+
+User-agent: *
+Allow: /
+
+# Pointer to the sitemap (helps search engines discover all pages)
+Sitemap: https://eco-oil.co.il/sitemap.xml
