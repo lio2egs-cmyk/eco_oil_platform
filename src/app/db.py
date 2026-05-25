@@ -24,11 +24,13 @@ class User(db.Model):
 
     id = db.Column(db.Integer, primary_key=True)
     username = db.Column(db.String(80), unique=True, nullable=False)
-    password_hash = db.Column(db.String(256), nullable=False)
+    password_hash = db.Column(db.String(256), nullable=True)
     role = db.Column(db.String(50), nullable=False)  # admin / eco_oil_client / eco_depot_client / transport_company
     client_id = db.Column(db.Integer, db.ForeignKey("clients.id"), nullable=True)
+    email = db.Column(db.String(200), unique=True, nullable=True, index=True)
     is_active = db.Column(db.Boolean, default=True)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    last_login_at = db.Column(db.DateTime, nullable=True)
 
     client = db.relationship("Client", backref="users")
 
@@ -42,6 +44,42 @@ class TokenBlocklist(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     jti = db.Column(db.String(36), nullable=False, index=True)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+
+class MagicLinkToken(db.Model):
+    __tablename__ = "magic_link_tokens"
+
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=False, index=True)
+    token_hash = db.Column(db.String(128), nullable=False, unique=True, index=True)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+    expires_at = db.Column(db.DateTime, nullable=False)
+    used_at = db.Column(db.DateTime, nullable=True)
+    requested_from_ip = db.Column(db.String(45), nullable=True)
+
+    user = db.relationship("User", backref="magic_link_tokens")
+
+    def __repr__(self):
+        return f"<MagicLinkToken user={self.user_id} used={self.used_at is not None}>"
+
+
+class LoginAuditLog(db.Model):
+    __tablename__ = "login_audit_log"
+
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=True, index=True)
+    email_attempted = db.Column(db.String(200), nullable=True)
+    event_type = db.Column(db.String(50), nullable=False)  # magic_link_requested / magic_link_verified / password_login / failed_login
+    success = db.Column(db.Boolean, nullable=False)
+    ip_address = db.Column(db.String(45), nullable=True)
+    user_agent = db.Column(db.String(300), nullable=True)
+    notes = db.Column(db.String(300), nullable=True)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False, index=True)
+
+    user = db.relationship("User")
+
+    def __repr__(self):
+        return f"<LoginAuditLog event={self.event_type} success={self.success}>"
 
 
 class Asset(db.Model):

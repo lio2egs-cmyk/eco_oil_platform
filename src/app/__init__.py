@@ -45,7 +45,7 @@ def create_app():
             WashCertificate, TransportEvent, IsotankWashCycle, RepairEvent,
             ReleaseDocument, PhotoRecord, Carrier, ProducerDeclaration,
             AgreementDocument, DisposalEvent, DisposalCertificate,
-            User, TokenBlocklist,
+            User, TokenBlocklist, MagicLinkToken, LoginAuditLog,
         )
         db.create_all()
 
@@ -57,6 +57,18 @@ def create_app():
             db.session.commit()
         except Exception:
             db.session.rollback()
+
+        # Migrate: add email + last_login_at to users
+        for stmt in (
+            "ALTER TABLE users ADD COLUMN email VARCHAR(200)",
+            "CREATE UNIQUE INDEX IF NOT EXISTS ix_users_email ON users(email)",
+            "ALTER TABLE users ADD COLUMN last_login_at DATETIME",
+        ):
+            try:
+                db.session.execute(db.text(stmt))
+                db.session.commit()
+            except Exception:
+                db.session.rollback()
 
         # Seed default admin user if none exists
         if not User.query.filter_by(role="admin").first():

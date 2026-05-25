@@ -4,7 +4,9 @@ import secrets
 from pathlib import Path
 from jinja2 import Environment, FileSystemLoader
 from xhtml2pdf import pisa
+from flask_jwt_extended import jwt_required
 from .db import db, Client, DepotPreArrival, Asset, Compartment, WashCycle, WashCertificate, TransportEvent, IsotankWashCycle, RepairEvent, ReleaseDocument, PhotoRecord, Carrier, DisposalEvent, DisposalCertificate, ProducerDeclaration, AgreementDocument
+from .auth import get_allowed_client_ids
 
 main = Blueprint("main", __name__)
 
@@ -1473,10 +1475,18 @@ def list_photo_records(asset_id):
     }, 200
 
 @main.route("/clients/<int:client_id>/portal", methods=["GET"])
+@jwt_required()
 def client_portal(client_id):
+    allowed = get_allowed_client_ids()
+    if allowed is not None and client_id not in allowed:
+        return {"error": "Forbidden"}, 403
+
     client = Client.query.get(client_id)
     if not client:
         return {"error": "Client not found"}, 404
+
+    if client.division != "eco_depot":
+        return {"error": "Wrong portal for this client's division"}, 403
 
     assets = Asset.query.filter(
         Asset.pre_arrivals.any(client_id=client_id)
@@ -2665,10 +2675,18 @@ def get_disposal_certificate_pdf(cert_id):
     return send_file(pdf_path, as_attachment=True)
 
 @main.route("/eco-oil/clients/<int:client_id>/portal", methods=["GET"])
+@jwt_required()
 def eco_oil_client_portal(client_id):
+    allowed = get_allowed_client_ids()
+    if allowed is not None and client_id not in allowed:
+        return {"error": "Forbidden"}, 403
+
     client = Client.query.get(client_id)
     if not client:
         return {"error": "Client not found"}, 404
+
+    if client.division != "eco_oil":
+        return {"error": "Wrong portal for this client's division"}, 403
 
     # הצהרות יצרן
     declarations = ProducerDeclaration.query.filter_by(client_id=client_id).all()
@@ -2734,10 +2752,18 @@ def eco_oil_client_portal(client_id):
     }, 200
 
 @main.route("/depot/clients/<int:client_id>/portal", methods=["GET"])
+@jwt_required()
 def depot_client_portal(client_id):
+    allowed = get_allowed_client_ids()
+    if allowed is not None and client_id not in allowed:
+        return {"error": "Forbidden"}, 403
+
     client = Client.query.get(client_id)
     if not client:
         return {"error": "Client not found"}, 404
+
+    if client.division != "eco_depot":
+        return {"error": "Wrong portal for this client's division"}, 403
 
     # PreArrivals
     pre_arrivals = DepotPreArrival.query.filter_by(client_id=client_id).all()
