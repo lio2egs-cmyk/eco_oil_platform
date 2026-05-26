@@ -1,0 +1,15 @@
+# Old Hebrew URLs from the previous site (2022) → relevant new pages
+/%D7%98%D7%99%D7%94%D7%95%D7%A8-%D7%A9%D7%A4%D7%9B%D7%99%D7%9D    /services-offered    301
+/%D7%98%D7%99%D7%A4%D7%95%D7%9C-%D7%91%D7%A9%D7%A4%D7%9B%D7%99%D7%9D    /services-offered    301
+/טיהור-שפכים    /services-offered    301
+/טיפול-בשפכים    /services-offered    301
+
+# Force clean URLs — strip the .html suffix so each page has a single canonical URL
+/index.html                      /                          301!
+/about.html                      /about                     301!
+/services-offered.html           /services-offered          301!
+/eco-depot.html                  /eco-depot                 301!
+/industrial-consulting.html      /industrial-consulting     301!
+/export-of-waste.html            /export-of-waste           301!
+/types-of-waste-water.html       /types-of-waste-water      301!
+/partners.html                   /partners                  301!
