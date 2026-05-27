@@ -2,7 +2,7 @@ import os
 from datetime import timedelta
 from flask import Flask
 from flask_jwt_extended import JWTManager
-from werkzeug.security import generate_password_hash
+from werkzeug.security import generate_password_hash, check_password_hash
 from .routes import main
 from .auth import auth
 from .db import db
@@ -83,18 +83,34 @@ def create_app():
             except Exception:
                 db.session.rollback()
 
-        # Seed default admin user if none exists. In production, override the
-        # default username/password via env vars — NEVER ship "changeme123" live.
-        if not User.query.filter_by(role="admin").first():
-            admin_username = os.environ.get("FLASK_ADMIN_USERNAME", "admin")
-            admin_password = os.environ.get("FLASK_ADMIN_PASSWORD", "changeme123")
-            admin_user = User(
-                username=admin_username,
-                password_hash=generate_password_hash(admin_password),
+        # Seed/sync admin user. In production, FLASK_ADMIN_USERNAME and
+        # FLASK_ADMIN_PASSWORD env vars override the defaults.
+        # NEVER ship "changeme123" live — it's a local-dev fallback only.
+        admin_username_env = os.environ.get("FLASK_ADMIN_USERNAME")
+        admin_password_env = os.environ.get("FLASK_ADMIN_PASSWORD")
+        admin = User.query.filter_by(role="admin").first()
+        if not admin:
+            # First boot — seed the admin row.
+            admin = User(
+                username=admin_username_env or "admin",
+                password_hash=generate_password_hash(admin_password_env or "changeme123"),
                 role="admin",
             )
-            db.session.add(admin_user)
+            db.session.add(admin)
             db.session.commit()
+        else:
+            # Subsequent boots — if env vars are set and differ from the stored
+            # values, update. (Empty env vars are ignored so we never accidentally
+            # downgrade prod back to the dev default.)
+            changed = False
+            if admin_username_env and admin.username != admin_username_env:
+                admin.username = admin_username_env
+                changed = True
+            if admin_password_env and not check_password_hash(admin.password_hash, admin_password_env):
+                admin.password_hash = generate_password_hash(admin_password_env)
+                changed = True
+            if changed:
+                db.session.commit()
 
     app.register_blueprint(main)
     app.register_blueprint(auth)
