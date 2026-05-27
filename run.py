@@ -1,3 +1,10 @@
+from dotenv import load_dotenv
+
+# Load environment variables from .env (gitignored) before creating the app.
+# .env holds SMTP credentials and other local-dev settings; production deploys
+# inject env vars directly so .env is not needed there.
+load_dotenv()
+
 from src.app import create_app
 
 

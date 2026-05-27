@@ -2,6 +2,11 @@ from functools import wraps
 import hashlib
 import secrets
 import os
+import smtplib
+from email.mime.multipart import MIMEMultipart
+from email.mime.text import MIMEText
+from email.utils import formataddr
+from email.header import Header
 from datetime import datetime, timedelta
 from flask import Blueprint, request, jsonify, current_app
 from flask_jwt_extended import (
@@ -33,17 +38,111 @@ def _build_magic_link_url(raw_token: str, division: str) -> str:
     return f"{base.rstrip('/')}/verify?token={raw_token}"
 
 
+def _brand_name_for_division(division: str) -> str:
+    """Return the Hebrew brand name shown to the customer for each portal."""
+    return "אקו-דיפו" if division == "eco_depot" else "אקו-אויל"
+
+
+def _build_magic_link_email_content(brand: str, link: str) -> tuple[str, str, str]:
+    """
+    Build (subject, plain_text_body, html_body) for the magic-link email.
+    Content was agreed with Limor — do not change wording without asking her.
+    """
+    subject = f"קישור התחברות לפורטל {brand}"
+
+    plain_body = (
+        f"לקוח/ה יקר/ה,\n\n"
+        f"לבקשתך להתחבר לפורטל הלקוחות של {brand}, "
+        f"לחצ/י על הקישור למטה כדי להיכנס:\n\n"
+        f"{link}\n\n"
+        f"הקישור תקף לשעה אחת בלבד וניתן לשימוש פעם אחת.\n"
+        f"אם לא ביקשת להתחבר, ניתן להתעלם מהמייל הזה.\n\n"
+        f"בברכה,\n"
+        f"צוות אקו-אויל"
+    )
+
+    html_body = f"""<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head><meta charset="UTF-8"></head>
+<body style="font-family: Arial, 'Segoe UI', sans-serif; background:#f5f5f5; margin:0; padding:24px; direction:rtl;">
+  <div style="max-width:560px; margin:0 auto; background:#ffffff; border-radius:8px; padding:32px; box-shadow:0 1px 4px rgba(0,0,0,0.08);">
+    <p style="font-size:16px; color:#333; margin:0 0 16px;">לקוח/ה יקר/ה,</p>
+    <p style="font-size:16px; color:#333; line-height:1.6; margin:0 0 24px;">
+      לבקשתך להתחבר לפורטל הלקוחות של <strong>{brand}</strong>,<br>
+      לחצ/י על הכפתור למטה כדי להיכנס.
+    </p>
+    <p style="text-align:center; margin:32px 0;">
+      <a href="{link}"
+         style="display:inline-block; background:#5B9E96; color:#ffffff; text-decoration:none;
+                padding:14px 32px; border-radius:6px; font-size:16px; font-weight:bold;">
+        התחברות לפורטל
+      </a>
+    </p>
+    <p style="font-size:13px; color:#888; line-height:1.6; margin:0 0 8px;">
+      הקישור תקף לשעה אחת בלבד וניתן לשימוש פעם אחת.
+    </p>
+    <p style="font-size:13px; color:#888; line-height:1.6; margin:0 0 24px;">
+      אם לא ביקשת להתחבר, ניתן להתעלם מהמייל הזה.
+    </p>
+    <hr style="border:none; border-top:1px solid #eee; margin:16px 0;">
+    <p style="font-size:14px; color:#555; margin:0;">
+      בברכה,<br>צוות אקו-אויל
+    </p>
+  </div>
+</body>
+</html>"""
+
+    return subject, plain_body, html_body
+
+
 def _send_magic_link_email(user: User, raw_token: str) -> None:
     """
-    Step 3 placeholder: print the magic link to the server log.
-    Step 4 will replace this with real SMTP delivery via Microsoft 365 (portal@eco-oil.co.il).
+    Send the magic-link email via SMTP (smtp.gmail.com STARTTLS).
+    Falls back to logging the link if SMTP is not configured or the send fails,
+    so local development still works when .env is missing.
     """
     division = user.client.division if user.client else "eco_oil"
+    brand = _brand_name_for_division(division)
     link = _build_magic_link_url(raw_token, division)
-    current_app.logger.warning(
-        "[MAGIC LINK - DEV MODE] To: %s | User: %s | Link: %s",
-        user.email, user.username, link,
-    )
+
+    smtp_host = os.environ.get("MAIL_HOST")
+    smtp_port = int(os.environ.get("MAIL_PORT", "587"))
+    smtp_user = os.environ.get("MAIL_USERNAME")
+    smtp_pass = os.environ.get("MAIL_PASSWORD")
+    from_addr = os.environ.get("MAIL_FROM_ADDRESS", smtp_user or "")
+    from_name = os.environ.get("MAIL_FROM_NAME", "")
+
+    # Dev fallback — log the link if SMTP not configured.
+    if not (smtp_host and smtp_user and smtp_pass and from_addr):
+        current_app.logger.warning(
+            "[MAGIC LINK - DEV MODE / SMTP not configured] To: %s | Link: %s",
+            user.email, link,
+        )
+        return
+
+    subject, plain_body, html_body = _build_magic_link_email_content(brand, link)
+
+    msg = MIMEMultipart("alternative")
+    msg["Subject"] = Header(subject, "utf-8")
+    msg["From"] = formataddr((str(Header(from_name, "utf-8")), from_addr)) if from_name else from_addr
+    msg["To"] = user.email
+    msg.attach(MIMEText(plain_body, "plain", "utf-8"))
+    msg.attach(MIMEText(html_body, "html", "utf-8"))
+
+    try:
+        with smtplib.SMTP(smtp_host, smtp_port, timeout=20) as server:
+            server.ehlo()
+            server.starttls()
+            server.ehlo()
+            server.login(smtp_user, smtp_pass)
+            server.send_message(msg)
+        current_app.logger.info("Magic link email sent to %s", user.email)
+    except Exception as exc:
+        # Log the failure AND the link, so we can debug without losing the user.
+        current_app.logger.error(
+            "[MAGIC LINK - SMTP send failed: %s] To: %s | Link: %s",
+            exc, user.email, link,
+        )
 
 
 def _log_event(event_type: str, success: bool, user_id=None, email=None, notes=None):
