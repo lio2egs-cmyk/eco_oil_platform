@@ -14,12 +14,25 @@ def create_app():
 
     from pathlib import Path
 
-    BASE_DIR = Path(__file__).resolve().parents[2]   # eco_oil_platform/
-    DATA_DIR = BASE_DIR / "data"
-    DATA_DIR.mkdir(exist_ok=True)
+    # Database URL:
+    # - In production (Railway), DATABASE_URL is injected automatically by the
+    #   Postgres service and points at the managed Postgres instance.
+    # - In local development, no DATABASE_URL is set, so we fall back to a
+    #   SQLite file under ./data/app.db (auto-created).
+    database_url = os.environ.get("DATABASE_URL")
+    if database_url:
+        # SQLAlchemy 2.x requires the "postgresql://" scheme; Railway / Heroku
+        # still hand out the legacy "postgres://" prefix.
+        if database_url.startswith("postgres://"):
+            database_url = database_url.replace("postgres://", "postgresql://", 1)
+        app.config["SQLALCHEMY_DATABASE_URI"] = database_url
+    else:
+        BASE_DIR = Path(__file__).resolve().parents[2]   # eco_oil_platform/
+        DATA_DIR = BASE_DIR / "data"
+        DATA_DIR.mkdir(exist_ok=True)
+        DB_PATH = DATA_DIR / "app.db"
+        app.config["SQLALCHEMY_DATABASE_URI"] = f"sqlite:///{DB_PATH.as_posix()}"
 
-    DB_PATH = DATA_DIR / "app.db"
-    app.config["SQLALCHEMY_DATABASE_URI"] = f"sqlite:///{DB_PATH.as_posix()}"
     app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
 
     # JWT configuration
@@ -70,11 +83,14 @@ def create_app():
             except Exception:
                 db.session.rollback()
 
-        # Seed default admin user if none exists
+        # Seed default admin user if none exists. In production, override the
+        # default username/password via env vars — NEVER ship "changeme123" live.
         if not User.query.filter_by(role="admin").first():
+            admin_username = os.environ.get("FLASK_ADMIN_USERNAME", "admin")
+            admin_password = os.environ.get("FLASK_ADMIN_PASSWORD", "changeme123")
             admin_user = User(
-                username="admin",
-                password_hash=generate_password_hash("changeme123"),
+                username=admin_username,
+                password_hash=generate_password_hash(admin_password),
                 role="admin",
             )
             db.session.add(admin_user)
