@@ -13,7 +13,9 @@ main = Blueprint("main", __name__)
 
 @main.route("/")
 def home():
-    return "Eco-Oil Platform is running."
+    # The bare domain shows the customer login page.
+    from flask import redirect
+    return redirect("/login")
 
 
 # ------------------------

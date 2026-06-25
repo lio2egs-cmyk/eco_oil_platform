@@ -1,0 +1,69 @@
+<!doctype html>
+<html lang="he" dir="rtl"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>פורטל {{ brand }} — התחברות</title>
+<link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@400;500;600;700&family=Rubik:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+{% raw %}<style>
+  :root{--bg:#EDE8DC;--teal:#5B9E96;--teal-dark:#4a8a82;--navy:#2F5F59;--pill:#DAEFEA;--muted:#6b6b6b;
+        --fh:'Fredoka',sans-serif;--fb:'Rubik',sans-serif;}
+  *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+  body{font-family:var(--fb);background:var(--bg);color:#222;direction:rtl;min-height:100vh;
+       display:flex;align-items:center;justify-content:center;padding:24px;line-height:1.7}
+  h1,h2{font-family:var(--fh);font-weight:600}
+  .card{background:#fff;width:100%;max-width:440px;border-radius:18px;box-shadow:0 10px 40px rgba(0,0,0,.10);padding:34px 30px 28px;text-align:center}
+  .logo{height:74px;margin:0 auto 14px;display:block}
+  h1{font-size:21px;color:var(--navy)}
+  .sub{font-family:var(--fh);color:var(--teal-dark);font-size:15px;margin-top:2px}
+  .intro{font-size:14px;color:#444;margin:16px 2px 20px;line-height:1.65}
+  label{display:block;text-align:right;font-size:13.5px;color:#444;margin-bottom:6px;font-weight:500}
+  input[type=email]{width:100%;border:1.5px solid #d7d7d7;border-radius:10px;padding:13px 14px;font-family:var(--fb);font-size:15px;direction:ltr;text-align:right}
+  input[type=email]:focus{outline:2px solid var(--teal);outline-offset:0;border-color:var(--teal)}
+  .btn{width:100%;margin-top:14px;background:var(--teal);color:#fff;border:none;border-radius:10px;padding:14px;font-family:var(--fh);font-size:16px;cursor:pointer;transition:.18s}
+  .btn:hover{background:var(--teal-dark)} .btn:disabled{opacity:.6;cursor:default}
+  .note{font-size:12px;color:var(--muted);margin-top:16px;line-height:1.6} .note b{color:#555}
+  .sent{display:none}
+  .sent .ico{width:64px;height:64px;border-radius:50%;background:var(--pill);color:var(--teal-dark);font-size:32px;display:flex;align-items:center;justify-content:center;margin:6px auto 14px}
+  .sent h2{font-size:18px;color:var(--navy)}
+  .sent p{font-size:14px;color:#444;margin-top:10px;line-height:1.7}
+  .sent .small{font-size:12.5px;color:var(--muted);margin-top:14px}
+  .link{color:var(--teal-dark);font-weight:600;cursor:pointer;text-decoration:underline}
+</style>{% endraw %}
+</head>
+<body>
+  <div class="card">
+    <div id="form">
+      <img class="logo" src="{{ url_for('static', filename=logo) }}" alt="{{ brand }}">
+      <h1>פורטל לקוחות {{ brand }}</h1>
+      <div class="sub">כניסה לפורטל</div>
+      <div class="intro">ההתחברות היא <b>ללא סיסמה</b>. הזינו את כתובת המייל שלכם, ונשלח אליכם קישור כניסה חד-פעמי (תקף לשעה אחת).</div>
+      <label for="em">כתובת המייל שלכם</label>
+      <input type="email" id="em" placeholder="name@company.co.il" dir="ltr" autocomplete="email">
+      <button class="btn" id="go" onclick="send()">שלחו לי קישור כניסה</button>
+      <div class="note">נתקלתם בבעיה? פנו אלינו ל-<b>portal@eco-oil.co.il</b><br>הגישה לפורטל מיועדת ללקוחות רשומים בלבד.</div>
+    </div>
+    <div class="sent" id="sent">
+      <div class="ico">📩</div>
+      <h2>הקישור בדרך אליכם</h2>
+      <p>אם הכתובת שהזנתם רשומה במערכת, נשלח אליה כעת קישור כניסה.<br>בדקו את תיבת המייל — כולל תיקיית הספאם / קידומי מכירות.</p>
+      <p class="small">הקישור תקף לשעה אחת ולשימוש חד-פעמי.<br><span class="link" onclick="back()">חזרה ובקשת קישור נוסף</span></p>
+    </div>
+  </div>
+{% raw %}<script>
+  async function send(){
+    var el=document.getElementById('em'); var v=el.value.trim();
+    if(!v || v.indexOf('@')<1){ el.focus(); el.style.borderColor='#d9534f'; return; }
+    var btn=document.getElementById('go'); btn.disabled=true; btn.textContent='שולח…';
+    try{
+      await fetch('/auth/request-magic-link',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({email:v})});
+    }catch(e){}
+    document.getElementById('form').style.display='none';
+    document.getElementById('sent').style.display='block';
+  }
+  function back(){
+    document.getElementById('sent').style.display='none';
+    document.getElementById('form').style.display='block';
+    var b=document.getElementById('go'); b.disabled=false; b.textContent='שלחו לי קישור כניסה';
+  }
+  document.addEventListener('keydown',function(e){ if(e.key==='Enter'){ var f=document.getElementById('form'); if(f && f.style.display!=='none'){ send(); } } });
+</script>{% endraw %}
+</body></html>

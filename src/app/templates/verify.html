@@ -1,0 +1,74 @@
+<!doctype html>
+<html lang="he" dir="rtl"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>פורטל {{ brand }} — אימות קישור</title>
+<link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@400;500;600;700&family=Rubik:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+{% raw %}<style>
+  :root{--bg:#EDE8DC;--teal:#5B9E96;--teal-dark:#4a8a82;--navy:#2F5F59;--ok:#3a9d6e;--okbg:#dff3e8;
+        --warn:#c47d1a;--warnbg:#fdf1dd;--muted:#6b6b6b;--fh:'Fredoka',sans-serif;--fb:'Rubik',sans-serif;}
+  *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+  body{font-family:var(--fb);background:var(--bg);color:#222;direction:rtl;min-height:100vh;
+       display:flex;align-items:center;justify-content:center;padding:24px;line-height:1.7}
+  h1{font-family:var(--fh);font-weight:600;font-size:20px;color:var(--navy)}
+  .card{background:#fff;width:100%;max-width:460px;border-radius:18px;box-shadow:0 10px 40px rgba(0,0,0,.10);padding:36px 30px 30px;text-align:center}
+  .logo{height:64px;margin:0 auto 18px;display:block}
+  .state{display:none} .state.on{display:block}
+  .spin{width:54px;height:54px;border-radius:50%;border:5px solid #e6efed;border-top-color:var(--teal);margin:6px auto 16px;animation:r .9s linear infinite}
+  @keyframes r{to{transform:rotate(360deg)}}
+  .msg{font-size:14.5px;color:#444;margin-top:10px;line-height:1.7}
+  .small{font-size:12.5px;color:var(--muted);margin-top:14px}
+  .ico{width:66px;height:66px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:34px;margin:4px auto 16px}
+  .ico.ok{background:var(--okbg);color:var(--ok)} .ico.warn{background:var(--warnbg);color:var(--warn)}
+  .btn{display:inline-block;margin-top:18px;background:var(--teal);color:#fff;border:none;border-radius:10px;padding:13px 26px;font-family:var(--fh);font-size:15px;cursor:pointer;text-decoration:none}
+  .btn:hover{background:var(--teal-dark)}
+  .dots{font-size:13px;color:var(--teal-dark);margin-top:6px}
+</style>{% endraw %}
+</head>
+<body>
+  <div class="card">
+    <img class="logo" src="{{ url_for('static', filename=logo) }}" alt="{{ brand }}">
+    <div class="state on" id="checking">
+      <div class="spin"></div>
+      <h1>מאמתים את הקישור שלכם…</h1>
+      <div class="msg">עוד רגע ונכניס אתכם לפורטל.</div>
+    </div>
+    <div class="state" id="ok">
+      <div class="ico ok">✓</div>
+      <h1>התחברתם בהצלחה!</h1>
+      <div class="msg">מעבירים אתכם לפורטל הלקוחות…</div>
+      <div class="dots">פותח את העמוד שלכם ▸</div>
+    </div>
+    <div class="state" id="bad">
+      <div class="ico warn">⏳</div>
+      <h1>הקישור אינו תקף יותר</h1>
+      <div class="msg">ייתכן שחלפה שעה מאז שנשלח, או שכבר השתמשתם בו.<br>זה בסדר — אפשר לבקש קישור חדש בלחיצה אחת.</div>
+      <a class="btn" href="/login">בקשת קישור כניסה חדש</a>
+      <div class="small">הקישור שיישלח יהיה תקף לשעה, לשימוש חד-פעמי.</div>
+    </div>
+  </div>
+{% raw %}<script>
+  function show(s){
+    var ids=['checking','ok','bad'];
+    for(var i=0;i<ids.length;i++){ document.getElementById(ids[i]).classList.toggle('on', ids[i]===s); }
+  }
+  (async function(){
+    var token=new URLSearchParams(location.search).get('token');
+    if(!token){ show('bad'); return; }
+    try{
+      var r=await fetch('/auth/verify-magic-link',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({token:token})});
+      if(r.ok){
+        var d=await r.json();
+        try{
+          localStorage.setItem('eco_access_token', d.access_token||'');
+          localStorage.setItem('eco_refresh_token', d.refresh_token||'');
+          localStorage.setItem('eco_user', JSON.stringify(d.user||{}));
+        }catch(e){}
+        show('ok');
+        setTimeout(function(){ location.href='/portal'; }, 1400);
+      } else {
+        show('bad');
+      }
+    }catch(e){ show('bad'); }
+  })();
+</script>{% endraw %}
+</body></html>

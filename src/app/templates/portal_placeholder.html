@@ -1,0 +1,38 @@
+<!doctype html>
+<html lang="he" dir="rtl"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>פורטל {{ brand }}</title>
+<link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@400;500;600;700&family=Rubik:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+{% raw %}<style>
+  :root{--bg:#EDE8DC;--teal:#5B9E96;--teal-dark:#4a8a82;--navy:#2F5F59;--muted:#6b6b6b;--fh:'Fredoka',sans-serif;--fb:'Rubik',sans-serif;}
+  *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+  body{font-family:var(--fb);background:var(--bg);color:#222;direction:rtl;min-height:100vh;display:flex;align-items:center;justify-content:center;padding:24px;line-height:1.7}
+  h1{font-family:var(--fh);font-weight:600;font-size:22px;color:var(--navy)}
+  .card{background:#fff;width:100%;max-width:520px;border-radius:18px;box-shadow:0 10px 40px rgba(0,0,0,.10);padding:36px 32px;text-align:center}
+  .logo{height:70px;margin:0 auto 16px;display:block}
+  .who{font-family:var(--fh);color:var(--teal-dark);font-size:16px;margin-top:4px}
+  .msg{font-size:15px;color:#444;margin-top:16px;line-height:1.8}
+  .btn{display:inline-block;margin-top:22px;background:#fff;border:1.5px solid var(--teal);color:var(--teal-dark);border-radius:10px;padding:11px 24px;font-family:var(--fh);font-size:14px;cursor:pointer;text-decoration:none}
+  .btn:hover{background:#f1f8f6}
+</style>{% endraw %}
+</head>
+<body>
+  <div class="card">
+    <img class="logo" src="{{ url_for('static', filename=logo) }}" alt="{{ brand }}">
+    <h1>פורטל לקוחות {{ brand }}</h1>
+    <div class="who" id="who"></div>
+    <div class="msg">התחברתם בהצלחה. 🎉<br>הפורטל בבנייה — בקרוב יופיעו כאן ההצהרות, הטפסים והמסמכים שלכם.</div>
+    <a class="btn" href="#" onclick="logout();return false;">יציאה</a>
+  </div>
+{% raw %}<script>
+  if(!localStorage.getItem('eco_access_token')){ location.href='/login'; }
+  try{
+    var u=JSON.parse(localStorage.getItem('eco_user')||'{}');
+    if(u && u.client_name){ document.getElementById('who').textContent='שלום, '+u.client_name; }
+  }catch(e){}
+  function logout(){
+    try{ localStorage.removeItem('eco_access_token'); localStorage.removeItem('eco_refresh_token'); localStorage.removeItem('eco_user'); }catch(e){}
+    location.href='/login';
+  }
+</script>{% endraw %}
+</body></html>
