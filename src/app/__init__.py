@@ -6,6 +6,7 @@ from werkzeug.security import generate_password_hash, check_password_hash
 from .routes import main
 from .auth import auth
 from .web import web
+from .field import field
 from .db import db
 
 jwt = JWTManager()
@@ -116,6 +117,7 @@ def create_app():
     app.register_blueprint(main)
     app.register_blueprint(auth)
     app.register_blueprint(web)
+    app.register_blueprint(field)
 
     @app.route("/health")
     def health():

@@ -491,3 +491,183 @@ class DisposalCertificate(db.Model):
 
     def __repr__(self):
         return f"<DisposalCertificate event={self.disposal_event_id}>"
+
+
+# --------------------------
+# Eco-Depot portal: read-only snapshots synced FROM EcoDepot.xlsx (the bridge).
+# These mirror the workbook at row-grain so the portal screens can read them.
+# Never written by the portal UI — only by the bridge sync. Refreshed each cycle.
+# --------------------------
+
+class DepotIsotankVisit(db.Model):
+    """One isotank visit row, synced from EcoDepot.xlsx sheet 'רישום תנועות איזוטנקים'."""
+    __tablename__ = "depot_isotank_visits"
+
+    id = db.Column(db.Integer, primary_key=True)
+    visit_no = db.Column(db.String(60), index=True)
+    isotank_number = db.Column(db.String(60), index=True)
+    company = db.Column(db.String(200), index=True)   # 'חברה / סוכן' — used to scope a customer's data
+    billed_to = db.Column(db.String(200))             # 'גורם מחוייב' — who is charged (split-payer)
+    last_material = db.Column(db.String(200))
+    un_number = db.Column(db.String(50))
+    hazard_class = db.Column(db.String(50))
+    status = db.Column(db.String(80))                 # 'סטטוס' — the service step (שלב טיפול)
+    arrival_date = db.Column(db.Date)                 # 'תאריך הגעה'
+    storage_in_date = db.Column(db.Date)              # 'תאריך כניסה לאחסון'
+    storage_out_date = db.Column(db.Date)             # 'תאריך יציאה מאחסון'
+    exit_site_date = db.Column(db.Date)               # 'תאריך יציאה מהאתר'
+    storage_days = db.Column(db.Integer)              # 'סהכ ימי אחסנה'
+    daily_rate = db.Column(db.Float)                  # 'תעריף יומי'
+    storage_total = db.Column(db.Float)               # 'סהכ אחסון'
+    wash_date = db.Column(db.Date)                    # 'תאריך שטיפה'
+    wash_total = db.Column(db.Float)                  # 'סהכ שטיפה'
+    entry_hour = db.Column(db.String(20))            # 'שעת כניסה'
+    exit_hour = db.Column(db.String(20))             # 'שעת יציאה'
+    source_row = db.Column(db.Integer)               # Excel row in the live iso sheet (fast lookup)
+    synced_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+    def __repr__(self):
+        return f"<DepotIsotankVisit {self.isotank_number} company={self.company}>"
+
+
+class DepotRoadtankerVisit(db.Model):
+    """One roadtanker visit, synced from EcoDepot.xlsx sheet 'רישום תנועות רואדטנקרים'."""
+    __tablename__ = "depot_roadtanker_visits"
+
+    id = db.Column(db.Integer, primary_key=True)
+    visit_no = db.Column(db.String(60), index=True)
+    tanker_number = db.Column(db.String(60), index=True)   # 'מספר מכלית'
+    company = db.Column(db.String(200), index=True)
+    billed_to = db.Column(db.String(200))
+    entry_date = db.Column(db.Date)
+    entry_hour = db.Column(db.String(20))
+    exit_date = db.Column(db.Date)
+    exit_hour = db.Column(db.String(20))
+    last_material = db.Column(db.String(200))
+    compartment_materials = db.Column(db.String(400))      # joined 'חומר תא 1..6'
+    group = db.Column(db.String(80))                       # 'קבוצת רואדטנקר'
+    un_number = db.Column(db.String(50))
+    hazard_class = db.Column(db.String(50))
+    compartments_used = db.Column(db.Integer)
+    cert_status = db.Column(db.String(80))                 # 'סטטוס תעודה'
+    repairs_note = db.Column(db.String(300))
+    wash_total = db.Column(db.Float)
+    final_total = db.Column(db.Float)
+    synced_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+    def __repr__(self):
+        return f"<DepotRoadtankerVisit {self.tanker_number} company={self.company}>"
+
+
+class DepotStorageCharge(db.Model):
+    """Monthly storage charge per tank, from sheet 'חיוב_אחסנה_חודשי' (item 17)."""
+    __tablename__ = "depot_storage_charges"
+
+    id = db.Column(db.Integer, primary_key=True)
+    visit_no = db.Column(db.String(60), index=True)
+    isotank_number = db.Column(db.String(60), index=True)
+    company = db.Column(db.String(200), index=True)
+    billed_to = db.Column(db.String(200))
+    billing_month = db.Column(db.Date)
+    storage_days = db.Column(db.Integer)
+    daily_rate = db.Column(db.Float)
+    total = db.Column(db.Float)
+    billing_status = db.Column(db.String(80))
+    synced_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+    def __repr__(self):
+        return f"<DepotStorageCharge {self.isotank_number} month={self.billing_month}>"
+
+
+class DepotRepair(db.Model):
+    """Repair line, from sheet 'תיקונים' (feeds the reports תיקונים option)."""
+    __tablename__ = "depot_repairs"
+
+    id = db.Column(db.Integer, primary_key=True)
+    repair_id = db.Column(db.String(60), index=True)
+    visit_no = db.Column(db.String(60), index=True)
+    isotank_number = db.Column(db.String(60), index=True)
+    repair_date = db.Column(db.Date)
+    repair_name = db.Column(db.String(200))
+    qty = db.Column(db.Float)
+    unit_price = db.Column(db.Float)
+    line_total = db.Column(db.Float)
+    billed_to = db.Column(db.String(200))                  # 'מי מחויב'
+    synced_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+    def __repr__(self):
+        return f"<DepotRepair {self.repair_id} tank={self.isotank_number}>"
+
+# ---------------------------------------------------------------------------
+# Field terminals (מסופוני שטח) — capture layer: events + photos relayed
+# from the yard tablets to the office bridge. The cloud only STORES;
+# all decisions (OCR validation, Excel posting, photo filing) happen
+# at the office bridge. Photos are purged once the bridge acks.
+# ---------------------------------------------------------------------------
+
+class FieldDevice(db.Model):
+    """A tablet assigned to a yard worker. Token = bearer auth for the terminal API."""
+    __tablename__ = "field_devices"
+
+    id = db.Column(db.Integer, primary_key=True)
+    worker_name = db.Column(db.String(120), nullable=False)   # שם העובד — נרשם על כל אירוע
+    token = db.Column(db.String(64), unique=True, nullable=False, index=True)
+    active = db.Column(db.Boolean, default=True, nullable=False)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    last_seen_at = db.Column(db.DateTime)
+
+    def __repr__(self):
+        return f"<FieldDevice {self.worker_name}>"
+
+
+class FieldEvent(db.Model):
+    """One physical event captured in the yard: entry / wash / exit (+repairs in v2)."""
+    __tablename__ = "field_events"
+
+    id = db.Column(db.Integer, primary_key=True)
+    client_uuid = db.Column(db.String(40), unique=True, nullable=False, index=True)  # idempotency
+    device_id = db.Column(db.Integer, db.ForeignKey("field_devices.id"), nullable=False)
+    worker_name = db.Column(db.String(120), nullable=False)
+    event_type = db.Column(db.String(20), nullable=False)     # entry | wash | exit
+    asset_type = db.Column(db.String(10), nullable=False)     # iso | rt
+    tank_number = db.Column(db.String(40))                    # from dropdown, or empty until OCR
+    event_at = db.Column(db.DateTime, nullable=False)         # device time of capture
+    payload = db.Column(db.Text)                              # JSON: treatments, cells, notes...
+    status = db.Column(db.String(20), default="pending", nullable=False, index=True)
+    # pending → fetched (bridge downloaded) → posted (in live file) | error
+    bridge_note = db.Column(db.String(400))                   # e.g. decoded tank, error reason
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    posted_at = db.Column(db.DateTime)
+
+    device = db.relationship("FieldDevice")
+    photos = db.relationship("FieldPhoto", backref="event", lazy=True)
+
+    def __repr__(self):
+        return f"<FieldEvent {self.event_type} {self.tank_number or '?'} {self.status}>"
+
+
+class FieldPhoto(db.Model):
+    """Photo attached to a field event. Bytes purged after the bridge acks."""
+    __tablename__ = "field_photos"
+
+    id = db.Column(db.Integer, primary_key=True)
+    event_id = db.Column(db.Integer, db.ForeignKey("field_events.id"), nullable=False, index=True)
+    kind = db.Column(db.String(20), default="photo")          # plate | photo
+    filename = db.Column(db.String(200), nullable=False)
+    mime = db.Column(db.String(60), default="image/jpeg")
+    data = db.Column(db.LargeBinary)                          # purged on ack
+    size = db.Column(db.Integer)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+
+class FieldOnsiteAsset(db.Model):
+    """Snapshot of assets currently on site — feeds the terminal's wash/exit dropdown.
+    Replaced wholesale by the bridge on every poll cycle."""
+    __tablename__ = "field_onsite_assets"
+
+    id = db.Column(db.Integer, primary_key=True)
+    asset_type = db.Column(db.String(10), nullable=False)     # iso | rt
+    tank_number = db.Column(db.String(40), nullable=False)
+    customer = db.Column(db.String(200))
+    status = db.Column(db.String(60))
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow)
