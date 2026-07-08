@@ -35,3 +35,9 @@ def verify_page():
 @web.route("/portal")
 def portal_home():
     return render_template("portal_placeholder.html", **_brand_for_host())
+
+
+@web.route("/terminal")
+def field_terminal():
+    """מסופון השטח (טאבלטים) — דף עצמאי; ההרשאה נעשית במפתח מכשיר בתוך הדף."""
+    return render_template("terminal.html")

@@ -1,0 +1,240 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+<title>אקו דיפו — מסופון שטח</title>
+<style>
+  :root { --brand:#5B9E96; --dark:#2f5d57; --bg:#f4f7f6; }
+  * { box-sizing:border-box; font-family:"Segoe UI",Arial,sans-serif; }
+  body { margin:0; background:var(--bg); color:#222; }
+  header { background:var(--brand); color:#fff; padding:14px 16px; font-size:20px; font-weight:bold;
+           display:flex; justify-content:space-between; align-items:center; }
+  header small { font-size:13px; font-weight:normal; }
+  main { padding:16px; max-width:520px; margin:0 auto; }
+  .btn { display:block; width:100%; border:none; border-radius:14px; padding:26px 10px; margin:14px 0;
+         font-size:28px; font-weight:bold; color:#fff; background:var(--brand); }
+  .btn:active { background:var(--dark); }
+  .btn.secondary { background:#888; font-size:18px; padding:14px; }
+  .card { background:#fff; border-radius:14px; padding:16px; margin:12px 0; box-shadow:0 1px 4px rgba(0,0,0,.12); }
+  label { font-size:17px; font-weight:bold; display:block; margin:10px 0 4px; }
+  select,input[type=text] { width:100%; font-size:20px; padding:10px; border:1px solid #bbb; border-radius:10px; }
+  .treat { display:flex; flex-wrap:wrap; gap:8px; }
+  .treat label { flex:1 1 44%; font-weight:normal; background:#eef4f3; border-radius:10px; padding:12px;
+                 display:flex; gap:8px; align-items:center; font-size:18px; margin:0; }
+  .treat input { width:24px; height:24px; }
+  .photos { display:flex; flex-wrap:wrap; gap:8px; margin-top:8px; }
+  .photos img { width:84px; height:84px; object-fit:cover; border-radius:10px; border:2px solid #ccc; }
+  #queue .item { display:flex; justify-content:space-between; padding:8px 4px; border-bottom:1px solid #eee; font-size:16px; }
+  .ok { color:#1d8a3a; font-weight:bold; } .wait { color:#b8860b; } .err { color:#b03030; font-weight:bold; }
+  .hidden { display:none; }
+  #camBtn { background:var(--dark); font-size:22px; padding:18px; }
+  .note { font-size:14px; color:#666; }
+</style>
+</head>
+<body>
+<header><span>אקו דיפו — שטח</span><small id="who"></small></header>
+<main>
+
+<!-- הגדרה ראשונית: הזנת מפתח מכשיר (פעם אחת, ע"י המשרד) -->
+<div id="setup" class="card hidden">
+  <label>מפתח מכשיר (מוזן פעם אחת ע"י המשרד)</label>
+  <input type="text" id="tokenInput" autocomplete="off">
+  <button class="btn" onclick="saveToken()">שמירה</button>
+</div>
+
+<!-- מסך הבית -->
+<div id="home" class="hidden">
+  <button class="btn" onclick="startFlow('entry')">📥 כניסה</button>
+  <button class="btn" onclick="startFlow('wash')">🧼 שטיפה</button>
+  <button class="btn" onclick="startFlow('exit')">📤 יציאה</button>
+  <div class="card">
+    <b>אירועים אחרונים</b>
+    <div id="queue"></div>
+  </div>
+</div>
+
+<!-- מסך אירוע -->
+<div id="flow" class="hidden">
+  <div class="card">
+    <div id="flowTitle" style="font-size:24px;font-weight:bold;"></div>
+    <label>סוג נכס</label>
+    <select id="assetType" onchange="onAssetType()">
+      <option value="iso">איזוטנק</option>
+      <option value="rt">מכלית (רואדטנקר)</option>
+    </select>
+    <div id="pickWrap">
+      <label>בחירת נכס (נמצאים במגרש)</label>
+      <select id="tankPick"></select>
+    </div>
+    <div id="manualWrap">
+      <label>מספר (אם ידוע — לא חובה, המשרד מפענח מהתמונה)</label>
+      <input type="text" id="tankManual" autocapitalize="characters" autocomplete="off">
+    </div>
+    <button class="btn" id="camBtn" onclick="fileInput.click()">📷 צילום</button>
+    <input type="file" id="fileInput" accept="image/*" capture="environment" class="hidden" multiple>
+    <div class="photos" id="thumbs"></div>
+    <div id="treatWrap" class="hidden">
+      <label>מה בוצע?</label>
+      <div class="treat" id="treats"></div>
+    </div>
+    <button class="btn" onclick="submitEvent()">✅ שליחה</button>
+    <button class="btn secondary" onclick="goHome()">ביטול</button>
+    <div class="note">אין קליטה? אפשר לשלוח — האירוע יחכה במכשיר ויעלה לבד.</div>
+  </div>
+</div>
+
+</main>
+<script>
+const TREATMENTS = ["מים קרים","מים חמים","חומר ניקוי בסיסי","אצטון","קיטור","ממיסים","יבוש",
+                    "ויזואלי + ריח","ויזואלי","בדיקת pH","בדיקת אוויר"];
+const API = "";
+let flowType = null, photos = [];
+
+// ---------- אחסון מקומי: תור אירועים (IndexedDB — שורד כיבוי וחוסר קליטה) ----------
+let idb;
+const idbReady = new Promise(res => {
+  const rq = indexedDB.open("field_terminal", 1);
+  rq.onupgradeneeded = e => e.target.result.createObjectStore("outbox", {keyPath:"client_uuid"});
+  rq.onsuccess = e => { idb = e.target.result; res(); };
+});
+function outbox(mode) { return idb.transaction("outbox", mode).objectStore("outbox"); }
+function idbAll() { return new Promise(res => { const r = outbox("readonly").getAll(); r.onsuccess = () => res(r.result); }); }
+function idbPut(item) { return new Promise(res => { outbox("readwrite").put(item).onsuccess = res; }); }
+function idbDel(key) { return new Promise(res => { outbox("readwrite").delete(key).onsuccess = res; }); }
+
+const token = () => localStorage.getItem("device_token");
+function saveToken() { localStorage.setItem("device_token", document.getElementById("tokenInput").value.trim()); location.reload(); }
+
+function show(id) { for (const s of ["setup","home","flow"]) document.getElementById(s).classList.toggle("hidden", s !== id); }
+function goHome() { show("home"); renderQueue(); }
+
+// ---------- מסך אירוע ----------
+function startFlow(t) {
+  flowType = t; photos = [];
+  document.getElementById("thumbs").innerHTML = "";
+  document.getElementById("tankManual").value = "";
+  document.getElementById("flowTitle").textContent = {entry:"📥 כניסה", wash:"🧼 שטיפה", exit:"📤 יציאה"}[t];
+  document.getElementById("treatWrap").classList.toggle("hidden", t !== "wash");
+  document.getElementById("pickWrap").classList.toggle("hidden", t === "entry");
+  document.getElementById("manualWrap").classList.toggle("hidden", t !== "entry");
+  if (t === "wash") {
+    const tw = document.getElementById("treats");
+    tw.innerHTML = TREATMENTS.map(x => `<label><input type="checkbox" value="${x}">${x}</label>`).join("");
+  }
+  if (t !== "entry") loadOnsite();
+  show("flow");
+}
+function onAssetType() { if (flowType !== "entry") loadOnsite(); }
+
+async function loadOnsite() {
+  const at = document.getElementById("assetType").value;
+  const sel = document.getElementById("tankPick");
+  try {
+    const r = await fetch(`${API}/field/api/onsite?asset_type=${at}`, {headers:{Authorization:"Bearer "+token()}});
+    const d = await r.json();
+    sel.innerHTML = d.assets.map(a => `<option value="${a.tank_number}">${a.tank_number} — ${a.customer||""}</option>`).join("");
+    localStorage.setItem("onsite_"+at, sel.innerHTML);
+  } catch (e) { sel.innerHTML = localStorage.getItem("onsite_"+at) || ""; }
+}
+
+document.getElementById("fileInput").addEventListener("change", ev => {
+  for (const f of ev.target.files) {
+    photos.push(f);
+    const img = document.createElement("img");
+    img.src = URL.createObjectURL(f);
+    document.getElementById("thumbs").appendChild(img);
+  }
+  ev.target.value = "";
+});
+const fileInput = document.getElementById("fileInput");
+
+async function submitEvent() {
+  const at = document.getElementById("assetType").value;
+  let tank = flowType === "entry" ? document.getElementById("tankManual").value
+                                  : document.getElementById("tankPick").value;
+  if (flowType !== "entry" && !tank) { alert("נא לבחור נכס"); return; }
+  if (flowType === "entry" && photos.length === 0) { alert("בכניסה חובה לצלם את הלוחית"); return; }
+  const treatments = flowType === "wash"
+    ? [...document.querySelectorAll("#treats input:checked")].map(c => c.value) : [];
+  const item = {
+    client_uuid: crypto.randomUUID(),
+    event_type: flowType, asset_type: at,
+    tank_number: (tank || "").trim().toUpperCase(),
+    event_at: new Date().toISOString().slice(0,19),
+    payload: {treatments},
+    photos: await Promise.all(photos.map(async f => ({name:f.name, type:f.type, blob:f}))),
+    label: `${document.getElementById("flowTitle").textContent} ${tank || "(מהתמונה)"}`,
+    state: "queued", ts: Date.now(),
+  };
+  await idbPut(item);
+  goHome();
+  pump();
+}
+
+// ---------- משאבת שליחה: מנסה כל הזמן, שורדת חוסר קליטה ----------
+let pumping = false;
+async function pump() {
+  if (pumping || !navigator.onLine) return;
+  pumping = true;
+  try {
+    for (const item of await idbAll()) {
+      if (item.state === "done") continue;
+      const fd = new FormData();
+      fd.append("event", JSON.stringify({client_uuid:item.client_uuid, event_type:item.event_type,
+        asset_type:item.asset_type, tank_number:item.tank_number, event_at:item.event_at, payload:item.payload}));
+      item.photos.forEach((p,i) => fd.append(i===0?"plate":"p"+i, p.blob, p.name||("p"+i+".jpg")));
+      try {
+        const r = await fetch(`${API}/field/api/events`, {method:"POST", body:fd,
+                              headers:{Authorization:"Bearer "+token()}});
+        if (r.ok) { item.state = "sent"; await idbPut(item); }
+      } catch(e) { /* אין קליטה — יישאר בתור */ }
+    }
+  } finally { pumping = false; renderQueue(); }
+}
+
+// ---------- וי ירוק: שאילתת סטטוס מהענן ----------
+async function pollStatus() {
+  const items = (await idbAll()).filter(i => i.state === "sent");
+  if (!items.length) return;
+  try {
+    const uuids = items.map(i => i.client_uuid).join(",");
+    const r = await fetch(`${API}/field/api/events/status?uuids=${uuids}`, {headers:{Authorization:"Bearer "+token()}});
+    const d = await r.json();
+    for (const it of items) {
+      const st = d.events[it.client_uuid];
+      if (st && (st.status === "posted" || st.status === "error")) {
+        it.state = "done"; it.result = st.status; it.note = st.note || "";
+        it.photos = [];   // שחרור מקום — התמונות כבר במשרד
+        await idbPut(it);
+      }
+    }
+  } catch(e) {}
+  renderQueue();
+}
+
+async function renderQueue() {
+  const q = document.getElementById("queue");
+  const items = (await idbAll()).sort((a,b) => b.ts - a.ts).slice(0, 12);
+  q.innerHTML = items.map(i => {
+    const mark = i.state === "queued" ? '<span class="wait">⌛ ממתין לקליטה</span>'
+              : i.state === "sent" ? '<span class="wait">☁ הגיע לענן</span>'
+              : i.result === "posted" ? '<span class="ok">✓ נקלט במשרד</span>'
+              : '<span class="err">⚠ ' + (i.note||"שגיאה") + '</span>';
+    return `<div class="item"><span>${i.label}</span>${mark}</div>`;
+  }).join("") || '<div class="note">אין אירועים עדיין</div>';
+}
+
+// ---------- אתחול ----------
+idbReady.then(async () => {
+  if (!token()) { show("setup"); return; }
+  document.getElementById("who").textContent = "";
+  show("home"); renderQueue();
+  pump(); pollStatus();
+  setInterval(pump, 15000);
+  setInterval(pollStatus, 20000);
+  window.addEventListener("online", pump);
+});
+</script>
+</body>
+</html>
