@@ -139,16 +139,17 @@ def create_app():
     def health():
         return {"status": "ok"}, 200
 
-    # Security headers on every response. HSTS only in production (DATABASE_URL
-    # set = Railway) — locally we serve plain HTTP and HSTS would break it.
-    is_production = bool(database_url)
+    # Security headers on every response. HSTS only when the request actually
+    # arrived over HTTPS (Railway's proxy sets X-Forwarded-Proto) — locally we
+    # serve plain HTTP and HSTS would break it.
+    from flask import request as _request
 
     @app.after_request
     def set_security_headers(response):
         response.headers.setdefault("X-Content-Type-Options", "nosniff")
         response.headers.setdefault("X-Frame-Options", "DENY")
         response.headers.setdefault("Referrer-Policy", "strict-origin-when-cross-origin")
-        if is_production:
+        if _request.headers.get("X-Forwarded-Proto", "").lower() == "https" or _request.is_secure:
             response.headers.setdefault(
                 "Strict-Transport-Security", "max-age=31536000; includeSubDomains"
             )
