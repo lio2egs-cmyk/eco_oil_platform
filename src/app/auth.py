@@ -517,3 +517,39 @@ def me():
         result["sub_clients"] = [dict(id=c.id, name=c.name) for c in sub_clients]
 
     return jsonify(result), 200
+
+
+@auth.route("/_smtp-diagnose", methods=["POST"])
+@admin_required
+def _smtp_diagnose():
+    """TEMPORARY admin-only diagnostic — connects to the SMTP server and reports
+    the real error, without exposing any secret value. Remove after debugging."""
+    import smtplib
+    host = os.environ.get("MAIL_HOST")
+    port = int(os.environ.get("MAIL_PORT", "587"))
+    smtp_user = os.environ.get("MAIL_USERNAME")
+    smtp_pass = os.environ.get("MAIL_PASSWORD")
+    from_addr = os.environ.get("MAIL_FROM_ADDRESS", "")
+    from_name = os.environ.get("MAIL_FROM_NAME", "")
+
+    report = {
+        "vars_present": {
+            "MAIL_HOST": bool(host), "MAIL_PORT": os.environ.get("MAIL_PORT"),
+            "MAIL_USERNAME": bool(smtp_user), "MAIL_PASSWORD": bool(smtp_pass),
+            "MAIL_PASSWORD_len": len(smtp_pass) if smtp_pass else 0,
+            "MAIL_FROM_ADDRESS": from_addr,
+            "MAIL_FROM_NAME_repr": repr(from_name),  # detect mojibake, not a secret
+        },
+        "connect": None, "starttls": None, "login": None, "error": None,
+    }
+    if not (host and smtp_user and smtp_pass):
+        report["error"] = "SMTP vars missing — app is in DEV fallback (no email sent, link only logged)"
+        return jsonify(report), 200
+    try:
+        with smtplib.SMTP(host, port, timeout=20) as server:
+            server.ehlo(); report["connect"] = "ok"
+            server.starttls(); server.ehlo(); report["starttls"] = "ok"
+            server.login(smtp_user, smtp_pass); report["login"] = "ok"
+    except Exception as exc:
+        report["error"] = "%s: %s" % (type(exc).__name__, exc)
+    return jsonify(report), 200
