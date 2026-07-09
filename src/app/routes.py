@@ -1,12 +1,14 @@
 from flask import Blueprint, request
 from datetime import datetime
+from calendar import monthrange
 import secrets
 from pathlib import Path
 from jinja2 import Environment, FileSystemLoader
 from xhtml2pdf import pisa
-from flask_jwt_extended import jwt_required
+from flask_jwt_extended import jwt_required, get_jwt, get_jwt_identity
 from .db import db, Client, DepotPreArrival, Asset, Compartment, WashCycle, WashCertificate, TransportEvent, IsotankWashCycle, RepairEvent, ReleaseDocument, PhotoRecord, Carrier, DisposalEvent, DisposalCertificate, ProducerDeclaration, AgreementDocument
-from .auth import get_allowed_client_ids
+from .auth import get_allowed_client_ids, admin_required
+from .declaration_data import STREAMS, STREAM_NAME_TO_CLASSIFICATION, QUANTITY_BANDS
 
 main = Blueprint("main", __name__)
 
@@ -2423,6 +2425,7 @@ def get_disposal_event(event_id):
 # Eco-Oil / Producer Declarations
 # ------------------------
 @main.route("/eco-oil/producer-declarations", methods=["POST"])
+@admin_required
 def create_producer_declaration():
     data = request.get_json() or {}
 
@@ -2833,7 +2836,156 @@ def depot_client_portal(client_id):
         "release_documents": release_docs_data,
     }, 200
 
+@main.route("/eco-oil/portal/declarations", methods=["POST"])
+@jwt_required()
+def submit_portal_declaration():
+    """הגשת הצהרת יצרן מתוך הפורטל — נשמרת שורה לכל חומר, במעמד 'הוגשה'.
+
+    כללי הקשיחות (אין לעקוף):
+    - הערכים הקבועים (מאפיין עיקרי, H, או"ם, R, D) נקבעים כאן לפי הזרם,
+      לעולם לא מהדפדפן.
+    - כל ערך-בחירה חייב להופיע ברשימת ההיתר של הזרם (declaration_data).
+    - היתר רעלים של העסק חובה רק אם באחד הכרטיסים נבחר "מעל 10 טון".
+    - התוקף: שנתיים לפי חודש — עד סוף אותו חודש, שנתיים קדימה.
+    - ההצהרה נשמרת is_active=False עד חתימה + אישור אקו-אויל.
+    """
+    claims = get_jwt()
+    data = request.get_json(silent=True) or {}
+
+    # ─── זיהוי הלקוח ומגבלת גישה ───
+    target_client_id = data.get("client_id") or claims.get("client_id")
+    if not target_client_id:
+        return {"error": "לא זוהה לקוח עבור ההצהרה"}, 400
+    allowed = get_allowed_client_ids()
+    if allowed is not None and target_client_id not in allowed:
+        return {"error": "אין הרשאה ללקוח זה"}, 403
+    client = Client.query.get(target_client_id)
+    if not client:
+        return {"error": "הלקוח לא נמצא"}, 404
+    if client.division != "eco_oil":
+        return {"error": "הצהרת יצרן זמינה רק ללקוחות אקו-אויל"}, 403
+
+    # ─── הזרם ───
+    stream_key = data.get("stream")
+    stream = STREAMS.get(stream_key)
+    if not stream:
+        return {"error": "יש לבחור סוג זרם (א׳ או ב׳)"}, 400
+
+    # ─── פרטי יצרן הפסולת ───
+    producer = data.get("producer") or {}
+    required_producer = {
+        "business_name": "שם העסק / המפעל",
+        "business_id": "מספר ח.פ.",
+        "address": "כתובת העסק",
+        "email": "מייל למשלוח אישורים",
+        "ceo_name": 'שם מנכ"ל / אחראי היתר',
+    }
+    for key, label in required_producer.items():
+        if not (producer.get(key) or "").strip():
+            return {"error": f"חסר שדה חובה: {label}"}, 400
+    email = producer["email"].strip()
+    if "@" not in email[1:]:
+        return {"error": "כתובת המייל אינה תקינה"}, 400
+
+    # ─── כרטיסי החומרים ───
+    materials = data.get("materials") or []
+    if not materials:
+        return {"error": "יש למלא לפחות כרטיס חומר אחד"}, 400
+
+    list_fields = {
+        "stream_name": ("שם זרם הפסולת", stream["streamName"]),
+        "production_facility": ("מתקן הייצור", stream["facility"]),
+        "waste_number": ("מספר הפסולת", stream["wasteNo"]),
+        "y_code": ("קוד Y", stream["yCode"]),
+        "annex8": ("סוג הפסולת (נספח VIII)", stream["annex8"]),
+        "catalog": ('סיווג ע"פ קטלוג', stream["catalog"]),
+        "quantity_band": ("כמות שנתית", QUANTITY_BANDS),
+        "packaging": ("סוג האריזה", stream["pkg"]),
+    }
+    any_big = False
+    for i, mat in enumerate(materials, start=1):
+        for key, (label, options) in list_fields.items():
+            value = (mat.get(key) or "").strip()
+            if not value:
+                return {"error": f"כרטיס {i}: חסר שדה חובה — {label}"}, 400
+            if value not in options:
+                return {"error": f"כרטיס {i}: הערך בשדה '{label}' אינו מהרשימה המותרת בהיתר"}, 400
+        for key, label in (("treatment_type", "מתקן/סוג טיפול"), ("pollutant_type", "סוג מזהם")):
+            if not (mat.get(key) or "").strip():
+                return {"error": f"כרטיס {i}: חסר שדה חובה — {label}"}, 400
+        if mat["quantity_band"] == "מעל 10 טון":
+            any_big = True
+
+    permit_number = (producer.get("permit_number") or "").strip()
+    if any_big and not permit_number:
+        return {"error": 'נבחר "מעל 10 טון" — חובה למלא מספר היתר רעלים של העסק'}, 400
+
+    # ─── תוקף: שנתיים לפי חודש (עד סוף אותו חודש, שנתיים קדימה) ───
+    now = datetime.utcnow()
+    until_year = now.year + 2
+    last_day = monthrange(until_year, now.month)[1]
+    valid_until = datetime(until_year, now.month, last_day, 23, 59, 59)
+
+    submitted_by = int(get_jwt_identity())
+    created = []
+    for mat in materials:
+        stream_name = mat["stream_name"].strip()
+        declaration = ProducerDeclaration(
+            client_id=target_client_id,
+            # פרטי יצרן הפסולת
+            producer_name=producer["business_name"].strip(),
+            client_address=producer["address"].strip(),
+            business_id=producer["business_id"].strip(),
+            permit_number=permit_number or None,
+            ceo_name=producer["ceo_name"].strip(),
+            client_email=email,
+            producer_size="גדול" if mat["quantity_band"] == "מעל 10 טון" else "קטן",
+            # פרטי זרם — בחירות הלקוח
+            material_name=stream_name,
+            material_classification=STREAM_NAME_TO_CLASSIFICATION.get(stream_name),
+            waste_stream_number=mat["waste_number"].strip(),
+            production_facility=mat["production_facility"].strip(),
+            basel_y_code=mat["y_code"].strip(),
+            basel_annexviii_code=mat["annex8"].strip(),
+            european_catalog_code=mat["catalog"].strip(),
+            treatment_facility_type=mat["treatment_type"].strip(),
+            pollutant_type=mat["pollutant_type"].strip(),
+            concentration_range=(mat.get("concentration_range") or "").strip() or None,
+            annual_quantity_text=mat["quantity_band"],
+            packaging_type=mat["packaging"],
+            # ערכים קבועים — נגזרים מהזרם בשרת בלבד
+            waste_main_characteristic=stream["characteristic"],
+            basel_h_code=stream["H"],
+            un_risk_group=stream["un"],
+            basel_r_code=stream["R"],
+            basel_d_code=stream["D"],
+            # תוקף ומחזור חיים
+            valid_from=now,
+            valid_until=valid_until,
+            is_active=False,
+            status="submitted",
+            submitted_by_user_id=submitted_by,
+        )
+        db.session.add(declaration)
+        created.append(declaration)
+    db.session.commit()
+
+    return {
+        "message": "ההצהרה נקלטה",
+        "declarations": [
+            {
+                "id": d.id,
+                "material_name": d.material_name,
+                "valid_until": d.valid_until.isoformat(),
+                "status": d.status,
+            }
+            for d in created
+        ],
+    }, 201
+
+
 @main.route("/eco-oil/producer-declarations", methods=["GET"])
+@admin_required
 def list_producer_declarations():
     declarations = ProducerDeclaration.query.order_by(ProducerDeclaration.issued_at.desc()).all()
     result = []

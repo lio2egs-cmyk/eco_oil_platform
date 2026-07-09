@@ -9,7 +9,11 @@ Branding (logo + name) is chosen per subdomain:
   depot.eco-oil.co.il  -> Eco-Depot (English logo)
   portal.eco-oil.co.il -> Eco-Oil   (Hebrew logo)
 """
+import json
+
 from flask import Blueprint, render_template, request
+
+from .declaration_data import STREAMS
 
 web = Blueprint("web", __name__)
 
@@ -35,6 +39,16 @@ def verify_page():
 @web.route("/portal")
 def portal_home():
     return render_template("portal_placeholder.html", **_brand_for_host())
+
+
+@web.route("/declaration")
+def declaration_page():
+    """טופס הצהרת יצרן (אקו-אויל) — הרשימות מוזרקות מהשרת, מקור אמת אחד."""
+    return render_template(
+        "declaration.html",
+        streams_json=json.dumps(STREAMS, ensure_ascii=False),
+        **_brand_for_host(),
+    )
 
 
 @web.route("/terminal")

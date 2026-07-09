@@ -382,6 +382,7 @@ class ProducerDeclaration(db.Model):
     client = db.relationship("Client", backref="producer_declarations")
 
     # פרטי לקוח
+    producer_name = db.Column(db.String(200))     # שם העסק/המפעל כפי שהוצהר (יכול להיות שונה משם חשבון הלקוח)
     client_address = db.Column(db.String(300))
     business_id = db.Column(db.String(50))        # מספר ח.פ.
     permit_number = db.Column(db.String(100))      # מספר היתר רעלים
@@ -412,6 +413,11 @@ class ProducerDeclaration(db.Model):
     valid_from = db.Column(db.DateTime, nullable=False)
     valid_until = db.Column(db.DateTime, nullable=False)
     is_active = db.Column(db.Boolean, default=True)
+
+    # מחזור חיים: submitted (הוגשה בפורטל, ממתינה לחתימה+אישור) / approved (אושרה).
+    # הצהרה שהוגשה בפורטל נשמרת is_active=False עד שאקו-אויל מאשרת אותה.
+    status = db.Column(db.String(30), default="approved")
+    submitted_by_user_id = db.Column(db.Integer, db.ForeignKey("users.id"))
 
     issued_at = db.Column(db.DateTime, default=datetime.utcnow)
     notes = db.Column(db.Text)

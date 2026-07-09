@@ -14,6 +14,8 @@
   .msg{font-size:15px;color:#444;margin-top:16px;line-height:1.8}
   .btn{display:inline-block;margin-top:22px;background:#fff;border:1.5px solid var(--teal);color:var(--teal-dark);border-radius:10px;padding:11px 24px;font-family:var(--fh);font-size:14px;cursor:pointer;text-decoration:none}
   .btn:hover{background:#f1f8f6}
+  .btn-main{display:inline-block;margin-top:24px;background:var(--teal);color:#fff;border:none;border-radius:10px;padding:14px 28px;font-family:var(--fh);font-size:16px;cursor:pointer;text-decoration:none}
+  .btn-main:hover{background:var(--teal-dark)}
 </style>{% endraw %}
 </head>
 <body>
@@ -22,6 +24,9 @@
     <h1>פורטל לקוחות {{ brand }}</h1>
     <div class="who" id="who"></div>
     <div class="msg">התחברתם בהצלחה. 🎉<br>הפורטל בבנייה — בקרוב יופיעו כאן ההצהרות, הטפסים והמסמכים שלכם.</div>
+    {% if division == 'eco_oil' %}
+    <a class="btn-main" href="/declaration">📄 מילוי הצהרת יצרן</a><br>
+    {% endif %}
     <a class="btn" href="#" onclick="logout();return false;">יציאה</a>
   </div>
 {% raw %}<script>

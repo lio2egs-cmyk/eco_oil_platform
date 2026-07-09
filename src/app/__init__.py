@@ -85,6 +85,18 @@ def create_app():
             except Exception:
                 db.session.rollback()
 
+        # Migrate: portal-submitted producer declarations (additive, idempotent)
+        for stmt in (
+            "ALTER TABLE producer_declarations ADD COLUMN producer_name VARCHAR(200)",
+            "ALTER TABLE producer_declarations ADD COLUMN status VARCHAR(30)",
+            "ALTER TABLE producer_declarations ADD COLUMN submitted_by_user_id INTEGER REFERENCES users(id)",
+        ):
+            try:
+                db.session.execute(db.text(stmt))
+                db.session.commit()
+            except Exception:
+                db.session.rollback()
+
         # Seed/sync admin user. In production, FLASK_ADMIN_USERNAME and
         # FLASK_ADMIN_PASSWORD env vars override the defaults.
         # NEVER ship "changeme123" live — it's a local-dev fallback only.

@@ -1,0 +1,554 @@
+<!doctype html>
+<html lang="he" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>פורטל {{ brand }} — הצהרת יצרן</title>
+<link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@400;500;600;700&family=Rubik:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+{% raw %}<style>
+  :root{
+    --bg:#EDE8DC; --teal:#5B9E96; --teal-dark:#4a8a82; --navy:#2F5F59;
+    --pill:#DAEFEA; --mint:#B8E0D2;
+    --edit:#FCE4E4; --edit-border:#E7A9A9;
+    --fixed:#E7E6E6;
+    --auto:#DEEBF7;
+    --text:#222; --muted:#6b6b6b;
+    --font-head:'Fredoka',sans-serif; --font-body:'Rubik',sans-serif;
+  }
+  *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+  body{font-family:var(--font-body);background:var(--bg);color:var(--text);direction:rtl;line-height:1.7;-webkit-font-smoothing:antialiased;padding:18px}
+  .wrap{max-width:920px;margin:0 auto}
+  h1,h2,h3{font-family:var(--font-head);font-weight:600}
+
+  .top{background:linear-gradient(135deg,var(--navy),var(--teal));color:#fff;padding:22px 26px;border-radius:14px 14px 0 0;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px}
+  .top .brand{font-family:var(--font-head);font-size:15px;opacity:.92;letter-spacing:.5px}
+  .top h1{font-size:24px;margin-top:2px}
+  .top .badge{background:rgba(255,255,255,.18);padding:7px 14px;border-radius:999px;font-size:13px}
+
+  .greet{background:#fff;padding:16px 26px;font-size:14.5px;line-height:1.7;border-right:5px solid var(--teal)}
+  .card{background:#fff;border-radius:0 0 14px 14px;overflow:hidden}
+
+  .legend{display:flex;gap:18px;flex-wrap:wrap;padding:12px 26px;background:#fff;border-top:1px solid #eee;font-size:13px}
+  .legend .k{display:inline-flex;align-items:center;gap:7px}
+  .swatch{width:15px;height:15px;border-radius:4px;border:1px solid rgba(0,0,0,.12);display:inline-block}
+
+  section{padding:18px 26px;border-top:1px solid #eee}
+  .sec-title{color:var(--navy);font-size:17px;margin-bottom:4px}
+  .sec-sub{color:var(--muted);font-size:13px;margin-bottom:12px}
+
+  .plant{background:#fafafa;border:1px solid #ececec;border-radius:10px;overflow:hidden}
+  .plant .row{display:flex;border-bottom:1px solid #efefef}
+  .plant .row:last-child{border-bottom:0}
+  .plant .lbl{flex:0 0 230px;background:var(--fixed);padding:10px 14px;font-size:13.5px;color:#444}
+  .plant .val{padding:10px 14px;font-size:14px;font-weight:500}
+  .plant .val.auto{background:var(--auto);color:#2b5070;font-weight:400}
+
+  .steps{display:flex;gap:10px;flex-wrap:wrap;background:#fff;padding:6px 26px 16px}
+  .step{flex:1;min-width:150px;background:#f3f6f5;border-radius:10px;padding:10px 14px;font-size:13px;color:#555;border:1px solid #e6eceb}
+  .step b{font-family:var(--font-head);color:var(--teal-dark);display:block;font-size:13px;margin-bottom:2px}
+
+  .streams{display:flex;gap:14px;flex-wrap:wrap}
+  .stream-opt{flex:1;min-width:260px;cursor:pointer;border:2px solid #dfe7e5;border-radius:12px;padding:16px 18px;background:#fff;transition:.18s}
+  .stream-opt:hover{border-color:var(--teal);transform:translateY(-1px);box-shadow:0 4px 14px rgba(91,158,150,.15)}
+  .stream-opt.active{border-color:var(--teal);background:#f1f8f6;box-shadow:0 4px 14px rgba(91,158,150,.18)}
+  .stream-opt .name{font-family:var(--font-head);font-size:16px;color:var(--navy)}
+  .stream-opt .desc{font-size:13px;color:var(--muted);margin-top:3px}
+  .stream-opt .dot{float:left;width:20px;height:20px;border-radius:50%;border:2px solid #cfd9d7;margin-top:2px}
+  .stream-opt.active .dot{border-color:var(--teal);background:var(--teal);box-shadow:inset 0 0 0 3px #fff}
+
+  .summary{display:none;margin-top:14px;background:var(--auto);border:1px solid #c3dcf0;border-radius:10px;padding:12px 16px;font-size:13.5px;color:#234}
+  .summary.show{display:block}
+  .summary b{font-family:var(--font-head)}
+  .summary .pill{display:inline-block;background:#fff;border:1px solid #cfe0ef;border-radius:999px;padding:3px 11px;margin:3px 4px;font-weight:500}
+
+  .locked-note{background:#fff7e6;border:1px solid #f3dca0;border-radius:10px;padding:12px 16px;font-size:13.5px;color:#7a5d1a}
+  .locked-note.hide{display:none}
+
+  /* כרטיס חומר */
+  .mcard{border:1px solid #e0e6e5;border-radius:12px;padding:16px;margin-bottom:14px;background:#fcfdfd;box-shadow:0 1px 4px rgba(0,0,0,.04)}
+  .mcard-head{display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;border-bottom:1px dashed #e0e6e5;padding-bottom:8px}
+  .mcard-head .t{font-family:var(--font-head);color:var(--navy);font-size:15px}
+  .del-btn{border:none;background:#fbe6e6;color:#b23b3b;border-radius:6px;padding:5px 11px;cursor:pointer;font-size:12.5px}
+  .del-btn:hover{background:#f6caca}
+
+  .fgrid{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+  .fgrid .full{grid-column:1 / -1}
+  @media(max-width:620px){.fgrid{grid-template-columns:1fr}}
+  .fld label{display:block;font-size:13px;color:#3a3a3a;margin-bottom:4px;font-weight:500}
+  .fld label .star{color:#E0A800}
+  .fld label .off{color:#999;font-weight:400;font-size:11.5px}
+  .fld select,.fld input{width:100%;border:1px solid var(--edit-border);background:var(--edit);border-radius:8px;padding:9px 10px;font-family:var(--font-body);font-size:13.5px;color:#222}
+  .fld select:focus,.fld input:focus{outline:2px solid var(--teal);outline-offset:0}
+  .fld select.miss,.fld input.miss{outline:2px solid #d9534f}
+  .fld .hint{font-size:11.5px;color:#a06a18;margin-top:4px}
+  .fld .req{font-size:11px;color:#c0392b;margin-top:3px;display:inline-block}
+  .fld .opt{font-size:11px;color:#888;margin-top:3px;display:inline-block}
+  .readback{display:none;margin-top:6px;background:#eef5f3;border-right:3px solid var(--teal);border-radius:6px;padding:8px 11px;font-size:12.5px;color:#2c4a45;line-height:1.55}
+
+  .fixedstrip{grid-column:1 / -1;display:flex;flex-wrap:wrap;gap:8px;background:#f5f5f5;border:1px solid #e8e8e8;border-radius:8px;padding:10px}
+  .fixedstrip .fxlabel{width:100%;font-size:11.5px;color:#888;margin-bottom:2px}
+  .fixedstrip .fx{font-size:12.5px;color:#555;background:#fff;border:1px solid #e2e2e2;border-radius:6px;padding:5px 11px}
+  .fixedstrip .fx b{color:var(--navy);font-family:var(--font-head);font-weight:500}
+
+  .add-row{background:var(--auto);border:1px dashed #9cc2e0;color:#235;border-radius:10px;padding:11px 16px;font-size:14px;cursor:pointer;font-family:var(--font-head)}
+  .add-row:hover{background:#cfe3f5}
+
+  .pgrid{display:grid;grid-template-columns:repeat(2,1fr);gap:12px}
+  @media(max-width:620px){.pgrid{grid-template-columns:1fr}}
+  .field label{display:block;font-size:13px;color:#444;margin-bottom:4px}
+  .field label .m{color:#c0392b}
+  .field input{width:100%;border:1px solid var(--edit-border);background:var(--edit);border-radius:8px;padding:9px 11px;font-family:var(--font-body);font-size:14px}
+  .field input.miss{outline:2px solid #d9534f}
+  .field .cond{font-size:11.5px;color:#a06a18;margin-top:4px;display:none}
+  .field.cond-on .cond{display:block}
+  .field.cond-on input{border-color:#e0b34f;background:#fff7e6}
+
+  .note{background:#f3f6f5;border-radius:10px;padding:14px 16px;font-size:13.5px;color:#444;border:1px solid #e6eceb;margin-bottom:10px}
+  .note b{font-family:var(--font-head);color:var(--teal-dark)}
+  .actions{display:flex;gap:10px;flex-wrap:wrap;margin-top:6px}
+  .btn{border:none;border-radius:10px;padding:12px 22px;font-family:var(--font-head);font-size:15px;cursor:pointer}
+  .btn-primary{background:var(--teal);color:#fff}.btn-primary:hover{background:var(--teal-dark)}
+  .btn-primary:disabled{opacity:.6;cursor:default}
+  .btn-ghost{background:#fff;border:1.5px solid var(--teal);color:var(--teal-dark)}
+
+  .errbox{display:none;background:#fdecea;border:1px solid #e7a9a9;border-radius:10px;padding:12px 16px;font-size:13.5px;color:#8a2c24;margin-top:12px;line-height:1.7}
+  .errbox.show{display:block}
+  .draftbar{display:none;background:#fff7e6;border:1px solid #f3dca0;border-radius:10px;padding:10px 16px;font-size:13px;color:#7a5d1a;margin:12px 26px 0}
+  .draftbar.show{display:block}
+  .draftbar .link{color:var(--teal-dark);font-weight:600;cursor:pointer;text-decoration:underline;margin-right:8px}
+
+  /* מסך הצלחה */
+  .success{display:none;text-align:center;padding:56px 26px}
+  .success.show{display:block}
+  .success .ico{width:76px;height:76px;border-radius:50%;background:#dff3e8;color:#3a9d6e;font-size:38px;display:flex;align-items:center;justify-content:center;margin:0 auto 18px}
+  .success h2{font-size:21px;color:var(--navy)}
+  .success p{font-size:14.5px;color:#444;margin-top:12px;line-height:1.8}
+  .success .btn{margin-top:20px;text-decoration:none;display:inline-block}
+
+  .foot{text-align:center;color:var(--muted);font-size:12.5px;padding:18px}
+</style>{% endraw %}
+</head>
+<body>
+<div class="wrap">
+
+  <div class="top">
+    <div>
+      <div class="brand">פורטל {{ brand }} · פורטל לקוחות</div>
+      <h1>הצהרת יצרן הפסולת</h1>
+    </div>
+    <div class="badge">טופס מקוון · מבוסס על נספח 3 להיתר</div>
+  </div>
+
+  <div class="card">
+   <div id="formArea">
+
+    <div class="greet">
+      <span id="helloLine">שלום 👋</span><br>
+      כאן ממלאים את הצהרת היצרן עבור הפסולת שאתם שולחים לטיפול באקו-אויל. ההצהרה תקפה לשנתיים; לכל חומר/זרם ממלאים כרטיס נפרד. בסיום מופק קובץ PDF לחתימה.
+    </div>
+
+    <div class="legend">
+      <span class="k"><span class="swatch" style="background:var(--edit)"></span> אדום = אתם בוחרים / מקלידים</span>
+      <span class="k"><span class="swatch" style="background:var(--fixed)"></span> אפור = קבוע ומודפס מראש</span>
+      <span class="k"><span class="swatch" style="background:var(--auto)"></span> כחול = נגזר ומוצג אוטומטית</span>
+    </div>
+
+    <div class="draftbar" id="draftBar">💾 נמצאה טיוטה שמורה מהפעם הקודמת.
+      <span class="link" onclick="restoreDraft()">טעינת הטיוטה</span>
+      <span class="link" onclick="discardDraft()">מחיקה והתחלה מחדש</span>
+    </div>
+
+    <section>
+      <div class="sec-title">פרטי מפעל הטיפול</div>
+      <div class="sec-sub">קבוע — מוצג לכם, ללא עריכה</div>
+      <div class="plant">
+        <div class="row"><div class="lbl">בעל ההיתר במפעל המטפל</div><div class="val">יואב טואג – מנכ"ל</div></div>
+        <div class="row"><div class="lbl">שם המפעל המטפל</div><div class="val">אקו-אויל חץ וירומטל בע"מ</div></div>
+        <div class="row"><div class="lbl">מספר היתר הרעלים</div><div class="val">620203</div></div>
+        <div class="row"><div class="lbl">תאריך ההצהרה</div><div class="val auto" id="todayVal"></div></div>
+      </div>
+    </section>
+
+    <div class="steps">
+      <div class="step"><b>שלב 1</b>בחירת סוג הזרם</div>
+      <div class="step"><b>שלב 2</b>מילוי כרטיס לכל חומר</div>
+      <div class="step"><b>שלב 3</b>פרטי העסק</div>
+      <div class="step"><b>סיום</b>הפקת PDF · חתימה+חותמת · העלאה</div>
+    </div>
+
+    <section>
+      <div class="sec-title">שלב 1 · בחירת סוג הזרם</div>
+      <div class="sec-sub">הבחירה קובעת אילו אפשרויות יוצגו בהמשך — המערכת מציגה את כל המותר לנו בהיתר עבור הזרם, בנוסח המלא, ולעולם לא בוחרת במקומכם.</div>
+      <div class="streams">
+        <div class="stream-opt" data-stream="A" onclick="selectStream('A')">
+          <span class="dot"></span>
+          <div class="name">זרם א׳ — חומצות / בסיסים / שפכים אנאורגניים</div>
+          <div class="desc">חומצה · בסיס · מי שטיפה</div>
+        </div>
+        <div class="stream-opt" data-stream="B" onclick="selectStream('B')">
+          <span class="dot"></span>
+          <div class="name">זרם ב׳ — שפכים מינרליים / אמולסיות</div>
+          <div class="desc">מינרלי · אמולסיה · מזוט</div>
+        </div>
+      </div>
+      <div class="summary" id="summary"></div>
+    </section>
+
+    <section>
+      <div class="sec-title">שלב 2 · החומרים שבהצהרה</div>
+      <div class="sec-sub">סדר השדות מותאם לקריאה נוחה (מובילים בהגדרות המילוליות) — אך ב-PDF הרשמי הסדר נשאר בדיוק כמו בנספח 3 של המשרד להגנת הסביבה.</div>
+      <div class="locked-note" id="lockedNote">⬆️ בחרו תחילה סוג זרם (שלב 1) — ואז ייפתח כרטיס למילוי.</div>
+      <div id="cards"></div>
+      <button class="add-row" id="addRowBtn" onclick="addCard()" style="display:none">➕ הוסף חומר / זרם נוסף</button>
+    </section>
+
+    <section>
+      <div class="sec-title">שלב 3 · פרטי יצרן הפסולת</div>
+      <div class="sec-sub">פרטי העסק שמגיש את ההצהרה.</div>
+      <div class="pgrid">
+        <div class="field"><label>שם העסק / המפעל <span class="m">*</span></label><input type="text" id="p_name" placeholder="הקלדה"></div>
+        <div class="field" id="permitField"><label>מספר היתר רעלים של העסק</label><input type="text" id="p_permit" placeholder="הקלדה"><div class="cond">נדרש כי נבחר "מעל 10 טון" באחד הכרטיסים (יצרן גדול).</div></div>
+        <div class="field"><label>מספר ח.פ. של העסק <span class="m">*</span></label><input type="text" id="p_hp" placeholder="הקלדה"></div>
+        <div class="field"><label>כתובת העסק / מפעל <span class="m">*</span></label><input type="text" id="p_addr" placeholder="הקלדה"></div>
+        <div class="field"><label>מייל למשלוח אישורים <span class="m">*</span></label><input type="email" id="p_email" placeholder="לכאן יישלחו ההצהרה החתומה והתזכורות"></div>
+        <div class="field"><label>שם מנכ"ל / אחראי היתר <span class="m">*</span></label><input type="text" id="p_ceo" placeholder="הקלדה"></div>
+      </div>
+    </section>
+
+    <section>
+      <div class="note"><b>חתימה — שני מסלולים:</b> (א) חתימה + חותמת דיגיטליות וסגירה אונליין, ללא הדפסה/סריקה &nbsp;·&nbsp; (ב) הורדה, חתימה + חותמת ידנית, והעלאה בחזרה.</div>
+      <div class="note"><b>שמירה:</b> בסיום מופק קובץ PDF של ההצהרה ונשמר גם אצלכם וגם אצלנו — נדרש לשמירה ולהצגה בביקורות.</div>
+      <div class="note"><b>תוקף ותזכורות:</b> התוקף נספר לפי החודש (לשנתיים, בלי תלות ביום). בכל 15 בחודש נשלחת תזכורת אוטומטית על כל הצהרה שתוקפה פג בחודש שאחרי.</div>
+      <div class="actions">
+        <button class="btn btn-primary" id="submitBtn" onclick="submitDeclaration()">שמירה ושליחת ההצהרה</button>
+        <button class="btn btn-ghost" onclick="saveDraft(true)">שמירת טיוטה</button>
+      </div>
+      <div class="errbox" id="errBox"></div>
+    </section>
+
+   </div><!-- /formArea -->
+
+   <div class="success" id="successArea">
+     <div class="ico">✓</div>
+     <h2>ההצהרה נקלטה בהצלחה</h2>
+     <p id="successMsg"></p>
+     <p style="font-size:13px;color:#6b6b6b">השלב הבא — הפקת קובץ ה-PDF לחתימה — יופעל בפורטל בקרוב; עד אז צוות אקו-אויל ממשיך את הטיפול מולכם במייל.</p>
+     <a class="btn btn-primary" href="/portal">חזרה לעמוד הראשי</a>
+   </div>
+
+  </div><!-- /card -->
+
+  <div class="foot">פורטל לקוחות {{ brand }} · הצהרת יצרן</div>
+
+</div>
+
+<script>
+var DATA = {{ streams_json | safe }};
+</script>
+{% raw %}<script>
+/* ── הרשאה: בלי טוקן אין טופס ─────────────────────────────── */
+if(!localStorage.getItem('eco_access_token')){ location.href='/login'; }
+var ECO_USER = {};
+try{ ECO_USER = JSON.parse(localStorage.getItem('eco_user')||'{}'); }catch(e){}
+if(ECO_USER && ECO_USER.client_name){
+  document.getElementById('helloLine').textContent = 'שלום, '+ECO_USER.client_name+' 👋';
+}
+(function(){
+  var d=new Date();
+  document.getElementById('todayVal').textContent =
+    d.toLocaleDateString('he-IL',{day:'2-digit',month:'2-digit',year:'numeric'}) + ' (מתמלא אוטומטית ביום ההגשה)';
+})();
+
+var current=null, seq=0;
+var DRAFT_KEY='eco_declaration_draft';
+
+function optHtml(arr){
+  var h='<option value="">— בחר/י —</option>';
+  for(var i=0;i<arr.length;i++){ h+='<option>'+arr[i]+'</option>'; }
+  return h;
+}
+
+/* שדה רשימה ברוחב מלא + שורת "קריאה חוזרת" שמציגה את ההגדרה המלאה שנבחרה */
+function longField(label, star, arr, key){
+  return '<div class="fld full">'+
+    '<label>'+(star?'<span class="star">⭐</span> ':'')+label+'</label>'+
+    '<select data-k="'+key+'" onchange="showPick(this)">'+optHtml(arr)+'</select>'+
+    '<span class="req">חובה</span>'+
+    '<div class="readback"></div>'+
+  '</div>';
+}
+
+function buildCard(d){
+  seq++;
+  var div=document.createElement('div');
+  div.className='mcard';
+  div.innerHTML =
+    '<div class="mcard-head"><span class="t">חומר / זרם מס\' <span class="cnum">'+seq+'</span></span>'+
+      '<button class="del-btn" onclick="delCard(this)">מחק כרטיס</button></div>'+
+    '<div class="fgrid">'+
+
+      '<div class="fld"><label>שם זרם הפסולת</label>'+
+        '<select data-k="stream_name">'+optHtml(d.streamName)+'</select><span class="req">חובה</span></div>'+
+
+      longField('מתקן הייצור ממנו נוצרה הפסולת', true, d.facility, 'production_facility')+
+
+      '<div class="fld"><label>מספר הפסולת</label>'+
+        '<select data-k="waste_number">'+optHtml(d.wasteNo)+'</select><span class="req">חובה</span></div>'+
+
+      longField('קוד Y (נספח I ו-II לאמנת באזל)', false, d.yCode, 'y_code')+
+
+      longField('סוג הפסולת (נספח VIII לאמנת באזל)', false, d.annex8, 'annex8')+
+
+      longField('סיווג ע"פ קטלוג הפסולות האירופאי (סיווג ופירוט)', true, d.catalog, 'catalog')+
+
+      /* שדות קבועים — נגזרים אוטומטית מהזרם */
+      '<div class="fixedstrip">'+
+        '<span class="fxlabel">קבוע לזרם זה — נגזר אוטומטית (אינכם בוחרים):</span>'+
+        '<span class="fx">קוד סיכון (H): <b>'+d.H+'</b></span>'+
+        '<span class="fx">קבוצת סיכון או"ם: <b>'+d.un+'</b></span>'+
+        '<span class="fx">מאפיין עיקרי: <b>'+d.characteristic+'</b></span>'+
+        '<span class="fx">קוד השבה (R): <b>'+d.R+'</b></span>'+
+        '<span class="fx">קוד טיפול (D): <b>'+d.D+'</b></span>'+
+      '</div>'+
+
+      '<div class="fld full"><label>מתקן/ סוג טיפול</label>'+
+        '<input type="text" data-k="treatment_type" placeholder="לדוגמה: שטיפת קו ייצור · ניקוי מכונות עיבוד שבבי · ניקוי מיכלי אחסנה">'+
+        '<div class="hint">במילים פשוטות: "מהיכן מגיעה הפסולת / מה יצר אותה". ב-PDF הרשמי השם נשאר "מתקן/ סוג טיפול".</div>'+
+        '<span class="req">חובה</span></div>'+
+
+      '<div class="fld"><label>סוג מזהם</label>'+
+        '<input type="text" data-k="pollutant_type" placeholder="הקלדה"><span class="req">חובה</span></div>'+
+
+      '<div class="fld"><label>טווח הריכוזים בפסולת <span class="off">(מינימום-מקסימום)</span></label>'+
+        '<input type="text" data-k="concentration_range" placeholder="הקלדה — לא חובה"><span class="opt">רשות</span></div>'+
+
+      '<div class="fld"><label>כמות שנתית (טון)</label>'+
+        '<select data-k="quantity_band" onchange="updatePermit()"><option value="">— בחר/י —</option><option>עד 10 טון</option><option>מעל 10 טון</option></select><span class="req">חובה</span></div>'+
+
+      '<div class="fld"><label>סוג האריזה</label>'+
+        '<select data-k="packaging">'+optHtml(d.pkg)+'</select><span class="req">חובה</span></div>'+
+
+    '</div>';
+  return div;
+}
+
+function showPick(sel){
+  var rb=sel.parentNode.querySelector('.readback');
+  if(!rb) return;
+  if(sel.value){ rb.textContent='נבחר: '+sel.value; rb.style.display='block'; }
+  else { rb.textContent=''; rb.style.display='none'; }
+}
+
+function selectStream(s){
+  current=s; var d=DATA[s];
+  var opts=document.querySelectorAll('.stream-opt');
+  for(var i=0;i<opts.length;i++){ opts[i].classList.toggle('active', opts[i].getAttribute('data-stream')===s); }
+  var sum=document.getElementById('summary');
+  sum.innerHTML='<b>נבחר: '+d.label+'</b><br>הערכים הקבועים לזרם זה ימולאו אוטומטית בכל כרטיס: '+
+    '<span class="pill">מאפיין עיקרי: '+d.characteristic+'</span>'+
+    '<span class="pill">קוד H: '+d.H+'</span>'+
+    '<span class="pill">קבוצת או"ם: '+d.un+'</span>'+
+    '<span class="pill">קוד השבה R: '+d.R+'</span>'+
+    '<span class="pill">קוד טיפול D: '+d.D+'</span>';
+  sum.classList.add('show');
+  document.getElementById('lockedNote').classList.add('hide');
+  document.getElementById('addRowBtn').style.display='inline-block';
+  seq=0;
+  document.getElementById('cards').innerHTML='';
+  addCard();
+  updatePermit();
+}
+
+function addCard(){
+  if(!current) return;
+  document.getElementById('cards').appendChild(buildCard(DATA[current]));
+  renumber();
+}
+
+function delCard(btn){
+  var cards=document.getElementById('cards');
+  if(cards.children.length<=1) return;
+  btn.closest('.mcard').remove();
+  renumber();
+  updatePermit();
+}
+
+function renumber(){
+  var nums=document.querySelectorAll('#cards .cnum');
+  for(var i=0;i<nums.length;i++){ nums[i].textContent=i+1; }
+}
+
+/* כלל מותנה: מספר היתר רעלים נדרש רק אם נבחר "מעל 10 טון" בכרטיס כלשהו */
+function anyBig(){
+  var sels=document.querySelectorAll('#cards select[data-k="quantity_band"]');
+  for(var i=0;i<sels.length;i++){ if(sels[i].value==='מעל 10 טון'){ return true; } }
+  return false;
+}
+function updatePermit(){
+  document.getElementById('permitField').classList.toggle('cond-on', anyBig());
+}
+
+/* ── איסוף הנתונים מהטופס ─────────────────────────────────── */
+function collect(){
+  var mats=[];
+  var cards=document.querySelectorAll('#cards .mcard');
+  for(var i=0;i<cards.length;i++){
+    var m={};
+    var els=cards[i].querySelectorAll('[data-k]');
+    for(var j=0;j<els.length;j++){ m[els[j].getAttribute('data-k')]=els[j].value.trim(); }
+    mats.push(m);
+  }
+  return {
+    stream: current,
+    materials: mats,
+    producer: {
+      business_name: document.getElementById('p_name').value.trim(),
+      permit_number: document.getElementById('p_permit').value.trim(),
+      business_id:   document.getElementById('p_hp').value.trim(),
+      address:       document.getElementById('p_addr').value.trim(),
+      email:         document.getElementById('p_email').value.trim(),
+      ceo_name:      document.getElementById('p_ceo').value.trim()
+    }
+  };
+}
+
+/* ── בדיקת חובה בצד הדפדפן (השרת בודק שוב) ────────────────── */
+function validate(payload){
+  var problems=[];
+  document.querySelectorAll('.miss').forEach(function(el){ el.classList.remove('miss'); });
+  if(!payload.stream){ problems.push('יש לבחור סוג זרם (שלב 1).'); }
+  var cards=document.querySelectorAll('#cards .mcard');
+  for(var i=0;i<cards.length;i++){
+    var els=cards[i].querySelectorAll('[data-k]');
+    for(var j=0;j<els.length;j++){
+      var k=els[j].getAttribute('data-k');
+      if(k==='concentration_range') continue; /* רשות */
+      if(!els[j].value.trim()){
+        els[j].classList.add('miss');
+        problems.push('כרטיס '+(i+1)+': חסר שדה חובה.');
+        break;
+      }
+    }
+  }
+  var req=[['p_name','שם העסק'],['p_hp','מספר ח.פ.'],['p_addr','כתובת'],['p_email','מייל'],['p_ceo','שם מנכ"ל/אחראי היתר']];
+  for(var r=0;r<req.length;r++){
+    var el=document.getElementById(req[r][0]);
+    if(!el.value.trim()){ el.classList.add('miss'); problems.push('חסר: '+req[r][1]+'.'); }
+  }
+  var em=document.getElementById('p_email').value.trim();
+  if(em && em.indexOf('@')<1){ document.getElementById('p_email').classList.add('miss'); problems.push('כתובת המייל אינה תקינה.'); }
+  if(anyBig() && !payload.producer.permit_number){
+    document.getElementById('p_permit').classList.add('miss');
+    problems.push('נבחר "מעל 10 טון" — חובה למלא מספר היתר רעלים של העסק.');
+  }
+  return problems;
+}
+
+function showErrors(list){
+  var box=document.getElementById('errBox');
+  if(!list.length){ box.classList.remove('show'); box.innerHTML=''; return; }
+  var uniq=[]; list.forEach(function(p){ if(uniq.indexOf(p)<0) uniq.push(p); });
+  box.innerHTML='<b>לא ניתן לשלוח עדיין:</b><br>• '+uniq.join('<br>• ');
+  box.classList.add('show');
+  box.scrollIntoView({behavior:'smooth',block:'center'});
+}
+
+/* ── טיוטה מקומית (נשמרת בדפדפן הזה בלבד) ─────────────────── */
+function saveDraft(tell){
+  try{ localStorage.setItem(DRAFT_KEY, JSON.stringify(collect())); }catch(e){}
+  if(tell){
+    var box=document.getElementById('errBox');
+    box.innerHTML='💾 הטיוטה נשמרה בדפדפן זה. אפשר לסגור ולחזור אליה מאוחר יותר מאותו מחשב.';
+    box.classList.add('show');
+    setTimeout(function(){ box.classList.remove('show'); }, 4000);
+  }
+}
+function restoreDraft(){
+  var raw=localStorage.getItem(DRAFT_KEY);
+  if(!raw) return;
+  try{
+    var d=JSON.parse(raw);
+    if(d.stream){ selectStream(d.stream); }
+    var cards=document.getElementById('cards');
+    while(cards.children.length < (d.materials||[]).length){ addCard(); }
+    var cardEls=cards.querySelectorAll('.mcard');
+    for(var i=0;i<(d.materials||[]).length && i<cardEls.length;i++){
+      var els=cardEls[i].querySelectorAll('[data-k]');
+      for(var j=0;j<els.length;j++){
+        var k=els[j].getAttribute('data-k');
+        if(d.materials[i][k]!==undefined){ els[j].value=d.materials[i][k]; showPick(els[j]); }
+      }
+    }
+    if(d.producer){
+      document.getElementById('p_name').value=d.producer.business_name||'';
+      document.getElementById('p_permit').value=d.producer.permit_number||'';
+      document.getElementById('p_hp').value=d.producer.business_id||'';
+      document.getElementById('p_addr').value=d.producer.address||'';
+      document.getElementById('p_email').value=d.producer.email||'';
+      document.getElementById('p_ceo').value=d.producer.ceo_name||'';
+    }
+    updatePermit();
+  }catch(e){}
+  document.getElementById('draftBar').classList.remove('show');
+}
+function discardDraft(){
+  try{ localStorage.removeItem(DRAFT_KEY); }catch(e){}
+  document.getElementById('draftBar').classList.remove('show');
+}
+if(localStorage.getItem(DRAFT_KEY)){ document.getElementById('draftBar').classList.add('show'); }
+
+/* ── שליחה לשרת, כולל רענון טוקן שקוף אם פגה שעת הכניסה ──── */
+async function apiPost(url, body){
+  var r=await fetch(url,{method:'POST',
+    headers:{'Content-Type':'application/json','Authorization':'Bearer '+localStorage.getItem('eco_access_token')},
+    body:JSON.stringify(body)});
+  if(r.status===401){
+    var rt=localStorage.getItem('eco_refresh_token');
+    if(rt){
+      var rr=await fetch('/auth/refresh',{method:'POST',headers:{'Authorization':'Bearer '+rt}});
+      if(rr.ok){
+        var rd=await rr.json();
+        localStorage.setItem('eco_access_token', rd.access_token||'');
+        r=await fetch(url,{method:'POST',
+          headers:{'Content-Type':'application/json','Authorization':'Bearer '+localStorage.getItem('eco_access_token')},
+          body:JSON.stringify(body)});
+      }
+    }
+  }
+  return r;
+}
+
+async function submitDeclaration(){
+  var payload=collect();
+  var problems=validate(payload);
+  if(problems.length){ showErrors(problems); return; }
+  showErrors([]);
+  saveDraft(false); /* רשת נופלת באמצע? הנתונים לא הולכים לאיבוד */
+  var btn=document.getElementById('submitBtn');
+  btn.disabled=true; btn.textContent='שולח…';
+  try{
+    var r=await apiPost('/eco-oil/portal/declarations', payload);
+    if(r.status===401){ location.href='/login'; return; }
+    var d={};
+    try{ d=await r.json(); }catch(e){}
+    if(r.ok){
+      discardDraft();
+      var n=(d.declarations||[]).length || payload.materials.length;
+      document.getElementById('successMsg').innerHTML=
+        'נקלטו <b>'+n+'</b> הצהרות חומר (כרטיס לכל חומר) עבור <b>'+
+        (payload.producer.business_name||'')+'</b>.<br>תוקף: שנתיים, לפי חודש ההגשה. עותק יישמר גם אצלכם וגם אצל אקו-אויל.';
+      document.getElementById('formArea').style.display='none';
+      document.getElementById('successArea').classList.add('show');
+      window.scrollTo({top:0,behavior:'smooth'});
+    } else {
+      showErrors([(d && d.error) ? d.error : 'השליחה נכשלה — נסו שוב בעוד רגע. הטיוטה נשמרה.']);
+      btn.disabled=false; btn.textContent='שמירה ושליחת ההצהרה';
+    }
+  }catch(e){
+    showErrors(['אין חיבור לשרת כרגע — נסו שוב בעוד רגע. הטיוטה נשמרה בדפדפן.']);
+    btn.disabled=false; btn.textContent='שמירה ושליחת ההצהרה';
+  }
+}
+</script>{% endraw %}
+</body>
+</html>
