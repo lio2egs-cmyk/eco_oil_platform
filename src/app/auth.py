@@ -122,30 +122,68 @@ def _build_magic_link_email_content(brand: str, link: str) -> tuple[str, str, st
 
 def _send_magic_link_email(user: User, raw_token: str) -> None:
     """
-    Send the magic-link email via SMTP (smtp.gmail.com STARTTLS).
-    Falls back to logging the link if SMTP is not configured or the send fails,
-    so local development still works when .env is missing.
+    Send the magic-link email. Two delivery channels, tried in order:
+
+    1. HTTPS email API (Resend) when RESEND_API_KEY is set — this is what
+       PRODUCTION uses, because Railway blocks outbound SMTP ports entirely.
+    2. SMTP (smtp.gmail.com STARTTLS) when MAIL_* are set and reachable —
+       used for LOCAL development from the office network.
+
+    If neither is available or the send fails, the link is logged (dev fallback)
+    so nothing is lost and local testing still works.
     """
     division = user.client.division if user.client else "eco_oil"
     brand = _brand_name_for_division(division)
     link = _build_magic_link_url(raw_token, division)
 
+    subject, plain_body, html_body = _build_magic_link_email_content(brand, link)
+    from_addr = os.environ.get("MAIL_FROM_ADDRESS", os.environ.get("MAIL_USERNAME", ""))
+    from_name = os.environ.get("MAIL_FROM_NAME", "")
+
+    # ── Channel 1: Resend HTTPS API (production) ──
+    resend_key = os.environ.get("RESEND_API_KEY")
+    if resend_key and from_addr:
+        sender = formataddr((from_name, from_addr)) if from_name else from_addr
+        try:
+            import requests
+            r = requests.post(
+                "https://api.resend.com/emails",
+                headers={"Authorization": "Bearer " + resend_key},
+                json={
+                    "from": sender,
+                    "to": [user.email],
+                    "subject": subject,
+                    "html": html_body,
+                    "text": plain_body,
+                },
+                timeout=20,
+            )
+            if r.status_code < 300:
+                current_app.logger.info("Magic link email sent (Resend) to %s", user.email)
+                return
+            current_app.logger.error(
+                "[MAGIC LINK - Resend failed %s: %s] To: %s | Link: %s",
+                r.status_code, r.text[:300], user.email, link,
+            )
+            return
+        except Exception as exc:
+            current_app.logger.error(
+                "[MAGIC LINK - Resend error: %s] To: %s | Link: %s", exc, user.email, link,
+            )
+            return
+
+    # ── Channel 2: SMTP (local dev on the office network) ──
     smtp_host = os.environ.get("MAIL_HOST")
     smtp_port = int(os.environ.get("MAIL_PORT", "587"))
     smtp_user = os.environ.get("MAIL_USERNAME")
     smtp_pass = os.environ.get("MAIL_PASSWORD")
-    from_addr = os.environ.get("MAIL_FROM_ADDRESS", smtp_user or "")
-    from_name = os.environ.get("MAIL_FROM_NAME", "")
 
-    # Dev fallback — log the link if SMTP not configured.
     if not (smtp_host and smtp_user and smtp_pass and from_addr):
         current_app.logger.warning(
-            "[MAGIC LINK - DEV MODE / SMTP not configured] To: %s | Link: %s",
+            "[MAGIC LINK - DEV MODE / no email channel configured] To: %s | Link: %s",
             user.email, link,
         )
         return
-
-    subject, plain_body, html_body = _build_magic_link_email_content(brand, link)
 
     msg = MIMEMultipart("alternative")
     msg["Subject"] = Header(subject, "utf-8")
@@ -161,7 +199,7 @@ def _send_magic_link_email(user: User, raw_token: str) -> None:
             server.ehlo()
             server.login(smtp_user, smtp_pass)
             server.send_message(msg)
-        current_app.logger.info("Magic link email sent to %s", user.email)
+        current_app.logger.info("Magic link email sent (SMTP) to %s", user.email)
     except Exception as exc:
         # Log the failure AND the link, so we can debug without losing the user.
         current_app.logger.error(
@@ -546,38 +584,47 @@ def _smtp_diagnose():
         report["error"] = "SMTP vars missing — app is in DEV fallback (no email sent, link only logged)"
         return jsonify(report), 200
 
-    import socket
-    # what does the host resolve to? (v4 vs v6 tells us if it's an IPv6 routing issue)
-    try:
-        infos = socket.getaddrinfo(host, port, proto=socket.IPPROTO_TCP)
-        report["dns"] = sorted({ai[4][0] for ai in infos})
-        report["dns_families"] = sorted({("v6" if ai[0] == socket.AF_INET6 else "v4") for ai in infos})
-    except Exception as exc:
-        report["dns"] = "resolve failed: %s" % exc
+    return jsonify(report), 200
 
-    # attempt A: default 587 STARTTLS
-    try:
-        with smtplib.SMTP(host, port, timeout=15) as s:
-            s.ehlo(); s.starttls(); s.ehlo(); s.login(smtp_user, smtp_pass)
-        report["try_587_starttls"] = "ok"
-    except Exception as exc:
-        report["try_587_starttls"] = "%s: %s" % (type(exc).__name__, exc)
 
-    # attempt B: force IPv4 on 587
-    try:
-        v4 = socket.getaddrinfo(host, 587, socket.AF_INET, socket.SOCK_STREAM)[0][4][0]
-        with smtplib.SMTP(v4, 587, timeout=15) as s:
-            s.ehlo(); s.starttls(); s.ehlo(); s.login(smtp_user, smtp_pass)
-        report["try_587_ipv4"] = "ok"
-    except Exception as exc:
-        report["try_587_ipv4"] = "%s: %s" % (type(exc).__name__, exc)
+@auth.route("/_resend-diagnose", methods=["POST"])
+@admin_required
+def _resend_diagnose():
+    """TEMPORARY admin-only diagnostic — checks the Resend HTTPS channel and,
+    if ?send=1 with a JSON {"to": "..."} body, sends a real test email and
+    returns Resend's exact response. Remove after debugging. No secret exposed."""
+    key = os.environ.get("RESEND_API_KEY")
+    from_addr = os.environ.get("MAIL_FROM_ADDRESS", "")
+    from_name = os.environ.get("MAIL_FROM_NAME", "")
+    report = {
+        "RESEND_API_KEY_present": bool(key),
+        "RESEND_API_KEY_len": len(key) if key else 0,
+        "from_addr": from_addr,
+        "from_name_repr": repr(from_name),
+        "send_result": None,
+    }
+    if not key:
+        report["send_result"] = "RESEND_API_KEY missing — add it in Railway variables"
+        return jsonify(report), 200
 
-    # attempt C: implicit SSL on 465
-    try:
-        with smtplib.SMTP_SSL(host, 465, timeout=15) as s:
-            s.ehlo(); s.login(smtp_user, smtp_pass)
-        report["try_465_ssl"] = "ok"
-    except Exception as exc:
-        report["try_465_ssl"] = "%s: %s" % (type(exc).__name__, exc)
+    data = request.get_json(silent=True) or {}
+    to = (data.get("to") or "").strip()
+    if not to:
+        report["send_result"] = "no 'to' provided — key present, ready to test"
+        return jsonify(report), 200
 
+    sender = formataddr((from_name, from_addr)) if from_name else from_addr
+    try:
+        import requests
+        r = requests.post(
+            "https://api.resend.com/emails",
+            headers={"Authorization": "Bearer " + key},
+            json={"from": sender, "to": [to], "subject": "בדיקת פורטל אקו-אויל",
+                  "html": "<p dir=rtl>בדיקת שליחה מהפורטל — אם קיבלת מייל זה, הערוץ עובד.</p>",
+                  "text": "בדיקת שליחה מהפורטל."},
+            timeout=20,
+        )
+        report["send_result"] = {"status": r.status_code, "body": r.text[:400]}
+    except Exception as exc:
+        report["send_result"] = "%s: %s" % (type(exc).__name__, exc)
     return jsonify(report), 200
