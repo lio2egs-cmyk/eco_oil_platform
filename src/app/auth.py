@@ -545,11 +545,39 @@ def _smtp_diagnose():
     if not (host and smtp_user and smtp_pass):
         report["error"] = "SMTP vars missing — app is in DEV fallback (no email sent, link only logged)"
         return jsonify(report), 200
+
+    import socket
+    # what does the host resolve to? (v4 vs v6 tells us if it's an IPv6 routing issue)
     try:
-        with smtplib.SMTP(host, port, timeout=20) as server:
-            server.ehlo(); report["connect"] = "ok"
-            server.starttls(); server.ehlo(); report["starttls"] = "ok"
-            server.login(smtp_user, smtp_pass); report["login"] = "ok"
+        infos = socket.getaddrinfo(host, port, proto=socket.IPPROTO_TCP)
+        report["dns"] = sorted({ai[4][0] for ai in infos})
+        report["dns_families"] = sorted({("v6" if ai[0] == socket.AF_INET6 else "v4") for ai in infos})
     except Exception as exc:
-        report["error"] = "%s: %s" % (type(exc).__name__, exc)
+        report["dns"] = "resolve failed: %s" % exc
+
+    # attempt A: default 587 STARTTLS
+    try:
+        with smtplib.SMTP(host, port, timeout=15) as s:
+            s.ehlo(); s.starttls(); s.ehlo(); s.login(smtp_user, smtp_pass)
+        report["try_587_starttls"] = "ok"
+    except Exception as exc:
+        report["try_587_starttls"] = "%s: %s" % (type(exc).__name__, exc)
+
+    # attempt B: force IPv4 on 587
+    try:
+        v4 = socket.getaddrinfo(host, 587, socket.AF_INET, socket.SOCK_STREAM)[0][4][0]
+        with smtplib.SMTP(v4, 587, timeout=15) as s:
+            s.ehlo(); s.starttls(); s.ehlo(); s.login(smtp_user, smtp_pass)
+        report["try_587_ipv4"] = "ok"
+    except Exception as exc:
+        report["try_587_ipv4"] = "%s: %s" % (type(exc).__name__, exc)
+
+    # attempt C: implicit SSL on 465
+    try:
+        with smtplib.SMTP_SSL(host, 465, timeout=15) as s:
+            s.ehlo(); s.login(smtp_user, smtp_pass)
+        report["try_465_ssl"] = "ok"
+    except Exception as exc:
+        report["try_465_ssl"] = "%s: %s" % (type(exc).__name__, exc)
+
     return jsonify(report), 200
