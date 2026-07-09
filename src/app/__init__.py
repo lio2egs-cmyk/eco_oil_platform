@@ -37,6 +37,10 @@ def create_app():
 
     app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
 
+    # Cap request size (field terminals send up to 12 photos x 8MB; anything
+    # bigger is abuse). Without this Flask accepts unbounded request bodies.
+    app.config["MAX_CONTENT_LENGTH"] = 120 * 1024 * 1024
+
     # JWT configuration
     app.config["JWT_SECRET_KEY"] = os.environ.get("JWT_SECRET_KEY", "dev-secret-change-in-production-32ch")
     app.config["JWT_ACCESS_TOKEN_EXPIRES"] = timedelta(hours=1)
@@ -134,5 +138,20 @@ def create_app():
     @app.route("/health")
     def health():
         return {"status": "ok"}, 200
+
+    # Security headers on every response. HSTS only in production (DATABASE_URL
+    # set = Railway) — locally we serve plain HTTP and HSTS would break it.
+    is_production = bool(database_url)
+
+    @app.after_request
+    def set_security_headers(response):
+        response.headers.setdefault("X-Content-Type-Options", "nosniff")
+        response.headers.setdefault("X-Frame-Options", "DENY")
+        response.headers.setdefault("Referrer-Policy", "strict-origin-when-cross-origin")
+        if is_production:
+            response.headers.setdefault(
+                "Strict-Transport-Security", "max-age=31536000; includeSubDomains"
+            )
+        return response
 
     return app

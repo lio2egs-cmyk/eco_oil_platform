@@ -24,6 +24,7 @@ def home():
 # Clients
 # ------------------------
 @main.route("/clients", methods=["POST"])
+@admin_required
 def create_client():
     data = request.get_json() or {}
 
@@ -40,6 +41,7 @@ def create_client():
 
 
 @main.route("/clients", methods=["GET"])
+@admin_required
 def list_clients():
     clients = Client.query.order_by(Client.id).all()
     return {
@@ -59,6 +61,7 @@ def list_clients():
 # Assets
 # ------------------------
 @main.route("/assets", methods=["POST"])
+@admin_required
 def create_asset():
     data = request.get_json() or {}
 
@@ -94,6 +97,7 @@ def create_asset():
 
 
 @main.route("/assets", methods=["GET"])
+@admin_required
 def list_assets():
     status = request.args.get("status")
     asset_type = request.args.get("asset_type")
@@ -128,6 +132,7 @@ def list_assets():
 # Pre-Arrivals
 # ------------------------
 @main.route("/pre-arrivals", methods=["POST"])
+@admin_required
 def create_pre_arrival():
     data = request.get_json() or {}
 
@@ -180,6 +185,7 @@ def create_pre_arrival():
 
 
 @main.route("/pre-arrivals", methods=["GET"])
+@admin_required
 def list_pre_arrivals():
     rows = DepotPreArrival.query.order_by(DepotPreArrival.id).all()
     return {
@@ -206,6 +212,7 @@ def list_pre_arrivals():
 
 
 @main.route("/pre-arrivals/<int:pre_arrival_id>/arrive", methods=["PATCH"])
+@admin_required
 def mark_pre_arrival_arrived(pre_arrival_id):
     pre = DepotPreArrival.query.get(pre_arrival_id)
     if not pre:
@@ -240,6 +247,7 @@ def mark_pre_arrival_arrived(pre_arrival_id):
 # Compartments (רק ל-roadtanker)
 # ------------------------
 @main.route("/assets/<int:asset_id>/compartments/setup", methods=["PATCH"])
+@admin_required
 def setup_roadtanker_compartments(asset_id):
     """
     שלב עמדת שטיפה (B):
@@ -330,6 +338,7 @@ def setup_roadtanker_compartments(asset_id):
 
 
 @main.route("/assets/<int:asset_id>/compartments", methods=["GET"])
+@admin_required
 def list_compartments(asset_id):
     asset = Asset.query.get(asset_id)
     if not asset:
@@ -357,6 +366,7 @@ def list_compartments(asset_id):
 # Wash Cycles (לפי תא)
 # ------------------------
 @main.route("/assets/<int:asset_id>/compartments/<int:number>/wash-cycles", methods=["POST"])
+@admin_required
 def start_wash_cycle(asset_id, number):
     data = request.get_json() or {}
 
@@ -421,6 +431,7 @@ def start_wash_cycle(asset_id, number):
 
 
 @main.route("/wash-cycles/<int:cycle_id>/finish", methods=["PATCH"])
+@admin_required
 def finish_wash_cycle(cycle_id):
     data = request.get_json() or {}
 
@@ -474,6 +485,7 @@ def finish_wash_cycle(cycle_id):
     }, 200
 
 @main.route("/assets/<int:asset_id>/ready-for-release", methods=["PATCH"])
+@admin_required
 def mark_ready_for_release(asset_id):
     asset = Asset.query.get(asset_id)
     if not asset:
@@ -537,6 +549,7 @@ def mark_ready_for_release(asset_id):
 # Asset status (summary)
 # ------------------------
 @main.route("/assets/<int:asset_id>/status", methods=["GET"])
+@admin_required
 def get_asset_status(asset_id):
     asset = Asset.query.get(asset_id)
     if not asset:
@@ -655,6 +668,7 @@ def get_asset_status(asset_id):
 # Wash Certificates
 # ------------------------
 @main.route("/assets/<int:asset_id>/wash-certificate", methods=["POST"])
+@admin_required
 def issue_wash_certificate(asset_id):
     data = request.get_json() or {}
     wash_completed_at = data.get("wash_completed_at")
@@ -761,6 +775,7 @@ def issue_wash_certificate(asset_id):
     }, 201
 
 @main.route("/wash-certificates/<int:certificate_id>", methods=["GET"])
+@admin_required
 def get_wash_certificate(certificate_id):
     cert = WashCertificate.query.get(certificate_id)
     if not cert:
@@ -780,6 +795,7 @@ def get_wash_certificate(certificate_id):
     }, 200
 
 @main.route("/isotanks/<int:asset_id>/send-to-storage", methods=["PATCH"])
+@admin_required
 def isotank_send_to_storage(asset_id):
     asset = Asset.query.get(asset_id)
     if not asset:
@@ -814,6 +830,7 @@ def isotank_send_to_storage(asset_id):
     }, 200
 
 @main.route("/isotanks/<int:asset_id>/send-to-washing", methods=["PATCH"])
+@admin_required
 def isotank_send_to_washing(asset_id):
     asset = Asset.query.get(asset_id)
     if not asset:
@@ -848,6 +865,7 @@ def isotank_send_to_washing(asset_id):
     }, 200
 
 @main.route("/isotanks/<int:asset_id>/send-to-repair", methods=["PATCH"])
+@admin_required
 def isotank_send_to_repair(asset_id):
     asset = Asset.query.get(asset_id)
     if not asset:
@@ -882,6 +900,7 @@ def isotank_send_to_repair(asset_id):
     }, 200
 
 @main.route("/isotanks/<int:asset_id>/transport-events", methods=["POST"])
+@admin_required
 def create_transport_event(asset_id):
     data = request.get_json() or {}
 
@@ -950,6 +969,7 @@ def create_transport_event(asset_id):
     }, 201
 
 @main.route("/isotanks/<int:asset_id>/wash-cycles", methods=["POST"])
+@admin_required
 def start_isotank_wash_cycle(asset_id):
     data = request.get_json() or {}
 
@@ -1008,6 +1028,7 @@ def start_isotank_wash_cycle(asset_id):
 
 
 @main.route("/isotank-wash-cycles/<int:cycle_id>/finish", methods=["PATCH"])
+@admin_required
 def finish_isotank_wash_cycle(cycle_id):
     data = request.get_json() or {}
 
@@ -1047,6 +1068,7 @@ def finish_isotank_wash_cycle(cycle_id):
     }, 200
 
 @main.route("/isotanks/<int:asset_id>/repair-events", methods=["POST"])
+@admin_required
 def create_repair_event(asset_id):
     data = request.get_json() or {}
 
@@ -1100,6 +1122,7 @@ def create_repair_event(asset_id):
     }, 201
 
 @main.route("/isotanks/<int:asset_id>/mark-ready-for-release", methods=["PATCH"])
+@admin_required
 def isotank_mark_ready_for_release(asset_id):
     asset = Asset.query.get(asset_id)
     if not asset:
@@ -1155,6 +1178,7 @@ def isotank_mark_ready_for_release(asset_id):
     }, 200
 
 @main.route("/isotanks/<int:asset_id>/release-document", methods=["POST"])
+@admin_required
 def create_release_document(asset_id):
     data = request.get_json() or {}
 
@@ -1237,6 +1261,7 @@ def create_release_document(asset_id):
     }, 201
 
 @main.route("/assets/<int:asset_id>/release", methods=["PATCH"])
+@admin_required
 def release_asset(asset_id):
     asset = Asset.query.get(asset_id)
     if not asset:
@@ -1280,6 +1305,7 @@ def release_asset(asset_id):
     }, 200
 
 @main.route("/wash-certificates", methods=["GET"])
+@admin_required
 def list_wash_certificates():
     asset_type = request.args.get("asset_type")
 
@@ -1307,6 +1333,7 @@ def list_wash_certificates():
     }, 200
 
 @main.route("/isotanks/<int:asset_id>/wash-cycles", methods=["GET"])
+@admin_required
 def list_isotank_wash_cycles(asset_id):
     asset = Asset.query.get(asset_id)
     if not asset or asset.asset_type != "isotank":
@@ -1334,6 +1361,7 @@ def list_isotank_wash_cycles(asset_id):
 
 
 @main.route("/isotanks/<int:asset_id>/repair-events", methods=["GET"])
+@admin_required
 def list_isotank_repair_events(asset_id):
     asset = Asset.query.get(asset_id)
     if not asset or asset.asset_type != "isotank":
@@ -1358,6 +1386,7 @@ def list_isotank_repair_events(asset_id):
 
 
 @main.route("/isotanks/<int:asset_id>/transport-events", methods=["GET"])
+@admin_required
 def list_isotank_transport_events(asset_id):
     asset = Asset.query.get(asset_id)
     if not asset or asset.asset_type != "isotank":
@@ -1384,6 +1413,7 @@ def list_isotank_transport_events(asset_id):
 
 
 @main.route("/isotanks/<int:asset_id>/release-document", methods=["GET"])
+@admin_required
 def get_isotank_release_document(asset_id):
     asset = Asset.query.get(asset_id)
     if not asset or asset.asset_type != "isotank":
@@ -1414,6 +1444,7 @@ def get_isotank_release_document(asset_id):
     }, 200
 
 @main.route("/isotanks/<int:asset_id>/photos", methods=["POST"])
+@admin_required
 def add_photo_record(asset_id):
     asset = Asset.query.get(asset_id)
     if not asset or asset.asset_type != "isotank":
@@ -1455,6 +1486,7 @@ def add_photo_record(asset_id):
 
 
 @main.route("/isotanks/<int:asset_id>/photos", methods=["GET"])
+@admin_required
 def list_photo_records(asset_id):
     asset = Asset.query.get(asset_id)
     if not asset or asset.asset_type != "isotank":
@@ -2153,6 +2185,7 @@ def generate_disposal_certificate_pdf(event, cert):
 # Eco-Oil / Disposal Events
 # ------------------------
 @main.route("/eco-oil/disposal-events", methods=["POST"])
+@admin_required
 def create_disposal_event():
     data = request.get_json() or {}
 
@@ -2222,6 +2255,7 @@ def create_disposal_event():
 
 
 @main.route("/eco-oil/disposal-events/<int:event_id>/close", methods=["PATCH"])
+@admin_required
 def close_disposal_event(event_id):
     data = request.get_json() or {}
 
@@ -2326,6 +2360,7 @@ def close_disposal_event(event_id):
     }, 201
 
 @main.route("/eco-oil/disposal-events", methods=["GET"])
+@admin_required
 def list_disposal_events():
     material_classification = request.args.get("material_classification")
     date_from = request.args.get("date_from")
@@ -2380,6 +2415,7 @@ def list_disposal_events():
 
 
 @main.route("/eco-oil/disposal-events/<int:event_id>", methods=["GET"])
+@admin_required
 def get_disposal_event(event_id):
     event = DisposalEvent.query.get(event_id)
     if not event:
@@ -2574,6 +2610,7 @@ def generate_agreement_pdf(agreement, declaration, client):
     return pdf_path
 
 @main.route("/eco-oil/agreements", methods=["POST"])
+@admin_required
 def create_agreement():
     data = request.get_json() or {}
 
@@ -2628,6 +2665,7 @@ def create_agreement():
     }, 201
 
 @main.route("/eco-oil/agreements", methods=["GET"])
+@admin_required
 def list_agreements():
     agreements = AgreementDocument.query.order_by(AgreementDocument.issued_at.desc()).all()
     result = []
@@ -2645,6 +2683,7 @@ def list_agreements():
     return {"agreements": result}, 200
 
 @main.route("/eco-oil/agreements/<int:agreement_id>/pdf", methods=["GET"])
+@admin_required
 def get_agreement_pdf(agreement_id):
     agreement = AgreementDocument.query.get(agreement_id)
     if not agreement:
@@ -2659,6 +2698,7 @@ def get_agreement_pdf(agreement_id):
     return send_file(filepath, as_attachment=True) 
 
 @main.route("/eco-oil/disposal-certificates/<int:cert_id>/pdf", methods=["GET"])
+@admin_required
 def get_disposal_certificate_pdf(cert_id):
     cert = DisposalCertificate.query.get(cert_id)
     if not cert:

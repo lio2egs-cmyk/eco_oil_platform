@@ -19,6 +19,31 @@ from flask_jwt_extended import (
 from werkzeug.security import generate_password_hash, check_password_hash
 from .db import db, User, Client, TokenBlocklist, MagicLinkToken, LoginAuditLog
 
+
+# --------------------------------------------------------------------------
+# Simple in-memory rate limiting for the PUBLIC endpoints (login / magic-link
+# request). Guards against password brute-force and email-flooding a customer.
+# Per-process (each gunicorn worker counts separately) and resets on restart —
+# good enough as a brake; the audit log remains the forensic source.
+# --------------------------------------------------------------------------
+_rate_buckets = {}
+
+
+def _rate_limited(bucket, limit, window_seconds):
+    """True if this client IP exceeded `limit` calls in the last window."""
+    ip = request.headers.get("X-Forwarded-For", request.remote_addr or "?").split(",")[0].strip()
+    key = (bucket, ip)
+    now = datetime.utcnow().timestamp()
+    hits = [t for t in _rate_buckets.get(key, []) if now - t < window_seconds]
+    if len(hits) >= limit:
+        _rate_buckets[key] = hits
+        return True
+    hits.append(now)
+    _rate_buckets[key] = hits
+    if len(_rate_buckets) > 10000:  # unbounded-growth guard
+        _rate_buckets.clear()
+    return False
+
 auth = Blueprint("auth", __name__, url_prefix="/auth")
 
 VALID_ROLES = {"admin", "eco_oil_client", "eco_depot_client", "transport_company"}
@@ -195,6 +220,9 @@ def get_allowed_client_ids():
 
 @auth.route("/login", methods=["POST"])
 def login():
+    if _rate_limited("login", limit=10, window_seconds=600):
+        return jsonify(error="Too many attempts, try again later"), 429
+
     data = request.get_json(silent=True) or {}
     username = data.get("username", "").strip()
     password = data.get("password", "")
@@ -379,6 +407,11 @@ def request_magic_link():
     neutral_response = jsonify(
         msg="If this email is registered for portal access, a login link has been sent."
     ), 200
+
+    # Rate limit BEFORE any DB lookup; return the same neutral response so the
+    # limiter itself cannot be used to probe which emails exist.
+    if _rate_limited("magic", limit=5, window_seconds=600):
+        return neutral_response
 
     if not email or "@" not in email:
         return neutral_response

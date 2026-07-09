@@ -534,9 +534,10 @@ async function submitDeclaration(){
     if(r.ok){
       discardDraft();
       var n=(d.declarations||[]).length || payload.materials.length;
+      var esc=function(s){ var t=document.createElement('span'); t.textContent=s; return t.innerHTML; };
       document.getElementById('successMsg').innerHTML=
         'נקלטו <b>'+n+'</b> הצהרות חומר (כרטיס לכל חומר) עבור <b>'+
-        (payload.producer.business_name||'')+'</b>.<br>תוקף: שנתיים, לפי חודש ההגשה. עותק יישמר גם אצלכם וגם אצל אקו-אויל.';
+        esc(payload.producer.business_name||'')+'</b>.<br>תוקף: שנתיים, לפי חודש ההגשה. עותק יישמר גם אצלכם וגם אצל אקו-אויל.';
       document.getElementById('formArea').style.display='none';
       document.getElementById('successArea').classList.add('show');
       window.scrollTo({top:0,behavior:'smooth'});
