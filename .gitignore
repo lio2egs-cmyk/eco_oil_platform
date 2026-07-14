@@ -17,6 +17,8 @@ output/
 # Temporary debug dumps and backups
 _*.json
 _*.txt
+_*.md
+_*.log
 website/images/cert/msds_demo_backup/
 
 # Windows thumbnail cache
