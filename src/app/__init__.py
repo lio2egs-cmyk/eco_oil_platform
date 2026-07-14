@@ -102,14 +102,16 @@ def create_app():
             except Exception:
                 db.session.rollback()
 
-        # Migrate: B2 object key on Eco-Oil unload events (additive, idempotent)
-        try:
-            db.session.execute(db.text(
-                "ALTER TABLE ecooil_unload_events ADD COLUMN pdf_key VARCHAR(500)"
-            ))
-            db.session.commit()
-        except Exception:
-            db.session.rollback()
+        # Migrate: B2 object key + normalized stream on Eco-Oil unload events
+        for stmt in (
+            "ALTER TABLE ecooil_unload_events ADD COLUMN pdf_key VARCHAR(500)",
+            "ALTER TABLE ecooil_unload_events ADD COLUMN stream_norm VARCHAR(30)",
+        ):
+            try:
+                db.session.execute(db.text(stmt))
+                db.session.commit()
+            except Exception:
+                db.session.rollback()
 
         # Seed/sync admin user. In production, FLASK_ADMIN_USERNAME and
         # FLASK_ADMIN_PASSWORD env vars override the defaults.

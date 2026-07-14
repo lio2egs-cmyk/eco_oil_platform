@@ -24,8 +24,8 @@ MAX_EVENTS = 30000
 # Whitelisted event fields the bridge may set (everything except id/synced_at).
 _STR_FIELDS = (
     "code", "vehicle", "transporter", "customer", "address", "billed_to",
-    "stream", "package_type", "exit_time", "notes", "pdf_path", "pdf_key",
-    "source_sheet",
+    "stream", "stream_norm", "package_type", "exit_time", "notes",
+    "pdf_path", "pdf_key", "source_sheet",
 )
 _INT_FIELDS = ("year", "month", "serial", "package_count", "source_row")
 _FLOAT_FIELDS = ("weight_in", "weight_out", "weight_net", "declared_tons")
@@ -129,9 +129,13 @@ def status():
     per_year = dict(
         db.session.query(EcoOilUnloadEvent.year, func.count(EcoOilUnloadEvent.id))
         .group_by(EcoOilUnloadEvent.year).all())
+    per_stream = dict(
+        db.session.query(EcoOilUnloadEvent.stream_norm, func.count(EcoOilUnloadEvent.id))
+        .group_by(EcoOilUnloadEvent.stream_norm).all())
     return jsonify({
         "total": total,
         "with_pdf_key": with_pdf,
         "per_year": {str(k): v for k, v in per_year.items()},
+        "per_stream": {str(k): v for k, v in per_stream.items()},
         "last_synced_at": last.isoformat() if last else None,
     })

@@ -626,7 +626,8 @@ class EcoOilUnloadEvent(db.Model):
     customer = db.Column(db.String(200), index=True)        # לקוח = producer/source
     address = db.Column(db.String(200))                     # כתובת
     billed_to = db.Column(db.String(200), index=True)       # חיוב
-    stream = db.Column(db.String(60), index=True)           # סיווג החומר
+    stream = db.Column(db.String(60), index=True)           # סיווג החומר (as written)
+    stream_norm = db.Column(db.String(30), index=True)      # canonical stream for filtering (dictionary approved 2026-07-14)
     weight_in = db.Column(db.Float)                         # משקל כניסה
     weight_out = db.Column(db.Float)                        # משקל יציאה
     weight_net = db.Column(db.Float)                        # משקל נטו

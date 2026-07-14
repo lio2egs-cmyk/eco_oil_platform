@@ -95,6 +95,45 @@ def to_str(v):
 
 COERCE = {"date": to_date, "time": to_time, "int": to_int, "float": to_float, "str": to_str}
 
+# --- Stream normalization (dictionary approved by Limor 2026-07-14) ---
+# The RULE: the stream NAME always determines the classification; additions
+# (בוצה/פולימר/תשטיפי בטון/לחו"ל...) are internal billing markers. Display
+# keeps the original text; filtering uses the canonical stream.
+STREAM_VARIANTS = [
+    # (canonical, [spellings to search inside the text])
+    ("מי שטיפה", ["מי שטיפה", "מי  שטיפה"]),
+    ("מינרלי",   ["מינרלי", "מנרלי", "מנירלי"]),
+    ("אמולסיה",  ["אמולסיה"]),
+    ("סניטרי",   ["סניטרי"]),
+    ("בסיס",     ["בסיס"]),
+    ("חומצה",    ["חומצה"]),
+    ("מזוט",     ["מזוט"]),
+    ("צמחי",     ["צמחי"]),
+    ("רכז שפכים", ["רכז שפכים"]),
+]
+# Destruction-service rows (Yoav's accept-and-forward service): no unload
+# certificate exists — the customer-facing doc is the signed manifest.
+DESTRUCTION_VALUES = {"אריזות מזוהמות", "ג'ריקנים ריקים", "כרומטים", "פילטרים ריקים"}
+UNCLASSIFIED_VALUES = {"ממתין למיון", "ללא סיווג", "***", "ללא פירוט"}
+
+def normalize_stream(text):
+    if not text:
+        return "לא מסווג"
+    t = str(text).strip()
+    if t in DESTRUCTION_VALUES:
+        return "פסולת להשמדה"
+    if t in UNCLASSIFIED_VALUES:
+        return "לא מסווג"
+    # earliest canonical-name occurrence in the text wins
+    # (e.g. "מינרלי (מזוט)" → מינרלי, "בוצת אמולסיה" → אמולסיה)
+    best, best_pos = None, None
+    for canonical, spellings in STREAM_VARIANTS:
+        for sp in spellings:
+            pos = t.find(sp)
+            if pos >= 0 and (best_pos is None or pos < best_pos):
+                best, best_pos = canonical, pos
+    return best or "לא מסווג"
+
 def sheet_month(title):
     """Extract the month number from a monthly-sheet title, or None to skip."""
     first = title.strip().split()[0].split("_")[0]
@@ -142,6 +181,7 @@ def load_sheet(ws, year, month, log):
             pass
         db.session.add(EcoOilUnloadEvent(
             year=year, month=month, source_sheet=ws.title, source_row=excel_row,
+            stream_norm=normalize_stream(kwargs.get("stream")),
             **kwargs))
         n += 1
     return n
