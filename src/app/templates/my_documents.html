@@ -1,0 +1,125 @@
+<!doctype html>
+<html lang="he" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>המסמכים שלי — {{ brand }}</title>
+<style>
+  :root { --green:#5B9E96; --dark:#2E5E58; --bg:#F5F8F7; --line:#D8E4E2; }
+  * { box-sizing:border-box; margin:0; }
+  body { font-family:Arial,"Segoe UI",sans-serif; background:var(--bg); color:#233; }
+  header { background:#fff; border-bottom:3px solid var(--green); padding:14px 22px;
+           display:flex; align-items:center; gap:14px; }
+  header img { height:44px; }
+  header .t { font-size:20px; font-weight:bold; color:var(--dark); }
+  header .who { margin-inline-start:auto; color:#567; font-size:14px; }
+  .wrap { max-width:1080px; margin:22px auto; padding:0 16px; }
+  .filters { display:flex; gap:10px; flex-wrap:wrap; margin-bottom:14px; align-items:center; }
+  select,input[type=text] { padding:8px 10px; border:1px solid var(--line); border-radius:8px;
+           font-family:inherit; font-size:14px; background:#fff; }
+  input[type=text] { min-width:220px; }
+  .count { color:#567; font-size:13px; margin-inline-start:auto; }
+  table { width:100%; border-collapse:collapse; background:#fff; border-radius:10px;
+          overflow:hidden; box-shadow:0 1px 4px rgba(0,0,0,.07); }
+  th { background:var(--green); color:#fff; padding:10px 12px; font-size:14px; text-align:right; }
+  td { padding:9px 12px; border-bottom:1px solid var(--line); font-size:14px; }
+  tr:hover td { background:#F0F6F5; }
+  .btn { display:inline-block; background:var(--green); color:#fff; border:none; cursor:pointer;
+         padding:6px 14px; border-radius:8px; font-size:13px; font-family:inherit; }
+  .btn:hover { background:var(--dark); }
+  .nofile { color:#99A; font-size:12px; background:#EEF1F1; padding:4px 10px; border-radius:8px; }
+  .back { color:var(--dark); text-decoration:none; font-size:14px; }
+  .empty { text-align:center; padding:40px; color:#678; background:#fff; border-radius:10px; }
+  @media (max-width:700px){ .hide-m { display:none; } }
+</style>
+</head>
+<body>
+<header>
+  <img src="{{ url_for('static', filename=logo) }}" alt="{{ brand }}">
+  <div class="t">המסמכים שלי</div>
+  <div class="who" id="who"></div>
+  <a class="back" href="/portal">→ חזרה לעמוד הראשי</a>
+</header>
+<div class="wrap">
+  <div class="filters">
+    <select id="fYear"><option value="">כל השנים</option></select>
+    <select id="fStream"><option value="">כל הזרמים</option></select>
+    <input type="text" id="fQ" placeholder="חיפוש לפי שם או מוביל…">
+    <span class="count" id="count"></span>
+  </div>
+  <div id="content"><div class="empty">טוען…</div></div>
+</div>
+<script>
+if(!localStorage.getItem('eco_access_token')){ location.href='/login'; }
+var MODE='billed';
+
+async function apiGet(url){
+  var r=await fetch(url,{headers:{'Authorization':'Bearer '+localStorage.getItem('eco_access_token')}});
+  if(r.status===401){
+    var rt=localStorage.getItem('eco_refresh_token');
+    if(rt){
+      var rr=await fetch('/auth/refresh',{method:'POST',headers:{'Authorization':'Bearer '+rt}});
+      if(rr.ok){
+        var rd=await rr.json();
+        localStorage.setItem('eco_access_token', rd.access_token||'');
+        r=await fetch(url,{headers:{'Authorization':'Bearer '+localStorage.getItem('eco_access_token')}});
+      } else { location.href='/login'; return null; }
+    } else { location.href='/login'; return null; }
+  }
+  return r;
+}
+
+function esc(s){ return (s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+
+async function load(first){
+  var p=new URLSearchParams();
+  var y=document.getElementById('fYear').value, s=document.getElementById('fStream').value,
+      q=document.getElementById('fQ').value.trim();
+  if(y)p.set('year',y); if(s)p.set('stream',s); if(q)p.set('q',q);
+  var r=await apiGet('/eco-oil/my-documents?'+p.toString());
+  if(!r||!r.ok){ document.getElementById('content').innerHTML='<div class="empty">שגיאה בטעינה</div>'; return; }
+  var d=await r.json();
+  MODE=d.mode;
+  document.getElementById('who').textContent=d.client_name;
+  if(first){
+    d.years.forEach(function(v){ var o=document.createElement('option'); o.value=v; o.textContent=v;
+      document.getElementById('fYear').appendChild(o); });
+    d.streams.forEach(function(v){ var o=document.createElement('option'); o.value=v; o.textContent=v;
+      document.getElementById('fStream').appendChild(o); });
+  }
+  document.getElementById('count').textContent=d.rows.length+' פריקות';
+  if(!d.rows.length){ document.getElementById('content').innerHTML='<div class="empty">לא נמצאו פריקות</div>'; return; }
+  var srcCol = MODE==='billed';
+  var h='<table><tr><th>תאריך</th>'+(srcCol?'<th>מקור הפסולת</th>':'')+
+        '<th>זרם</th><th>כמות (טון)</th><th class="hide-m">מוביל</th><th>אישור פריקה</th></tr>';
+  d.rows.forEach(function(r){
+    h+='<tr><td>'+esc(r.date)+'</td>'+
+       (srcCol?'<td>'+esc(r.customer)+'</td>':'')+
+       '<td>'+esc(r.stream||'')+'</td>'+
+       '<td>'+(r.tons!=null?r.tons:'')+'</td>'+
+       '<td class="hide-m">'+esc(r.transporter||'')+'</td>'+
+       '<td>'+(r.has_pdf
+          ? '<button class="btn" onclick="dl('+r.id+')">הורדה</button>'
+          : '<span class="nofile">אין קובץ</span>')+'</td></tr>';
+  });
+  document.getElementById('content').innerHTML=h+'</table>';
+}
+
+async function dl(id){
+  var r=await apiGet('/eco-oil/my-documents/'+id+'/download');
+  if(!r||!r.ok){ alert('הקובץ אינו זמין כרגע'); return; }
+  var d=await r.json();
+  if(d.url) window.open(d.url,'_blank');
+}
+
+['fYear','fStream'].forEach(function(id){
+  document.getElementById(id).addEventListener('change',function(){load(false);});
+});
+var t=null;
+document.getElementById('fQ').addEventListener('input',function(){
+  clearTimeout(t); t=setTimeout(function(){load(false);},350);
+});
+load(true);
+</script>
+</body>
+</html>

@@ -41,6 +41,12 @@ def portal_home():
     return render_template("portal_placeholder.html", **_brand_for_host())
 
 
+@web.route("/documents")
+def my_documents_page():
+    """"המסמכים שלי" — אישורי הפריקה של הלקוח המחובר, מהנתונים החיים."""
+    return render_template("my_documents.html", **_brand_for_host())
+
+
 @web.route("/declaration")
 def declaration_page():
     """טופס הצהרת יצרן (אקו-אויל) — הרשימות מוזרקות מהשרת, מקור אמת אחד."""
