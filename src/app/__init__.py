@@ -7,6 +7,7 @@ from .routes import main
 from .auth import auth
 from .web import web
 from .field import field
+from .ecooil_bridge import ecooil_bridge
 from .db import db
 
 jwt = JWTManager()
@@ -101,6 +102,15 @@ def create_app():
             except Exception:
                 db.session.rollback()
 
+        # Migrate: B2 object key on Eco-Oil unload events (additive, idempotent)
+        try:
+            db.session.execute(db.text(
+                "ALTER TABLE ecooil_unload_events ADD COLUMN pdf_key VARCHAR(500)"
+            ))
+            db.session.commit()
+        except Exception:
+            db.session.rollback()
+
         # Seed/sync admin user. In production, FLASK_ADMIN_USERNAME and
         # FLASK_ADMIN_PASSWORD env vars override the defaults.
         # NEVER ship "changeme123" live — it's a local-dev fallback only.
@@ -134,6 +144,7 @@ def create_app():
     app.register_blueprint(auth)
     app.register_blueprint(web)
     app.register_blueprint(field)
+    app.register_blueprint(ecooil_bridge)
 
     @app.route("/health")
     def health():

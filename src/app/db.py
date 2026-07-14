@@ -636,6 +636,7 @@ class EcoOilUnloadEvent(db.Model):
     exit_time = db.Column(db.String(20))                    # שעת יציאה
     notes = db.Column(db.String(400))                       # הערות
     pdf_path = db.Column(db.String(400))                    # matched filed PDF (filled by matcher)
+    pdf_key = db.Column(db.String(500))                     # B2 object key (cloud copy of the PDF)
     source_sheet = db.Column(db.String(40))
     source_row = db.Column(db.Integer)
     synced_at = db.Column(db.DateTime, default=datetime.utcnow)

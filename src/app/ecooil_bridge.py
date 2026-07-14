@@ -1,0 +1,128 @@
+# -*- coding: utf-8 -*-
+"""Eco-Oil bridge endpoints — the secure door the office bridge pushes through.
+
+The ריכוז workbook on the office drive is the source of truth (Limor 2026-07-13);
+the office bridge reads it hourly, uploads certificate PDFs to B2 cloud storage,
+and pushes the unload-event rows here. The cloud only mirrors — it never edits.
+
+Auth: ECOOIL_BRIDGE_TOKEN env var (Bearer), same pattern as FIELD_BRIDGE_TOKEN.
+"""
+import os
+import secrets as _secrets
+from datetime import datetime, date
+from functools import wraps
+
+from flask import Blueprint, request, jsonify
+from sqlalchemy import func
+
+from .db import db, EcoOilUnloadEvent
+
+ecooil_bridge = Blueprint("ecooil_bridge", __name__, url_prefix="/bridge/ecooil")
+
+MAX_EVENTS = 30000
+
+# Whitelisted event fields the bridge may set (everything except id/synced_at).
+_STR_FIELDS = (
+    "code", "vehicle", "transporter", "customer", "address", "billed_to",
+    "stream", "package_type", "exit_time", "notes", "pdf_path", "pdf_key",
+    "source_sheet",
+)
+_INT_FIELDS = ("year", "month", "serial", "package_count", "source_row")
+_FLOAT_FIELDS = ("weight_in", "weight_out", "weight_net", "declared_tons")
+
+
+def _bearer_token():
+    h = request.headers.get("Authorization", "")
+    return h[7:].strip() if h.startswith("Bearer ") else None
+
+
+def ecooil_bridge_required(f):
+    @wraps(f)
+    def wrapper(*args, **kwargs):
+        expected = os.environ.get("ECOOIL_BRIDGE_TOKEN")
+        tok = _bearer_token()
+        if not expected or not tok or not _secrets.compare_digest(tok, expected):
+            return jsonify({"error": "unauthorized"}), 401
+        return f(*args, **kwargs)
+    return wrapper
+
+
+def _coerce_event(item):
+    """Validate + coerce one incoming event dict → kwargs for the model.
+    Returns None for rows missing the essentials (year, month, event_date)."""
+    kwargs = {}
+    for k in _STR_FIELDS:
+        v = item.get(k)
+        if v is not None:
+            v = str(v).strip() or None
+        kwargs[k] = v
+    for k in _INT_FIELDS:
+        try:
+            kwargs[k] = int(item[k]) if item.get(k) is not None else None
+        except (TypeError, ValueError):
+            kwargs[k] = None
+    for k in _FLOAT_FIELDS:
+        try:
+            kwargs[k] = float(item[k]) if item.get(k) is not None else None
+        except (TypeError, ValueError):
+            kwargs[k] = None
+    d = item.get("event_date")
+    if d:
+        try:
+            kwargs["event_date"] = date.fromisoformat(str(d)[:10])
+        except ValueError:
+            kwargs["event_date"] = None
+    else:
+        kwargs["event_date"] = None
+    if not kwargs.get("year") or not kwargs.get("month") or kwargs["event_date"] is None:
+        return None
+    kwargs["synced_at"] = datetime.utcnow()
+    return kwargs
+
+
+@ecooil_bridge.route("/sync", methods=["POST"])
+@ecooil_bridge_required
+def sync_events():
+    """Wholesale snapshot replace — mirrors the office reader's wipe+reload model.
+    Body: {"events": [...]}  (one atomic transaction: readers never see a gap)."""
+    data = request.get_json(silent=True) or {}
+    events = data.get("events")
+    if not isinstance(events, list):
+        return jsonify({"error": "events list required"}), 400
+    if len(events) > MAX_EVENTS:
+        return jsonify({"error": f"too many events (max {MAX_EVENTS})"}), 400
+
+    rows, skipped = [], 0
+    for item in events:
+        if not isinstance(item, dict):
+            skipped += 1
+            continue
+        kwargs = _coerce_event(item)
+        if kwargs is None:
+            skipped += 1
+            continue
+        rows.append(kwargs)
+
+    EcoOilUnloadEvent.query.delete()
+    if rows:
+        db.session.bulk_insert_mappings(EcoOilUnloadEvent, rows)
+    db.session.commit()
+    return jsonify({"ok": True, "loaded": len(rows), "skipped": skipped})
+
+
+@ecooil_bridge.route("/status", methods=["GET"])
+@ecooil_bridge_required
+def status():
+    total = db.session.query(func.count(EcoOilUnloadEvent.id)).scalar() or 0
+    last = db.session.query(func.max(EcoOilUnloadEvent.synced_at)).scalar()
+    with_pdf = (db.session.query(func.count(EcoOilUnloadEvent.id))
+                .filter(EcoOilUnloadEvent.pdf_key.isnot(None)).scalar() or 0)
+    per_year = dict(
+        db.session.query(EcoOilUnloadEvent.year, func.count(EcoOilUnloadEvent.id))
+        .group_by(EcoOilUnloadEvent.year).all())
+    return jsonify({
+        "total": total,
+        "with_pdf_key": with_pdf,
+        "per_year": {str(k): v for k, v in per_year.items()},
+        "last_synced_at": last.isoformat() if last else None,
+    })
