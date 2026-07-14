@@ -605,6 +605,45 @@ class DepotRepair(db.Model):
         return f"<DepotRepair {self.repair_id} tank={self.isotank_number}>"
 
 # ---------------------------------------------------------------------------
+# Eco-Oil unload certificates (אישורי פריקה) — snapshot synced from the office
+# ריכוז workbook (Z:\Eco_General\ריכוז חודשי\<year>\ריכוז*_pivot.xlsx).
+# One row per unload event = one certificate. The ריכוז is the source of
+# truth; this table is a read-only WINDOW onto it (wiped+reloaded per sync).
+# ---------------------------------------------------------------------------
+
+class EcoOilUnloadEvent(db.Model):
+    """One unload event (= one אישור פריקה) from a monthly ריכוז sheet."""
+    __tablename__ = "ecooil_unload_events"
+
+    id = db.Column(db.Integer, primary_key=True)
+    year = db.Column(db.Integer, index=True, nullable=False)
+    month = db.Column(db.Integer, index=True, nullable=False)
+    serial = db.Column(db.Integer)                          # מס' תעודה (per-month serial)
+    code = db.Column(db.String(20), index=True)             # קוד_רנדומלי (e.g. JUL010104)
+    event_date = db.Column(db.Date, index=True)             # תאריך
+    vehicle = db.Column(db.String(40))                      # מספר הרכב
+    transporter = db.Column(db.String(200), index=True)     # חברת ההובלה
+    customer = db.Column(db.String(200), index=True)        # לקוח = producer/source
+    address = db.Column(db.String(200))                     # כתובת
+    billed_to = db.Column(db.String(200), index=True)       # חיוב
+    stream = db.Column(db.String(60), index=True)           # סיווג החומר
+    weight_in = db.Column(db.Float)                         # משקל כניסה
+    weight_out = db.Column(db.Float)                        # משקל יציאה
+    weight_net = db.Column(db.Float)                        # משקל נטו
+    declared_tons = db.Column(db.Float)                     # משקל מוצהר (tons)
+    package_type = db.Column(db.String(60))                 # סוג אריזה
+    package_count = db.Column(db.Integer)                   # מס' אריזות
+    exit_time = db.Column(db.String(20))                    # שעת יציאה
+    notes = db.Column(db.String(400))                       # הערות
+    pdf_path = db.Column(db.String(400))                    # matched filed PDF (filled by matcher)
+    source_sheet = db.Column(db.String(40))
+    source_row = db.Column(db.Integer)
+    synced_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+    def __repr__(self):
+        return f"<EcoOilUnloadEvent {self.event_date} {self.stream} {self.customer}>"
+
+# ---------------------------------------------------------------------------
 # Field terminals (מסופוני שטח) — capture layer: events + photos relayed
 # from the yard tablets to the office bridge. The cloud only STORES;
 # all decisions (OCR validation, Excel posting, photo filing) happen
