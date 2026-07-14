@@ -30,6 +30,13 @@ _STR_FIELDS = (
 _INT_FIELDS = ("year", "month", "serial", "package_count", "source_row")
 _FLOAT_FIELDS = ("weight_in", "weight_out", "weight_net", "declared_tons")
 
+# Column length caps from the model — Postgres enforces VARCHAR limits that
+# SQLite silently ignores, and one overlong stray value (a date-string pasted
+# into the code column) must not fail the whole snapshot.
+_MAX_LEN = {c.name: c.type.length
+            for c in EcoOilUnloadEvent.__table__.columns
+            if hasattr(c.type, "length") and c.type.length}
+
 
 def _bearer_token():
     h = request.headers.get("Authorization", "")
@@ -55,6 +62,8 @@ def _coerce_event(item):
         v = item.get(k)
         if v is not None:
             v = str(v).strip() or None
+        if v is not None and k in _MAX_LEN:
+            v = v[:_MAX_LEN[k]]
         kwargs[k] = v
     for k in _INT_FIELDS:
         try:
