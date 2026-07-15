@@ -226,10 +226,16 @@ async function renderQueue() {
 }
 
 // ---------- אתחול ----------
+// כתובת ייעודית לכל פעולה (?flow=entry/wash/exit) — לאייקונים נפרדים במסך הבית:
+// לחיצה על אייקון פותחת ישר את מסך הפעולה; הכותרת קובעת את שם האייקון בעת ההוספה.
+const FLOW_PARAM = new URLSearchParams(location.search).get("flow");
+const FLOW_TITLES = {entry:"כניסה — אקו דיפו", wash:"שטיפה — אקו דיפו", exit:"יציאה — אקו דיפו"};
+if (FLOW_TITLES[FLOW_PARAM]) document.title = FLOW_TITLES[FLOW_PARAM];
 idbReady.then(async () => {
   if (!token()) { show("setup"); return; }
   document.getElementById("who").textContent = "";
   show("home"); renderQueue();
+  if (FLOW_TITLES[FLOW_PARAM]) startFlow(FLOW_PARAM);
   pump(); pollStatus();
   setInterval(pump, 15000);
   setInterval(pollStatus, 20000);
