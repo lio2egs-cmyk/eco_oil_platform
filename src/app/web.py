@@ -11,7 +11,7 @@ Branding (logo + name) is chosen per subdomain:
 """
 import json
 
-from flask import Blueprint, render_template, request
+from flask import Blueprint, current_app, render_template, request
 
 from .declaration_data import STREAMS
 
@@ -55,6 +55,14 @@ def declaration_page():
         streams_json=json.dumps(STREAMS, ensure_ascii=False),
         **_brand_for_host(),
     )
+
+
+@web.route("/sw.js")
+def field_sw():
+    """ה-service worker חייב להיות מוגש משורש האתר כדי לכסות את /terminal."""
+    resp = current_app.send_static_file("field/sw.js")
+    resp.headers["Cache-Control"] = "no-cache"
+    return resp
 
 
 @web.route("/terminal-admin")

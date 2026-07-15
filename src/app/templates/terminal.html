@@ -241,6 +241,8 @@ async function renderQueue() {
 const FLOW_PARAM = new URLSearchParams(location.search).get("flow");
 const FLOW_TITLES = {entry:"כניסה — אקו דיפו", wash:"שטיפה — אקו דיפו", exit:"יציאה — אקו דיפו"};
 if (FLOW_TITLES[FLOW_PARAM]) document.title = FLOW_TITLES[FLOW_PARAM];
+// service worker — נדרש להתקנת אפליקציה מלאה (אייקון אמיתי בלי תג דפדפן)
+if ("serviceWorker" in navigator) navigator.serviceWorker.register("/sw.js", {scope: "/terminal"}).catch(() => {});
 idbReady.then(async () => {
   if (!token()) { show("setup"); return; }
   document.getElementById("who").textContent = "";
