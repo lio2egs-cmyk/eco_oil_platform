@@ -57,6 +57,11 @@ def declaration_page():
     )
 
 
+@web.route("/terminal-admin")
+def terminal_admin_page():
+    return render_template("terminal_admin.html")
+
+
 @web.route("/terminal")
 def field_terminal():
     """מסופון השטח (טאבלטים) — דף עצמאי; ההרשאה נעשית במפתח מכשיר בתוך הדף."""
