@@ -64,5 +64,9 @@ def terminal_admin_page():
 
 @web.route("/terminal")
 def field_terminal():
-    """מסופון השטח (טאבלטים) — דף עצמאי; ההרשאה נעשית במפתח מכשיר בתוך הדף."""
-    return render_template("terminal.html")
+    """מסופון השטח (טאבלטים) — דף עצמאי; ההרשאה נעשית במפתח מכשיר בתוך הדף.
+    ?flow=entry/wash/exit בוחר את המניפסט והאייקון — אייקון נפרד לכל פעולה."""
+    flow = request.args.get("flow")
+    if flow not in ("entry", "wash", "exit"):
+        flow = "main"
+    return render_template("terminal.html", flow=flow)

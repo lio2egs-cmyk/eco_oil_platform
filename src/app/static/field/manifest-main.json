@@ -1,0 +1,16 @@
+{
+  "id": "/terminal",
+  "name": "מסופון שטח — אקו דיפו",
+  "short_name": "מסופון",
+  "start_url": "/terminal",
+  "scope": "/terminal",
+  "display": "standalone",
+  "dir": "rtl",
+  "lang": "he",
+  "background_color": "#f4f7f6",
+  "theme_color": "#5B9E96",
+  "icons": [
+    {"src": "/static/field/icon-main-192.png", "sizes": "192x192", "type": "image/png"},
+    {"src": "/static/field/icon-main-512.png", "sizes": "512x512", "type": "image/png"}
+  ]
+}
