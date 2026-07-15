@@ -31,6 +31,10 @@ MAX_PHOTO_BYTES = 8 * 1024 * 1024
 MAX_PHOTOS_PER_EVENT = 12
 EVENT_TYPES = {"entry", "wash", "exit"}
 ASSET_TYPES = {"iso", "rt"}
+# Column limit of tank_number (String(40)). A real asset id is ~11 chars; anything
+# longer is a stray note-row from the workbook — Postgres rejects it and, before
+# 15/07/2026, one such row killed the whole onsite snapshot for 6 days.
+MAX_TANK_LEN = 40
 
 
 # --------------------------------------------------------------------- auth
@@ -139,7 +143,7 @@ def submit_event(device):
         worker_name=device.worker_name,
         event_type=etype,
         asset_type=atype,
-        tank_number=(meta.get("tank_number") or "").strip().upper() or None,
+        tank_number=(meta.get("tank_number") or "").strip().upper()[:MAX_TANK_LEN] or None,
         event_at=event_at,
         payload=json.dumps(meta.get("payload") or {}, ensure_ascii=False),
     )
@@ -155,7 +159,7 @@ def submit_event(device):
             continue
         kind = "plate" if f.name == "plate" else "photo"
         db.session.add(FieldPhoto(event_id=ev.id, kind=kind,
-                                  filename=f.filename or f"photo{n}.jpg",
+                                  filename=(f.filename or f"photo{n}.jpg")[:200],
                                   mime=f.mimetype or "image/jpeg",
                                   data=blob, size=len(blob)))
         n += 1
@@ -236,7 +240,7 @@ def bridge_ack():
         ev.status = status
         ev.bridge_note = (item.get("note") or "")[:400]
         if item.get("tank_number"):
-            ev.tank_number = str(item["tank_number"]).strip().upper()
+            ev.tank_number = str(item["tank_number"]).strip().upper()[:MAX_TANK_LEN]
         if status == "posted":
             ev.posted_at = datetime.utcnow()
             for p in ev.photos:
@@ -257,13 +261,20 @@ def bridge_onsite():
         return jsonify({"error": "assets list required"}), 400
     FieldOnsiteAsset.query.delete()
     now = datetime.utcnow()
+    skipped = []
     for a in assets[:2000]:
         tank = (a.get("tank_number") or "").strip()
         if not tank or a.get("asset_type") not in ASSET_TYPES:
+            continue
+        if len(tank) > MAX_TANK_LEN:
+            # No silent drops (Limor 15/07/2026): report every skipped row back
+            # to the bridge, which raises an office alert for it.
+            skipped.append({"asset_type": a["asset_type"], "tank_number": tank[:120],
+                            "status": (a.get("status") or "")[:60]})
             continue
         db.session.add(FieldOnsiteAsset(
             asset_type=a["asset_type"], tank_number=tank,
             customer=(a.get("customer") or "")[:200],
             status=(a.get("status") or "")[:60], updated_at=now))
     db.session.commit()
-    return jsonify({"ok": True})
+    return jsonify({"ok": True, "skipped": skipped})
