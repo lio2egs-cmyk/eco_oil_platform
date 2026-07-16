@@ -60,7 +60,11 @@
       <a href="/terminal/entry" style="flex:1; text-align:center; background:#eef4f3; border-radius:10px; padding:12px; font-size:18px; text-decoration:none; color:var(--dark); font-weight:bold;">📥 כניסה</a>
       <a href="/terminal/wash" style="flex:1; text-align:center; background:#eef4f3; border-radius:10px; padding:12px; font-size:18px; text-decoration:none; color:var(--dark); font-weight:bold;">🧼 שטיפה</a>
       <a href="/terminal/exit" style="flex:1; text-align:center; background:#eef4f3; border-radius:10px; padding:12px; font-size:18px; text-decoration:none; color:var(--dark); font-weight:bold;">📤 יציאה</a>
-      <a href="/terminal/board" style="flex:1; text-align:center; background:#eef4f3; border-radius:10px; padding:12px; font-size:18px; text-decoration:none; color:var(--dark); font-weight:bold;">📋 דוח</a>
+    </div>
+    <div style="display:flex; gap:10px; margin-top:8px;">
+      <a href="/terminal/board-release" style="flex:1; text-align:center; background:#eef4f3; border-radius:10px; padding:12px; font-size:18px; text-decoration:none; color:var(--dark); font-weight:bold;">🚚 שחרור</a>
+      <a href="/terminal/board-care" style="flex:1; text-align:center; background:#eef4f3; border-radius:10px; padding:12px; font-size:18px; text-decoration:none; color:var(--dark); font-weight:bold;">🛠 טיפולים</a>
+      <a href="/terminal/board-expected" style="flex:1; text-align:center; background:#eef4f3; border-radius:10px; padding:12px; font-size:18px; text-decoration:none; color:var(--dark); font-weight:bold;">📅 צפויים</a>
     </div>
   </div>
 </div>
@@ -300,19 +304,31 @@ function warnSpan(t) {
   return t && String(t).startsWith("⚠") ? `<span style="color:#b03030; font-weight:bold;">${e}</span>` : e;
 }
 
-function boardCard(r, extra) {
-  return `<div style="border-bottom:1px solid #e5e5e5; padding:10px 2px;">
-    <div style="display:flex; justify-content:space-between; align-items:center; gap:8px;">
-      <span style="font-size:19px; font-weight:bold;">${esc(r.tank)}</span>
-      <span style="font-size:16px; color:#444;">${esc(r.customer)}</span>${extra || ""}
-    </div>
-    <div style="font-size:15px; color:#333; margin-top:3px;">${r.line}</div>
-  </div>`;
+// עיצוב שנבחר ע"י לימור 16/07: מסגרת טבלה (כמו אקסל, פסים מתחלפים) + תגיות צבע בעמודת השטיפה בלבד
+function chipHtml(text, kind) {
+  const st = kind === "ok"  ? "background:#dff0e2; color:#1d6a34;"
+           : kind === "bad" ? "background:#c62828; color:#fff; font-weight:bold;"
+           :                  "background:#ececec; color:#555;";
+  return `<span style="display:inline-block; padding:2px 8px; border-radius:12px; font-size:13px; white-space:nowrap; ${st}">${esc(text)}</span>`;
 }
+function washChip(w) {
+  if (!w) return "";
+  if (String(w).startsWith("⚠")) return chipHtml(w, "bad");
+  if (String(w).startsWith("נשטף")) return chipHtml(w, "ok");
+  return chipHtml(w, "mut");
+}
+const TH = h => `<th style="padding:8px 6px; border:1px solid #bbb; background:#e6e6e6; font-size:14px; text-align:right; white-space:nowrap;">${h}</th>`;
+const TD = (v, extra) => `<td style="padding:8px 6px; border:1px solid #d5d5d5; font-size:14px; ${extra || ""}">${v}</td>`;
 
-function boardSection(title, rows, mk) {
-  return `<div class="card"><b style="font-size:19px;">${title} (${rows.length})</b>` +
-    (rows.length ? rows.map(mk).join("") : '<div class="note">אין רשומות</div>') + `</div>`;
+function boardTable(title, headers, rows, mkCells) {
+  const body = rows.length
+    ? rows.map((r, i) =>
+        `<tr style="background:${i % 2 ? "#f5f5f5" : "#fff"};">${mkCells(r).join("")}</tr>`).join("")
+    : `<tr><td colspan="${headers.length}" style="padding:10px; border:1px solid #d5d5d5; color:#888; font-style:italic;">אין רשומות</td></tr>`;
+  return `<div class="card" style="padding:10px; overflow-x:auto;">
+    <b style="font-size:18px;">${title} (${rows.length})</b>
+    <table style="width:100%; border-collapse:collapse; margin-top:8px;">
+      <tr>${headers.map(TH).join("")}</tr>${body}</table></div>`;
 }
 
 const READY_SENT_KEY = "board_ready_sent";   // מוכן שנשלח וטרם התעדכן בדוח — לא להציע שוב
@@ -326,8 +342,16 @@ async function sendReady(tank, btn) {
   await idbPut(item);
   const sent = readySent(); sent[tank] = Date.now();
   localStorage.setItem(READY_SENT_KEY, JSON.stringify(sent));
-  btn.textContent = "⌛ נשלח"; btn.disabled = true; btn.style.background = "#eee";
+  // לימור 16/07: אחרי הסימון — "✓ מוכן" בירוק (הריבוע הריק הפך לסימון)
+  btn.outerHTML = `<span style="color:#1d8a3a; font-weight:bold; font-size:14px; white-space:nowrap;">✓ מוכן</span>`;
   pump();
+}
+
+function readyCell(r, sent) {
+  if (sent[r.tank]) return `<span style="color:#1d8a3a; font-weight:bold; font-size:14px; white-space:nowrap;">✓ מוכן</span>`;
+  // לימור 16/07: תיבת סימון ריקה + "סמן מוכן" — שברור שצריך ללחוץ
+  return `<button style="font-size:14px; padding:6px 10px; border:2px solid #777; border-radius:8px; background:#fff; color:#222; white-space:nowrap;"
+    onclick='sendReady(${JSON.stringify(r.tank)}, this)'>☐ סמן מוכן</button>`;
 }
 
 function renderBoard(d, offline) {
@@ -336,26 +360,31 @@ function renderBoard(d, offline) {
     el.innerHTML = '<div class="card"><div class="note">אין עדיין דוח בענן — הוא יופיע ברגע שהשליח במשרד ידחוף אותו.</div></div>';
     return;
   }
-  const b = d.board, sent = readySent();
+  const b = d.board, sent = readySent(), kind = BOARD_KIND || "all";
   document.getElementById("boardStamp").textContent =
     "📋 נכון ל-" + (b.generated || "") + (offline ? "  ⚠ ללא קליטה — מוצג מהזיכרון" : "");
-  const relLine = r => [r.pickup ? "איסוף: " + r.pickup : "", r.service, warnSpan(r.wash),
-                        r.dest ? "יעד: " + esc(r.dest) : "", esc(r.carrier)].filter(Boolean).join(" | ");
-  el.innerHTML =
-    boardSection("להכנה", b.release_prep || [], r => boardCard(
-      {tank: r.tank, customer: r.customer, line: relLine(r)},
-      sent[r.tank]
-        ? `<button disabled style="font-size:16px; padding:8px 12px; border-radius:10px; border:none; background:#eee;">⌛ נשלח</button>`
-        : `<button style="font-size:16px; font-weight:bold; padding:8px 12px; border-radius:10px; border:none; background:#1d8a3a; color:#fff;"
-             onclick='sendReady(${JSON.stringify(r.tank)}, this)'>מוכן ✓</button>`)) +
-    boardSection("ממתינים לאיסוף", b.release_wait || [], r => boardCard(
-      {tank: r.tank, customer: r.customer, line: relLine(r)})) +
-    boardSection("טנקים לטיפול", b.care || [], r => boardCard(
-      {tank: r.tank, customer: r.customer,
-       line: [esc(r.material), "כניסה: " + warnSpan(r.arrival || "⚠ חסר"), esc(r.status), esc(r.treatment)].filter(Boolean).join(" | ")})) +
-    boardSection("צפויים להיכנס", b.expected || [], r => boardCard(
-      {tank: r.tank, customer: r.customer,
-       line: [esc(r.material), esc(r.service), esc(r.notes), r.hazard ? "מסוכן" : ""].filter(Boolean).join(" | ")}));
+  const parts = [];
+  if (kind === "all" || kind === "release") {
+    const relHeaders = ["מס' מכל", "חברה", "איסוף", "הובלה", "שטיפה"];
+    parts.push(boardTable("להכנה", relHeaders.concat(["מוכן"]), b.release_prep || [], r => [
+      TD(esc(r.tank), "font-weight:bold; white-space:nowrap;"), TD(esc(r.customer)),
+      TD(esc(r.pickup), "white-space:nowrap;"), TD(esc(r.carrier)), TD(washChip(r.wash)), TD(readyCell(r, sent))]));
+    parts.push(boardTable("ממתינים לאיסוף", relHeaders.concat(["תעודה"]), b.release_wait || [], r => [
+      TD(esc(r.tank), "font-weight:bold; white-space:nowrap;"), TD(esc(r.customer)),
+      TD(esc(r.pickup), "white-space:nowrap;"), TD(esc(r.carrier)), TD(washChip(r.wash)), TD(esc(r.cert), "white-space:nowrap;")]));
+  }
+  if (kind === "all" || kind === "care") {
+    parts.push(boardTable("טנקים לטיפול", ["מס' מכל", "חברה", "חומר אחרון", "כניסה", "סטטוס", "טיפול נדרש"], b.care || [], r => [
+      TD(esc(r.tank), "font-weight:bold; white-space:nowrap;"), TD(esc(r.customer)), TD(esc(r.material)),
+      TD(warnSpan(r.arrival || "⚠ חסר"), "white-space:nowrap;"), TD(esc(r.status)), TD(esc(r.treatment))]));
+  }
+  if (kind === "all" || kind === "expected") {
+    parts.push(boardTable("צפויים להיכנס", ["מס' מכל", "חברה", "חומר אחרון", "סוג שירות", "הערות", "מסוכן"], b.expected || [], r => [
+      TD(esc(r.tank), "font-weight:bold; white-space:nowrap;"), TD(esc(r.customer)), TD(esc(r.material)),
+      TD(esc(r.service)), TD(esc(r.notes)),
+      TD(r.hazard ? chipHtml("מסוכן", "bad") : chipHtml("לא", "mut"))]));
+  }
+  el.innerHTML = parts.join("");
 }
 
 async function loadBoard() {
@@ -513,7 +542,9 @@ async function renderQueue() {
 // לחיצה על אייקון פותחת ישר את מסך הפעולה; הכותרת קובעת את שם האייקון בעת ההוספה.
 const FLOW_PARAM = "{{ flow }}" === "main" ? null : "{{ flow }}";
 const FLOW_TITLES = {entry:"כניסה — אקו דיפו", wash:"שטיפה — אקו דיפו", exit:"יציאה — אקו דיפו",
-                     board:"דוח תפעול — אקו דיפו"};
+                     board:"דוח תפעול — אקו דיפו", "board-release":"דוח שחרור — אקו דיפו",
+                     "board-care":"דוח טיפולים — אקו דיפו", "board-expected":"דוח צפויים — אקו דיפו"};
+const BOARD_KIND = {board:"all", "board-release":"release", "board-care":"care", "board-expected":"expected"}["{{ flow }}"] || null;
 if (FLOW_TITLES[FLOW_PARAM]) document.title = FLOW_TITLES[FLOW_PARAM];
 // service worker — נדרש להתקנת אפליקציה מלאה (אייקון אמיתי בלי תג דפדפן)
 if ("serviceWorker" in navigator) navigator.serviceWorker.register("/sw.js", {scope: "/terminal"}).catch(() => {});
@@ -521,7 +552,7 @@ idbReady.then(async () => {
   if (!token()) { show("setup"); return; }
   document.getElementById("who").textContent = "";
   show("home"); renderQueue();
-  if (FLOW_PARAM === "board") {
+  if (BOARD_KIND) {
     show("board"); loadBoard();
     setInterval(loadBoard, 60000);   // מתעדכן לבד כל דקה
   } else if (FLOW_TITLES[FLOW_PARAM]) {
