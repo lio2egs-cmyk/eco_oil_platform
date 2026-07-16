@@ -376,7 +376,9 @@ function renderBoard(d, offline) {
   }
   if (kind === "all" || kind === "care") {
     parts.push(boardTable("טנקים לטיפול", ["מס' מכל", "חברה", "חומר אחרון", "כניסה", "סטטוס", "טיפול נדרש"], b.care || [], r => [
-      TD(esc(r.tank), "font-weight:bold; white-space:nowrap;"), TD(esc(r.customer)), TD(esc(r.material)),
+      TD(esc(r.tank), "font-weight:bold; white-space:nowrap;"), TD(esc(r.customer)),
+      // לימור 16/07: החומר האחרון = מידע בלבד — כיתוב קטן כדי שהטבלה תיכנס בנוח
+      TD(esc(r.material), "font-size:11px; color:#555; word-break:break-word; max-width:150px;"),
       TD(warnSpan(r.arrival || "⚠ חסר"), "white-space:nowrap;"), TD(esc(r.status)), TD(esc(r.treatment))]));
   }
   if (kind === "all" || kind === "expected") {
