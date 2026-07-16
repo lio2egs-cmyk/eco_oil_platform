@@ -90,6 +90,10 @@
       <label>מה בוצע?</label>
       <div class="treat" id="treats"></div>
     </div>
+    <div id="openWrap" class="hidden" style="margin-top:10px;">
+      <label>פתחים שנשטפו</label>
+      <div class="treat" id="openBoxes"></div>
+    </div>
     <div id="extraIso" class="hidden" style="margin-top:10px;">
       <label>פעולות נוספות</label>
       <div class="treat"><label style="background:#fff3cd;"><input type="checkbox" id="vacuumChk">בדיקת ואקום בוצעה</label></div>
@@ -143,10 +147,21 @@ function startFlow(t) {
     tw.innerHTML = TREATMENTS.map(x => `<label><input type="checkbox" value="${x}">${x}</label>`).join("");
     document.getElementById("vacuumChk").checked = false;
     document.getElementById("pumpChk").checked = false;
+    document.getElementById("openBoxes").innerHTML =
+      `<label style="background:#e3ecff; font-weight:bold;"><input type="checkbox" id="openAll" onchange="toggleAllOpenings(this.checked)">הכל (7)</label>` +
+      [1,2,3,4,5,6,7].map(n => `<label><input type="checkbox" class="openChk" value="${n}" onchange="syncOpenAll()">פתח ${n}</label>`).join("");
   }
+  document.getElementById("openWrap").classList.toggle("hidden", t !== "wash");
   updateExtras();
   if (t !== "entry") loadOnsite();
   show("flow");
+}
+function toggleAllOpenings(v) {
+  document.querySelectorAll(".openChk").forEach(c => c.checked = v);
+}
+function syncOpenAll() {
+  const all = [...document.querySelectorAll(".openChk")];
+  document.getElementById("openAll").checked = all.every(c => c.checked);
 }
 function updateExtras() {
   // בדיקת ואקום = איזוטנק (עמודה Y, 55 ש"ח); משאבה = מכלית (עמודה M — בינתיים בדיווח בלבד)
@@ -256,7 +271,8 @@ async function submitEvent() {
     event_at: new Date().toISOString().slice(0,19),
     payload: {treatments, not_listed: unlistedMode,
               vacuum_test: flowType === "wash" && at === "iso" && document.getElementById("vacuumChk").checked,
-              pump: flowType === "wash" && at === "rt" && document.getElementById("pumpChk").checked},
+              pump: flowType === "wash" && at === "rt" && document.getElementById("pumpChk").checked,
+              openings_count: flowType === "wash" ? document.querySelectorAll(".openChk:checked").length : 0},
     photos: await Promise.all(photos.map(async f => ({name:f.name, type:f.type, blob:f}))),
     label: `${document.getElementById("flowTitle").textContent} ${tank || "(מהתמונה)"}`,
     state: "queued", ts: Date.now(),
