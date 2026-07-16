@@ -11,7 +11,7 @@ Branding (logo + name) is chosen per subdomain:
 """
 import json
 
-from flask import Blueprint, current_app, render_template, request
+from flask import Blueprint, current_app, redirect, render_template, request
 
 from .declaration_data import STREAMS
 
@@ -71,10 +71,13 @@ def terminal_admin_page():
 
 
 @web.route("/terminal")
-def field_terminal():
+@web.route("/terminal/<flow>")
+def field_terminal(flow=None):
     """מסופון השטח (טאבלטים) — דף עצמאי; ההרשאה נעשית במפתח מכשיר בתוך הדף.
-    ?flow=entry/wash/exit בוחר את המניפסט והאייקון — אייקון נפרד לכל פעולה."""
-    flow = request.args.get("flow")
+    לכל פעולה נתיב משלה (/terminal/entry|wash|exit) עם scope נפרד במניפסט —
+    אחרת כרום מחשיב את שלוש הפעולות כאפליקציה מותקנת אחת וחוסם את השאר."""
+    if flow is None and request.args.get("flow") in ("entry", "wash", "exit"):
+        return redirect("/terminal/" + request.args["flow"])
     if flow not in ("entry", "wash", "exit"):
         flow = "main"
     return render_template("terminal.html", flow=flow)

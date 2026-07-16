@@ -1,9 +1,9 @@
 {
-  "id": "/terminal?flow=wash",
+  "id": "/terminal/wash",
   "name": "שטיפה — אקו דיפו",
   "short_name": "שטיפה",
-  "start_url": "/terminal?flow=wash",
-  "scope": "/terminal",
+  "start_url": "/terminal/wash",
+  "scope": "/terminal/wash",
   "display": "standalone",
   "dir": "rtl",
   "lang": "he",

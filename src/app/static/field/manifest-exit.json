@@ -1,9 +1,9 @@
 {
-  "id": "/terminal?flow=exit",
+  "id": "/terminal/exit",
   "name": "יציאה — אקו דיפו",
   "short_name": "יציאה",
-  "start_url": "/terminal?flow=exit",
-  "scope": "/terminal",
+  "start_url": "/terminal/exit",
+  "scope": "/terminal/exit",
   "display": "standalone",
   "dir": "rtl",
   "lang": "he",

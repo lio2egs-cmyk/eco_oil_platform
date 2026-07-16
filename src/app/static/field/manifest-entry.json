@@ -1,9 +1,9 @@
 {
-  "id": "/terminal?flow=entry",
+  "id": "/terminal/entry",
   "name": "כניסה — אקו דיפו",
   "short_name": "כניסה",
-  "start_url": "/terminal?flow=entry",
-  "scope": "/terminal",
+  "start_url": "/terminal/entry",
+  "scope": "/terminal/entry",
   "display": "standalone",
   "dir": "rtl",
   "lang": "he",
