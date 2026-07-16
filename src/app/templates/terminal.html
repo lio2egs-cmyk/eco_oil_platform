@@ -83,7 +83,7 @@
       <label>מספר (אם ידוע — לא חובה, המשרד מפענח מהתמונה)</label>
       <input type="text" id="tankManual" autocapitalize="characters" autocomplete="off">
     </div>
-    <button class="btn" id="camBtn" onclick="fileInput.click()">📷 צילום</button>
+    <button class="btn" id="camBtn" onclick="openCam()">📷 צילום</button>
     <input type="file" id="fileInput" accept="image/*" capture="environment" class="hidden" multiple>
     <div class="photos" id="thumbs"></div>
     <div id="treatWrap" class="hidden">
@@ -105,6 +105,16 @@
     <button class="btn" onclick="submitEvent()">✅ שליחה</button>
     <button class="btn secondary" onclick="goHome()">ביטול</button>
     <div class="note">אין קליטה? אפשר לשלוח — האירוע יחכה במכשיר ויעלה לבד.</div>
+  </div>
+</div>
+
+<!-- מצלמה פנימית: כל לחיצה = תמונה, בלי אישור בין צילומים -->
+<div id="camPanel" style="display:none; position:fixed; inset:0; background:#000; z-index:50; flex-direction:column;">
+  <video id="camVideo" autoplay playsinline muted style="flex:1; width:100%; object-fit:cover; min-height:0;"></video>
+  <div style="display:flex; gap:10px; padding:14px; background:#111; align-items:center;">
+    <button style="flex:1; font-size:26px; font-weight:bold; padding:18px; border:none; border-radius:14px; background:#c62828; color:#fff;" onclick="camShot()">📷 צילום</button>
+    <span id="camCount" style="color:#fff; font-size:22px; min-width:90px; text-align:center;"></span>
+    <button style="flex:1; font-size:26px; font-weight:bold; padding:18px; border:none; border-radius:14px; background:#1d8a3a; color:#fff;" onclick="closeCam()">✔ סיום</button>
   </div>
 </div>
 
@@ -131,7 +141,7 @@ const token = () => localStorage.getItem("device_token");
 function saveToken() { localStorage.setItem("device_token", document.getElementById("tokenInput").value.trim()); location.reload(); }
 
 function show(id) { for (const s of ["setup","home","flow"]) document.getElementById(s).classList.toggle("hidden", s !== id); }
-function goHome() { show("home"); renderQueue(); }
+function goHome() { closeCam(); show("home"); renderQueue(); }
 
 // ---------- מסך אירוע ----------
 function startFlow(t) {
@@ -245,16 +255,59 @@ function filterTanks() {
   if (matches.length > 10) res.innerHTML += `<div class="note">מוצגות 10 מתוך ${matches.length} התאמות — הוסיפו עוד ספרה</div>`;
 }
 
+function addThumb(f) {
+  // תמונה ממוזערת + כפתור מחיקה ✕ (למחוק תמונה לא טובה לפני השליחה)
+  const wrap = document.createElement("div");
+  wrap.style.cssText = "position:relative; display:inline-block;";
+  const img = document.createElement("img");
+  img.src = URL.createObjectURL(f);
+  const x = document.createElement("button");
+  x.textContent = "✕";
+  x.style.cssText = "position:absolute; top:-8px; right:-8px; background:#b03030; color:#fff; border:2px solid #fff; border-radius:50%; width:32px; height:32px; font-size:16px; font-weight:bold;";
+  x.onclick = () => { photos = photos.filter(p => p !== f); wrap.remove(); };
+  wrap.appendChild(img); wrap.appendChild(x);
+  document.getElementById("thumbs").appendChild(wrap);
+}
+
 document.getElementById("fileInput").addEventListener("change", ev => {
-  for (const f of ev.target.files) {
-    photos.push(f);
-    const img = document.createElement("img");
-    img.src = URL.createObjectURL(f);
-    document.getElementById("thumbs").appendChild(img);
-  }
+  for (const f of ev.target.files) { photos.push(f); addThumb(f); }
   ev.target.value = "";
 });
 const fileInput = document.getElementById("fileInput");
+
+// ---------- מצלמה פנימית: צילום רציף בלי אישור בין תמונות ----------
+let camStream = null;
+async function openCam() {
+  try {
+    camStream = await navigator.mediaDevices.getUserMedia(
+      {video: {facingMode: "environment", width: {ideal: 1920}, height: {ideal: 1080}}, audio: false});
+    document.getElementById("camVideo").srcObject = camStream;
+    document.getElementById("camPanel").style.display = "flex";
+    updateCamCount();
+  } catch (e) { fileInput.click(); }  // אין הרשאת מצלמה — נפילה למצלמת המערכת
+}
+function updateCamCount() {
+  document.getElementById("camCount").textContent = photos.length ? photos.length + " תמונות" : "";
+}
+function camShot() {
+  const v = document.getElementById("camVideo");
+  if (!v.videoWidth) return;
+  const c = document.createElement("canvas");
+  c.width = v.videoWidth; c.height = v.videoHeight;
+  c.getContext("2d").drawImage(v, 0, 0);
+  c.toBlob(b => {
+    if (!b) return;
+    const f = new File([b], "cam_" + Date.now() + ".jpg", {type: "image/jpeg"});
+    photos.push(f); addThumb(f); updateCamCount();
+    // הבזק משוב קצר — שהעובד יראה שהתמונה נתפסה
+    v.style.opacity = "0.25";
+    setTimeout(() => { v.style.opacity = "1"; }, 120);
+  }, "image/jpeg", 0.85);
+}
+function closeCam() {
+  if (camStream) { camStream.getTracks().forEach(t => t.stop()); camStream = null; }
+  document.getElementById("camPanel").style.display = "none";
+}
 
 async function submitEvent() {
   const at = document.getElementById("assetType").value;
