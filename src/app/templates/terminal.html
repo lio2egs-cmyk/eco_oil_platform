@@ -94,6 +94,11 @@
       <label>פתחים שנשטפו</label>
       <div class="treat" id="openBoxes"></div>
     </div>
+    <div id="vocWrap" class="hidden" style="margin-top:10px;">
+      <label>בדיקת VOC — התוצאה מהמכשיר ב-ppm (רק אם בוצעה)</label>
+      <input type="number" id="vocInput" inputmode="decimal" step="0.1" min="0" placeholder="למשל 0.0"
+             style="width:100%; box-sizing:border-box; font-size:24px; padding:12px; border-radius:10px; border:2px solid #ccc; text-align:center;">
+    </div>
     <div id="extraIso" class="hidden" style="margin-top:10px;">
       <label>פעולות נוספות</label>
       <div class="treat"><label style="background:#fff3cd;"><input type="checkbox" id="vacuumChk">בדיקת ואקום בוצעה</label></div>
@@ -157,11 +162,13 @@ function startFlow(t) {
     tw.innerHTML = TREATMENTS.map(x => `<label><input type="checkbox" value="${x}">${x}</label>`).join("");
     document.getElementById("vacuumChk").checked = false;
     document.getElementById("pumpChk").checked = false;
+    document.getElementById("vocInput").value = "";
     document.getElementById("openBoxes").innerHTML =
       `<label style="background:#e3ecff; font-weight:bold;"><input type="checkbox" id="openAll" onchange="toggleAllOpenings(this.checked)">הכל (7)</label>` +
       [1,2,3,4,5,6,7].map(n => `<label><input type="checkbox" class="openChk" value="${n}" onchange="syncOpenAll()">פתח ${n}</label>`).join("");
   }
   document.getElementById("openWrap").classList.toggle("hidden", t !== "wash");
+  document.getElementById("vocWrap").classList.toggle("hidden", t !== "wash");
   updateExtras();
   if (t !== "entry") loadOnsite();
   show("flow");
@@ -331,6 +338,7 @@ async function submitEvent() {
     payload: {treatments, not_listed: unlistedMode,
               vacuum_test: flowType === "wash" && at === "iso" && document.getElementById("vacuumChk").checked,
               pump: flowType === "wash" && at === "rt" && document.getElementById("pumpChk").checked,
+              voc_ppm: flowType === "wash" ? (document.getElementById("vocInput").value.trim() || null) : null,
               openings_count: flowType === "wash" ? document.querySelectorAll(".openChk:checked").length : 0},
     photos: await Promise.all(photos.map(async f => ({name:f.name, type:f.type, blob:f}))),
     label: `${document.getElementById("flowTitle").textContent} ${tank || "(מהתמונה)"}`,
