@@ -309,6 +309,12 @@ function closeCam() {
   document.getElementById("camPanel").style.display = "none";
 }
 
+function localIso() {
+  // תאריך-שעה בשעון המקומי של המכשיר (לא UTC) — עמודות L/M/AI בקובץ הן שעון ישראל
+  const d = new Date(), p = n => String(n).padStart(2, "0");
+  return `${d.getFullYear()}-${p(d.getMonth()+1)}-${p(d.getDate())}T${p(d.getHours())}:${p(d.getMinutes())}:${p(d.getSeconds())}`;
+}
+
 async function submitEvent() {
   const at = document.getElementById("assetType").value;
   let tank = (flowType === "entry" || unlistedMode) ? document.getElementById("tankManual").value
@@ -321,7 +327,7 @@ async function submitEvent() {
     client_uuid: crypto.randomUUID(),
     event_type: flowType, asset_type: at,
     tank_number: (tank || "").trim().toUpperCase(),
-    event_at: new Date().toISOString().slice(0,19),
+    event_at: localIso(),   // שעון מקומי! toISOString = UTC וגרם להזחת 3 שעות (לקח פיילוט 16/07)
     payload: {treatments, not_listed: unlistedMode,
               vacuum_test: flowType === "wash" && at === "iso" && document.getElementById("vacuumChk").checked,
               pump: flowType === "wash" && at === "rt" && document.getElementById("pumpChk").checked,
