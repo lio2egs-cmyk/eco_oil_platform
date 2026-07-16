@@ -718,3 +718,14 @@ class FieldOnsiteAsset(db.Model):
     customer = db.Column(db.String(200))
     status = db.Column(db.String(60))
     updated_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+
+class FieldBoard(db.Model):
+    """The live ops board for the tablets (Damoni 16/07: reports on the tablet
+    instead of the printed 14:00 PDF). Single row, JSON blob, replaced wholesale
+    by the bridge every cycle — the cloud stores, never computes."""
+    __tablename__ = "field_board"
+
+    id = db.Column(db.Integer, primary_key=True)
+    data = db.Column(db.Text)                                  # JSON: release_prep/release_wait/care/expected
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow)

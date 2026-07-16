@@ -23,13 +23,13 @@ from functools import wraps
 from flask import Blueprint, request, jsonify
 from flask_jwt_extended import jwt_required, get_jwt
 
-from .db import db, FieldDevice, FieldEvent, FieldPhoto, FieldOnsiteAsset
+from .db import db, FieldDevice, FieldEvent, FieldPhoto, FieldOnsiteAsset, FieldBoard
 
 field = Blueprint("field", __name__, url_prefix="/field/api")
 
 MAX_PHOTO_BYTES = 8 * 1024 * 1024
 MAX_PHOTOS_PER_EVENT = 12
-EVENT_TYPES = {"entry", "wash", "exit"}
+EVENT_TYPES = {"entry", "wash", "exit", "ready"}   # ready = "מוכן ✓" מדוח השחרור בטאבלט
 ASSET_TYPES = {"iso", "rt"}
 # Column limit of tank_number (String(40)). A real asset id is ~11 chars; anything
 # longer is a stray note-row from the workbook — Postgres rejects it and, before
@@ -182,6 +182,17 @@ def onsite_assets(device):
         for a in q.order_by(FieldOnsiteAsset.tank_number).all()]})
 
 
+@field.route("/board", methods=["GET"])
+@device_required
+def get_board(device):
+    """The live ops board for the tablet (pushed by the bridge every cycle)."""
+    b = db.session.get(FieldBoard, 1)
+    if b is None or not b.data:
+        return jsonify({"board": None, "updated_at": None})
+    return jsonify({"board": json.loads(b.data),
+                    "updated_at": b.updated_at.isoformat() if b.updated_at else None})
+
+
 @field.route("/events/status", methods=["GET"])
 @device_required
 def events_status(device):
@@ -248,6 +259,24 @@ def bridge_ack():
         done += 1
     db.session.commit()
     return jsonify({"ok": True, "updated": done})
+
+
+@field.route("/bridge/board", methods=["POST"])
+@bridge_required
+def bridge_board():
+    """Wholesale replace of the ops-board blob. Body: {"board": {...}}"""
+    data = request.get_json(silent=True) or {}
+    board = data.get("board")
+    if not isinstance(board, dict):
+        return jsonify({"error": "board object required"}), 400
+    b = db.session.get(FieldBoard, 1)
+    if b is None:
+        b = FieldBoard(id=1)
+        db.session.add(b)
+    b.data = json.dumps(board, ensure_ascii=False)
+    b.updated_at = datetime.utcnow()
+    db.session.commit()
+    return jsonify({"ok": True})
 
 
 @field.route("/bridge/onsite", methods=["POST"])

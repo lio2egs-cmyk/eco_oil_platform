@@ -60,6 +60,7 @@
       <a href="/terminal/entry" style="flex:1; text-align:center; background:#eef4f3; border-radius:10px; padding:12px; font-size:18px; text-decoration:none; color:var(--dark); font-weight:bold;">📥 כניסה</a>
       <a href="/terminal/wash" style="flex:1; text-align:center; background:#eef4f3; border-radius:10px; padding:12px; font-size:18px; text-decoration:none; color:var(--dark); font-weight:bold;">🧼 שטיפה</a>
       <a href="/terminal/exit" style="flex:1; text-align:center; background:#eef4f3; border-radius:10px; padding:12px; font-size:18px; text-decoration:none; color:var(--dark); font-weight:bold;">📤 יציאה</a>
+      <a href="/terminal/board" style="flex:1; text-align:center; background:#eef4f3; border-radius:10px; padding:12px; font-size:18px; text-decoration:none; color:var(--dark); font-weight:bold;">📋 דוח</a>
     </div>
   </div>
 </div>
@@ -113,6 +114,15 @@
   </div>
 </div>
 
+<!-- מסך דוח תפעול חי (דאמוני 16/07 — במקום ה-PDF המודפס) -->
+<div id="board" class="hidden">
+  <div class="card" style="display:flex; justify-content:space-between; align-items:center; gap:8px;">
+    <b id="boardStamp" style="font-size:17px;">דוח תפעול</b>
+    <button class="btn secondary" style="width:auto; margin:0; padding:10px 16px;" onclick="loadBoard()">↻ רענון</button>
+  </div>
+  <div id="boardBody"><div class="note">טוען את הדוח...</div></div>
+</div>
+
 <!-- מצלמה פנימית: כל לחיצה = תמונה, בלי אישור בין צילומים -->
 <div id="camPanel" style="display:none; position:fixed; inset:0; background:#000; z-index:50; flex-direction:column;">
   <video id="camVideo" autoplay playsinline muted style="flex:1; width:100%; object-fit:cover; min-height:0;"></video>
@@ -145,7 +155,7 @@ function idbDel(key) { return new Promise(res => { outbox("readwrite").delete(ke
 const token = () => localStorage.getItem("device_token");
 function saveToken() { localStorage.setItem("device_token", document.getElementById("tokenInput").value.trim()); location.reload(); }
 
-function show(id) { for (const s of ["setup","home","flow"]) document.getElementById(s).classList.toggle("hidden", s !== id); }
+function show(id) { for (const s of ["setup","home","flow","board"]) document.getElementById(s).classList.toggle("hidden", s !== id); }
 function goHome() { closeCam(); show("home"); renderQueue(); }
 
 // ---------- מסך אירוע ----------
@@ -170,7 +180,7 @@ function startFlow(t) {
   document.getElementById("openWrap").classList.toggle("hidden", t !== "wash");
   document.getElementById("vocWrap").classList.toggle("hidden", t !== "wash");
   updateExtras();
-  if (t !== "entry") loadOnsite();
+  loadOnsite();   // גם בכניסה — הרשימה משמשת לבדיקת השער מול הצפויים
   show("flow");
 }
 function toggleAllOpenings(v) {
@@ -282,6 +292,91 @@ document.getElementById("fileInput").addEventListener("change", ev => {
 });
 const fileInput = document.getElementById("fileInput");
 
+// ---------- דוח תפעול חי (דאמוני 16/07) ----------
+function esc(t) { return String(t == null ? "" : t).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;"); }
+
+function warnSpan(t) {
+  const e = esc(t);
+  return t && String(t).startsWith("⚠") ? `<span style="color:#b03030; font-weight:bold;">${e}</span>` : e;
+}
+
+function boardCard(r, extra) {
+  return `<div style="border-bottom:1px solid #e5e5e5; padding:10px 2px;">
+    <div style="display:flex; justify-content:space-between; align-items:center; gap:8px;">
+      <span style="font-size:19px; font-weight:bold;">${esc(r.tank)}</span>
+      <span style="font-size:16px; color:#444;">${esc(r.customer)}</span>${extra || ""}
+    </div>
+    <div style="font-size:15px; color:#333; margin-top:3px;">${r.line}</div>
+  </div>`;
+}
+
+function boardSection(title, rows, mk) {
+  return `<div class="card"><b style="font-size:19px;">${title} (${rows.length})</b>` +
+    (rows.length ? rows.map(mk).join("") : '<div class="note">אין רשומות</div>') + `</div>`;
+}
+
+const READY_SENT_KEY = "board_ready_sent";   // מוכן שנשלח וטרם התעדכן בדוח — לא להציע שוב
+function readySent() { try { return JSON.parse(localStorage.getItem(READY_SENT_KEY) || "{}"); } catch (e) { return {}; } }
+
+async function sendReady(tank, btn) {
+  if (!confirm("לסמן את " + tank + " כמוכן לשחרור?")) return;
+  const item = {client_uuid: crypto.randomUUID(), event_type: "ready", asset_type: "iso",
+                tank_number: tank, event_at: localIso(), payload: {},
+                photos: [], label: "מוכן ✓ " + tank, state: "queued", ts: Date.now()};
+  await idbPut(item);
+  const sent = readySent(); sent[tank] = Date.now();
+  localStorage.setItem(READY_SENT_KEY, JSON.stringify(sent));
+  btn.textContent = "⌛ נשלח"; btn.disabled = true; btn.style.background = "#eee";
+  pump();
+}
+
+function renderBoard(d, offline) {
+  const el = document.getElementById("boardBody");
+  if (!d || !d.board) {
+    el.innerHTML = '<div class="card"><div class="note">אין עדיין דוח בענן — הוא יופיע ברגע שהשליח במשרד ידחוף אותו.</div></div>';
+    return;
+  }
+  const b = d.board, sent = readySent();
+  document.getElementById("boardStamp").textContent =
+    "📋 נכון ל-" + (b.generated || "") + (offline ? "  ⚠ ללא קליטה — מוצג מהזיכרון" : "");
+  const relLine = r => [r.pickup ? "איסוף: " + r.pickup : "", r.service, warnSpan(r.wash),
+                        r.dest ? "יעד: " + esc(r.dest) : "", esc(r.carrier)].filter(Boolean).join(" | ");
+  el.innerHTML =
+    boardSection("להכנה", b.release_prep || [], r => boardCard(
+      {tank: r.tank, customer: r.customer, line: relLine(r)},
+      sent[r.tank]
+        ? `<button disabled style="font-size:16px; padding:8px 12px; border-radius:10px; border:none; background:#eee;">⌛ נשלח</button>`
+        : `<button style="font-size:16px; font-weight:bold; padding:8px 12px; border-radius:10px; border:none; background:#1d8a3a; color:#fff;"
+             onclick='sendReady(${JSON.stringify(r.tank)}, this)'>מוכן ✓</button>`)) +
+    boardSection("ממתינים לאיסוף", b.release_wait || [], r => boardCard(
+      {tank: r.tank, customer: r.customer, line: relLine(r)})) +
+    boardSection("טנקים לטיפול", b.care || [], r => boardCard(
+      {tank: r.tank, customer: r.customer,
+       line: [esc(r.material), "כניסה: " + warnSpan(r.arrival || "⚠ חסר"), esc(r.status), esc(r.treatment)].filter(Boolean).join(" | ")})) +
+    boardSection("צפויים להיכנס", b.expected || [], r => boardCard(
+      {tank: r.tank, customer: r.customer,
+       line: [esc(r.material), esc(r.service), esc(r.notes), r.hazard ? "מסוכן" : ""].filter(Boolean).join(" | ")}));
+}
+
+async function loadBoard() {
+  try {
+    const r = await fetch(`${API}/field/api/board`, {headers: {Authorization: "Bearer " + token()}});
+    const d = await r.json();
+    if (d.board) {
+      // ניקוי סימוני "נשלח" שכבר נקלטו (הנכס עבר לממתינים לאיסוף)
+      const prep = new Set((d.board.release_prep || []).map(x => x.tank));
+      const sent = readySent();
+      for (const t of Object.keys(sent)) if (!prep.has(t)) delete sent[t];
+      localStorage.setItem(READY_SENT_KEY, JSON.stringify(sent));
+      localStorage.setItem("board_json", JSON.stringify(d));
+    }
+    renderBoard(d.board ? d : null);
+  } catch (e) {
+    const cached = localStorage.getItem("board_json");
+    renderBoard(cached ? JSON.parse(cached) : null, true);
+  }
+}
+
 // ---------- מצלמה פנימית: צילום רציף בלי אישור בין תמונות ----------
 let camStream = null;
 async function openCam() {
@@ -328,6 +423,17 @@ async function submitEvent() {
                                                     : selectedTank;
   if (flowType !== "entry" && !unlistedMode && !tank) { alert("נא לבחור נכס מהרשימה (הקלידו ספרות ולחצו על הנכס)"); return; }
   if ((flowType === "entry" || unlistedMode) && photos.length === 0) { alert("חובה לצלם את לוחית המספר"); return; }
+  let notExpected = false;
+  if (flowType === "entry" && tank && onsiteAssets.length) {
+    // נוהל השער (דאמוני+יואב 16/07): מכל שאינו ברשימת הצפויים/הנמצאים — להניח בצד
+    const nrm = x => (x || "").replace(/[^0-9A-Za-z]/g, "").toUpperCase();
+    if (!onsiteAssets.some(a => nrm(a.tank_number) === nrm(tank))) {
+      notExpected = true;
+      if (!confirm("⚠ המכל " + tank.trim().toUpperCase() + " לא מופיע ברשימת הצפויים להיכנס.\n\n" +
+                   "לפי הנוהל: להניח את המכל בצד ולא להכניס לאחסנה עד בירור מול המשרד.\n\n" +
+                   "לשלוח את הדיווח למשרד לבירור?")) return;
+    }
+  }
   const treatments = flowType === "wash"
     ? [...document.querySelectorAll("#treats input:checked")].map(c => c.value) : [];
   const item = {
@@ -335,7 +441,7 @@ async function submitEvent() {
     event_type: flowType, asset_type: at,
     tank_number: (tank || "").trim().toUpperCase(),
     event_at: localIso(),   // שעון מקומי! toISOString = UTC וגרם להזחת 3 שעות (לקח פיילוט 16/07)
-    payload: {treatments, not_listed: unlistedMode,
+    payload: {treatments, not_listed: unlistedMode, not_expected: notExpected,
               vacuum_test: flowType === "wash" && at === "iso" && document.getElementById("vacuumChk").checked,
               pump: flowType === "wash" && at === "rt" && document.getElementById("pumpChk").checked,
               voc_ppm: flowType === "wash" ? (document.getElementById("vocInput").value.trim() || null) : null,
@@ -406,7 +512,8 @@ async function renderQueue() {
 // כתובת ייעודית לכל פעולה (/terminal/entry|wash|exit) — לאייקונים נפרדים במסך הבית:
 // לחיצה על אייקון פותחת ישר את מסך הפעולה; הכותרת קובעת את שם האייקון בעת ההוספה.
 const FLOW_PARAM = "{{ flow }}" === "main" ? null : "{{ flow }}";
-const FLOW_TITLES = {entry:"כניסה — אקו דיפו", wash:"שטיפה — אקו דיפו", exit:"יציאה — אקו דיפו"};
+const FLOW_TITLES = {entry:"כניסה — אקו דיפו", wash:"שטיפה — אקו דיפו", exit:"יציאה — אקו דיפו",
+                     board:"דוח תפעול — אקו דיפו"};
 if (FLOW_TITLES[FLOW_PARAM]) document.title = FLOW_TITLES[FLOW_PARAM];
 // service worker — נדרש להתקנת אפליקציה מלאה (אייקון אמיתי בלי תג דפדפן)
 if ("serviceWorker" in navigator) navigator.serviceWorker.register("/sw.js", {scope: "/terminal"}).catch(() => {});
@@ -414,7 +521,12 @@ idbReady.then(async () => {
   if (!token()) { show("setup"); return; }
   document.getElementById("who").textContent = "";
   show("home"); renderQueue();
-  if (FLOW_TITLES[FLOW_PARAM]) startFlow(FLOW_PARAM);
+  if (FLOW_PARAM === "board") {
+    show("board"); loadBoard();
+    setInterval(loadBoard, 60000);   // מתעדכן לבד כל דקה
+  } else if (FLOW_TITLES[FLOW_PARAM]) {
+    startFlow(FLOW_PARAM);
+  }
   pump(); pollStatus();
   setInterval(pump, 15000);
   setInterval(pollStatus, 20000);

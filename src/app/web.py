@@ -76,8 +76,8 @@ def field_terminal(flow=None):
     """מסופון השטח (טאבלטים) — דף עצמאי; ההרשאה נעשית במפתח מכשיר בתוך הדף.
     לכל פעולה נתיב משלה (/terminal/entry|wash|exit) עם scope נפרד במניפסט —
     אחרת כרום מחשיב את שלוש הפעולות כאפליקציה מותקנת אחת וחוסם את השאר."""
-    if flow is None and request.args.get("flow") in ("entry", "wash", "exit"):
+    if flow is None and request.args.get("flow") in ("entry", "wash", "exit", "board"):
         return redirect("/terminal/" + request.args["flow"])
-    if flow not in ("entry", "wash", "exit"):
+    if flow not in ("entry", "wash", "exit", "board"):
         flow = "main"
     return render_template("terminal.html", flow=flow)
