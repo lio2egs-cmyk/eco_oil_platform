@@ -90,6 +90,14 @@
       <label>מה בוצע?</label>
       <div class="treat" id="treats"></div>
     </div>
+    <div id="extraIso" class="hidden" style="margin-top:10px;">
+      <label>פעולות נוספות</label>
+      <div class="treat"><label style="background:#fff3cd;"><input type="checkbox" id="vacuumChk">בדיקת ואקום בוצעה</label></div>
+    </div>
+    <div id="extraRt" class="hidden" style="margin-top:10px;">
+      <label>פעולות נוספות</label>
+      <div class="treat"><label style="background:#fff3cd;"><input type="checkbox" id="pumpChk">משאבה</label></div>
+    </div>
     <button class="btn" onclick="submitEvent()">✅ שליחה</button>
     <button class="btn secondary" onclick="goHome()">ביטול</button>
     <div class="note">אין קליטה? אפשר לשלוח — האירוע יחכה במכשיר ויעלה לבד.</div>
@@ -133,11 +141,20 @@ function startFlow(t) {
   if (t === "wash") {
     const tw = document.getElementById("treats");
     tw.innerHTML = TREATMENTS.map(x => `<label><input type="checkbox" value="${x}">${x}</label>`).join("");
+    document.getElementById("vacuumChk").checked = false;
+    document.getElementById("pumpChk").checked = false;
   }
+  updateExtras();
   if (t !== "entry") loadOnsite();
   show("flow");
 }
-function onAssetType() { if (flowType !== "entry") loadOnsite(); }
+function updateExtras() {
+  // בדיקת ואקום = איזוטנק (עמודה Y, 55 ש"ח); משאבה = מכלית (עמודה M — בינתיים בדיווח בלבד)
+  const at = document.getElementById("assetType").value;
+  document.getElementById("extraIso").classList.toggle("hidden", !(flowType === "wash" && at === "iso"));
+  document.getElementById("extraRt").classList.toggle("hidden", !(flowType === "wash" && at === "rt"));
+}
+function onAssetType() { updateExtras(); if (flowType !== "entry") loadOnsite(); }
 
 let onsiteAssets = [], selectedTank = null, unlistedMode = false;
 
@@ -237,7 +254,9 @@ async function submitEvent() {
     event_type: flowType, asset_type: at,
     tank_number: (tank || "").trim().toUpperCase(),
     event_at: new Date().toISOString().slice(0,19),
-    payload: {treatments, not_listed: unlistedMode},
+    payload: {treatments, not_listed: unlistedMode,
+              vacuum_test: flowType === "wash" && at === "iso" && document.getElementById("vacuumChk").checked,
+              pump: flowType === "wash" && at === "rt" && document.getElementById("pumpChk").checked},
     photos: await Promise.all(photos.map(async f => ({name:f.name, type:f.type, blob:f}))),
     label: `${document.getElementById("flowTitle").textContent} ${tank || "(מהתמונה)"}`,
     state: "queued", ts: Date.now(),
