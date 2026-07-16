@@ -325,9 +325,10 @@ function boardTable(title, headers, rows, mkCells) {
     ? rows.map((r, i) =>
         `<tr style="background:${i % 2 ? "#f5f5f5" : "#fff"};">${mkCells(r).join("")}</tr>`).join("")
     : `<tr><td colspan="${headers.length}" style="padding:10px; border:1px solid #d5d5d5; color:#888; font-style:italic;">אין רשומות</td></tr>`;
-  return `<div class="card" style="padding:10px; overflow-x:auto;">
+  // בלי "מסגרת בתוך מסגרת" (לימור 16/07): הטבלה על כל רוחב המסך, בלי קופסה מסביב
+  return `<div style="margin:12px 0; overflow-x:auto;">
     <b style="font-size:18px;">${title} (${rows.length})</b>
-    <table style="width:100%; border-collapse:collapse; margin-top:8px;">
+    <table style="width:100%; border-collapse:collapse; margin-top:6px; background:#fff;">
       <tr>${headers.map(TH).join("")}</tr>${body}</table></div>`;
 }
 
@@ -553,6 +554,9 @@ idbReady.then(async () => {
   document.getElementById("who").textContent = "";
   show("home"); renderQueue();
   if (BOARD_KIND) {
+    // מסך דוח: כל רוחב המסך (מסכי הפעולות נשארים צרים וממורכזים)
+    const m = document.querySelector("main");
+    m.style.maxWidth = "none"; m.style.padding = "8px";
     show("board"); loadBoard();
     setInterval(loadBoard, 60000);   // מתעדכן לבד כל דקה
   } else if (FLOW_TITLES[FLOW_PARAM]) {
