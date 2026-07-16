@@ -74,8 +74,10 @@
       <option value="rt">מכלית (רואדטנקר)</option>
     </select>
     <div id="pickWrap">
-      <label>בחירת נכס (נמצאים במגרש)</label>
-      <select id="tankPick"></select>
+      <label>בחירת נכס — הקלידו כמה ספרות מהמספר</label>
+      <input type="text" id="tankSearch" inputmode="numeric" autocomplete="off" placeholder="למשל: 4 ספרות אחרונות" oninput="filterTanks()">
+      <div id="chosen" class="hidden" style="margin-top:8px; background:#dff0e2; border:2px solid #1d8a3a; border-radius:10px; padding:12px; font-size:20px; font-weight:bold;"></div>
+      <div id="tankResults" style="display:flex; flex-direction:column; gap:8px; margin-top:8px;"></div>
     </div>
     <div id="manualWrap">
       <label>מספר (אם ידוע — לא חובה, המשרד מפענח מהתמונה)</label>
@@ -137,15 +139,53 @@ function startFlow(t) {
 }
 function onAssetType() { if (flowType !== "entry") loadOnsite(); }
 
+let onsiteAssets = [], selectedTank = null;
+
 async function loadOnsite() {
   const at = document.getElementById("assetType").value;
-  const sel = document.getElementById("tankPick");
   try {
     const r = await fetch(`${API}/field/api/onsite?asset_type=${at}`, {headers:{Authorization:"Bearer "+token()}});
     const d = await r.json();
-    sel.innerHTML = d.assets.map(a => `<option value="${a.tank_number}">${a.tank_number} — ${a.customer||""}</option>`).join("");
-    localStorage.setItem("onsite_"+at, sel.innerHTML);
-  } catch (e) { sel.innerHTML = localStorage.getItem("onsite_"+at) || ""; }
+    onsiteAssets = d.assets;
+    localStorage.setItem("onsite_json_"+at, JSON.stringify(d.assets));
+  } catch (e) { onsiteAssets = JSON.parse(localStorage.getItem("onsite_json_"+at) || "[]"); }
+  selectedTank = null;
+  document.getElementById("chosen").classList.add("hidden");
+  document.getElementById("tankSearch").value = "";
+  filterTanks();
+}
+
+function chooseTank(tank, cust) {
+  selectedTank = tank;
+  const c = document.getElementById("chosen");
+  c.textContent = "✓ נבחר: " + tank + (cust ? " — " + cust : "");
+  c.classList.remove("hidden");
+  document.getElementById("tankResults").innerHTML = "";
+  document.getElementById("tankSearch").value = "";
+}
+
+function filterTanks() {
+  const q = (document.getElementById("tankSearch").value || "").replace(/[^0-9A-Za-z]/g, "").toUpperCase();
+  const res = document.getElementById("tankResults");
+  if (q) { selectedTank = null; document.getElementById("chosen").classList.add("hidden"); }
+  if (!q) {
+    res.innerHTML = onsiteAssets.length
+      ? `<div class="note">${onsiteAssets.length} נכסים במגרש — הקלידו ספרות כדי לצמצם</div>`
+      : '<div class="note">הרשימה לא נטענה — בדקו קליטה ונסו שוב</div>';
+    return;
+  }
+  const norm = t => (t || "").replace(/[^0-9A-Za-z]/g, "").toUpperCase();
+  const matches = onsiteAssets.filter(a => {
+    const t = norm(a.tank_number);
+    return t.includes(q) || t.replace(/[^0-9]/g, "").includes(q);
+  });
+  const ends = a => norm(a.tank_number).replace(/[^0-9]/g, "").endsWith(q) ? 1 : 0;
+  const top = matches.sort((a, b) => ends(b) - ends(a)).slice(0, 10);
+  res.innerHTML = top.map(a =>
+    `<button type="button" style="font-size:22px; padding:14px; border-radius:10px; border:2px solid var(--brand); background:#fff; color:#222; text-align:right;"
+      onclick='chooseTank(${JSON.stringify(a.tank_number)}, ${JSON.stringify(a.customer || "")})'>${a.tank_number}${a.customer ? " — " + a.customer : ""}</button>`
+  ).join("") || '<div class="note">אין התאמה — בדקו את הספרות</div>';
+  if (matches.length > 10) res.innerHTML += `<div class="note">מוצגות 10 מתוך ${matches.length} התאמות — הוסיפו עוד ספרה</div>`;
 }
 
 document.getElementById("fileInput").addEventListener("change", ev => {
@@ -162,8 +202,8 @@ const fileInput = document.getElementById("fileInput");
 async function submitEvent() {
   const at = document.getElementById("assetType").value;
   let tank = flowType === "entry" ? document.getElementById("tankManual").value
-                                  : document.getElementById("tankPick").value;
-  if (flowType !== "entry" && !tank) { alert("נא לבחור נכס"); return; }
+                                  : selectedTank;
+  if (flowType !== "entry" && !tank) { alert("נא לבחור נכס מהרשימה (הקלידו ספרות ולחצו על הנכס)"); return; }
   if (flowType === "entry" && photos.length === 0) { alert("בכניסה חובה לצלם את הלוחית"); return; }
   const treatments = flowType === "wash"
     ? [...document.querySelectorAll("#treats input:checked")].map(c => c.value) : [];
