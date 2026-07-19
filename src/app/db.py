@@ -729,3 +729,14 @@ class FieldBoard(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     data = db.Column(db.Text)                                  # JSON: release_prep/release_wait/care/expected
     updated_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+
+class FieldInstructions(db.Model):
+    """Phase-3 instructions engine (Yoav's rules 19/07): per-tank wash type,
+    PPE level and material, keyed by tank number. Single row, JSON blob,
+    replaced wholesale by the bridge every cycle (same pattern as FieldBoard)."""
+    __tablename__ = "field_instructions"
+
+    id = db.Column(db.Integer, primary_key=True)
+    data = db.Column(db.Text)                                  # JSON: {tank: {wash, ppe, ppe_level, material}}
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow)

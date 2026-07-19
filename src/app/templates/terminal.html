@@ -82,6 +82,7 @@
       <label>בחירת נכס — הקלידו כמה ספרות מהמספר</label>
       <input type="text" id="tankSearch" inputmode="numeric" autocomplete="off" placeholder="למשל: 4 ספרות אחרונות" oninput="filterTanks()">
       <div id="chosen" class="hidden" style="margin-top:8px; background:#dff0e2; border:2px solid #1d8a3a; border-radius:10px; padding:12px; font-size:20px; font-weight:bold;"></div>
+      <div id="instrPanel" class="hidden" style="margin-top:8px; border:2px solid #607d8b; border-radius:10px; padding:12px; font-size:18px; background:#f4f8fa;"></div>
       <div id="tankResults" style="display:flex; flex-direction:column; gap:8px; margin-top:8px;"></div>
     </div>
     <div id="manualWrap">
@@ -234,8 +235,51 @@ async function loadOnsite() {
   } catch (e) { onsiteAssets = JSON.parse(localStorage.getItem("onsite_json_"+at) || "[]"); }
   selectedTank = null;
   document.getElementById("chosen").classList.add("hidden");
+  document.getElementById("instrPanel").classList.add("hidden");
   document.getElementById("tankSearch").value = "";
   filterTanks();
+  loadInstructions();
+}
+
+// פעימה 3 (הכרעות יואב 19/07): הנחיות עבודה לפי חומר — סוג שטיפה + מיגון + תמונות חובה
+let tankInstructions = JSON.parse(localStorage.getItem("instr_json") || "{}");
+async function loadInstructions() {
+  try {
+    const r = await fetch(`${API}/field/api/instructions`, {headers:{Authorization:"Bearer "+token()}});
+    const d = await r.json();
+    if (d.instructions) {
+      tankInstructions = d.instructions;
+      localStorage.setItem("instr_json", JSON.stringify(tankInstructions));
+    }
+  } catch (e) { /* אופליין — נשארים עם המטמון */ }
+}
+
+const STD_WASH_TEXT = "סטנדרטית: מים קרים + חמים + חומר ניקוי + יבוש + בדיקה ויזואלית וריח";
+function renderInstructions(tank) {
+  const p = document.getElementById("instrPanel");
+  if (flowType !== "wash" || !tank) { p.classList.add("hidden"); return; }
+  const i = tankInstructions[(tank || "").replace(/\s+/g, "").toUpperCase()];
+  let rows = [];
+  if (!i || (!i.wash && !i.ppe)) {
+    rows.push('<div style="color:#8a6d00; font-weight:bold;">ℹ️ אין הנחיה לחומר הזה — לפעול לפי הנחיית משרד</div>');
+  } else {
+    let wash = i.wash === "סטנדרטית" ? STD_WASH_TEXT : i.wash;
+    let washStyle = "";
+    if (/יואב|לא ניתן/.test(i.wash)) washStyle = "color:#b71c1c; font-weight:bold;";
+    else if (/מיוחד/.test(i.wash)) washStyle = "color:#8a6d00; font-weight:bold;";
+    if (i.material) rows.push('<div><b>🧪 חומר אחרון:</b> ' + i.material + '</div>');
+    if (wash) rows.push('<div style="' + washStyle + '"><b>🚿 שטיפה:</b> ' + wash + '</div>');
+    if (i.ppe) {
+      const lvl4 = i.ppe_level === 4;
+      rows.push('<div style="' + (lvl4 ? "color:#b71c1c; font-weight:bold;" : "") + '"><b>🦺 מיגון:</b> '
+                + (lvl4 ? "⚠ רמה 4 — " : "") + i.ppe + '</div>');
+    } else {
+      rows.push('<div style="color:#8a6d00;"><b>🦺 מיגון:</b> לפי הנחיית משרד</div>');
+    }
+  }
+  rows.push('<div><b>📸 חובה:</b> צילום פנים המכל לאחר השטיפה</div>');
+  p.innerHTML = rows.join("");
+  p.classList.remove("hidden");
 }
 
 function chooseTank(tank, cust) {
@@ -245,6 +289,7 @@ function chooseTank(tank, cust) {
   c.style.background = "#dff0e2"; c.style.borderColor = "#1d8a3a";
   c.textContent = "✓ נבחר: " + tank + (cust ? " — " + cust : "");
   c.classList.remove("hidden");
+  renderInstructions(tank);
   document.getElementById("tankResults").innerHTML = "";
   document.getElementById("tankSearch").value = "";
 }
@@ -254,7 +299,7 @@ const UNLISTED_BTN = `<button type="button" style="font-size:20px; padding:14px;
 function filterTanks() {
   const q = (document.getElementById("tankSearch").value || "").replace(/[^0-9A-Za-z]/g, "").toUpperCase();
   const res = document.getElementById("tankResults");
-  if (q) { selectedTank = null; cancelUnlisted(); document.getElementById("chosen").classList.add("hidden"); }
+  if (q) { selectedTank = null; cancelUnlisted(); document.getElementById("chosen").classList.add("hidden"); document.getElementById("instrPanel").classList.add("hidden"); }
   if (!q) {
     if (unlistedMode) return;
     res.innerHTML = onsiteAssets.length
@@ -355,6 +400,21 @@ function readyCell(r, sent) {
     onclick='sendReady(${JSON.stringify(r.tank)}, this)'>☐ סמן מוכן</button>`;
 }
 
+function instrCell(r) {
+  // פעימה 3: הנחיות עבודה לפי החומר — שטיפה חריגה באדום/כתום, מיגון רמה 4 באדום (הדגש של יואב)
+  const parts = [];
+  if (r.wash_instr) {
+    const bad = /יואב|לא ניתן/.test(r.wash_instr), spec = /מיוחד/.test(r.wash_instr);
+    const st = bad ? "color:#b71c1c; font-weight:bold;" : (spec ? "color:#8a6d00; font-weight:bold;" : "");
+    parts.push(`<div style="${st}">🚿 ${esc(r.wash_instr)}</div>`);
+  }
+  if (r.ppe) {
+    const l4 = r.ppe_level === 4;
+    parts.push(`<div style="${l4 ? "color:#b71c1c; font-weight:bold;" : ""}">🦺 ${l4 ? "⚠ רמה 4 — " : ""}${esc(r.ppe)}</div>`);
+  }
+  return parts.length ? parts.join("") : '<span style="color:#8a6d00;">לפי הנחיית משרד</span>';
+}
+
 function renderBoard(d, offline) {
   const el = document.getElementById("boardBody");
   if (!d || !d.board) {
@@ -375,11 +435,12 @@ function renderBoard(d, offline) {
       TD(esc(r.pickup), "white-space:nowrap;"), TD(esc(r.carrier)), TD(washChip(r.wash)), TD(esc(r.cert), "white-space:nowrap;")]));
   }
   if (kind === "all" || kind === "care") {
-    parts.push(boardTable("טנקים לטיפול", ["מס' מכל", "חברה", "חומר אחרון", "כניסה", "סטטוס", "טיפול נדרש"], b.care || [], r => [
+    // פעימה 3 (דאמוני 2ב, הכרעות יואב 19/07): עמודת הנחיות (שטיפה+מיגון) במקום עמודת הסטטוס
+    parts.push(boardTable("טנקים לטיפול", ["מס' מכל", "חברה", "חומר אחרון", "כניסה", "הנחיות", "טיפול נדרש"], b.care || [], r => [
       TD(esc(r.tank), "font-weight:bold; white-space:nowrap;"), TD(esc(r.customer)),
       // לימור 16/07: החומר האחרון = מידע בלבד — כיתוב קטן כדי שהטבלה תיכנס בנוח
       TD(esc(r.material), "font-size:11px; color:#555; word-break:break-word; max-width:150px;"),
-      TD(warnSpan(r.arrival || "⚠ חסר"), "white-space:nowrap;"), TD(esc(r.status)), TD(esc(r.treatment))]));
+      TD(warnSpan(r.arrival || "⚠ חסר"), "white-space:nowrap;"), TD(instrCell(r), "font-size:12px;"), TD(esc(r.treatment))]));
   }
   if (kind === "all" || kind === "expected") {
     parts.push(boardTable("צפויים להיכנס", ["מס' מכל", "חברה", "חומר אחרון", "סוג שירות", "הערות", "מסוכן"], b.expected || [], r => [
@@ -455,6 +516,8 @@ async function submitEvent() {
                                                     : selectedTank;
   if (flowType !== "entry" && !unlistedMode && !tank) { alert("נא לבחור נכס מהרשימה (הקלידו ספרות ולחצו על הנכס)"); return; }
   if ((flowType === "entry" || unlistedMode) && photos.length === 0) { alert("חובה לצלם את לוחית המספר"); return; }
+  // פעימה 3 (הכרעת יואב 19/07): תמונת פנים המכל אחרי השטיפה = חובה
+  if (flowType === "wash" && photos.length === 0) { alert("חובה לצלם את פנים המכל לאחר השטיפה"); return; }
   let notExpected = false;
   if (flowType === "entry" && tank && onsiteAssets.length) {
     // נוהל השער (דאמוני+יואב 16/07): מכל שאינו ברשימת הצפויים/הנמצאים — להניח בצד

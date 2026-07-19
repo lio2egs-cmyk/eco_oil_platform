@@ -23,7 +23,7 @@ from functools import wraps
 from flask import Blueprint, request, jsonify
 from flask_jwt_extended import jwt_required, get_jwt
 
-from .db import db, FieldDevice, FieldEvent, FieldPhoto, FieldOnsiteAsset, FieldBoard
+from .db import db, FieldDevice, FieldEvent, FieldPhoto, FieldOnsiteAsset, FieldBoard, FieldInstructions
 
 field = Blueprint("field", __name__, url_prefix="/field/api")
 
@@ -259,6 +259,35 @@ def bridge_ack():
         done += 1
     db.session.commit()
     return jsonify({"ok": True, "updated": done})
+
+
+@field.route("/instructions", methods=["GET"])
+@device_required
+def get_instructions(device):
+    """Phase-3 per-tank work instructions (wash type / PPE), pushed by the bridge."""
+    b = db.session.get(FieldInstructions, 1)
+    if b is None or not b.data:
+        return jsonify({"instructions": None, "updated_at": None})
+    return jsonify({"instructions": json.loads(b.data),
+                    "updated_at": b.updated_at.isoformat() if b.updated_at else None})
+
+
+@field.route("/bridge/instructions", methods=["POST"])
+@bridge_required
+def bridge_instructions():
+    """Wholesale replace of the per-tank instructions blob. Body: {"instructions": {...}}"""
+    data = request.get_json(silent=True) or {}
+    instr = data.get("instructions")
+    if not isinstance(instr, dict):
+        return jsonify({"error": "instructions object required"}), 400
+    b = db.session.get(FieldInstructions, 1)
+    if b is None:
+        b = FieldInstructions(id=1)
+        db.session.add(b)
+    b.data = json.dumps(instr, ensure_ascii=False)
+    b.updated_at = datetime.utcnow()
+    db.session.commit()
+    return jsonify({"ok": True})
 
 
 @field.route("/bridge/board", methods=["POST"])
