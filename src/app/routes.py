@@ -40,6 +40,30 @@ def create_client():
     return {"message": "Client created successfully", "client_id": client.id}, 201
 
 
+@main.route("/clients/<int:client_id>", methods=["PUT"])
+@admin_required
+def update_client(client_id):
+    client = db.session.get(Client, client_id)
+    if client is None:
+        return {"error": "Client not found"}, 404
+
+    data = request.get_json() or {}
+    for field in ("name", "division", "client_type"):
+        if field in data:
+            setattr(client, field, data[field])
+    db.session.commit()
+
+    return {
+        "message": "Client updated successfully",
+        "client": {
+            "id": client.id,
+            "name": client.name,
+            "division": client.division,
+            "client_type": client.client_type,
+        },
+    }, 200
+
+
 @main.route("/clients", methods=["GET"])
 @admin_required
 def list_clients():
