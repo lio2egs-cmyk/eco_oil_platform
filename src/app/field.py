@@ -29,7 +29,7 @@ field = Blueprint("field", __name__, url_prefix="/field/api")
 
 MAX_PHOTO_BYTES = 8 * 1024 * 1024
 MAX_PHOTOS_PER_EVENT = 12
-EVENT_TYPES = {"entry", "wash", "exit", "ready"}   # ready = "מוכן ✓" מדוח השחרור בטאבלט
+EVENT_TYPES = {"entry", "wash", "exit", "ready", "repairs"}   # ready = "מוכן ✓" מדוח השחרור; repairs = פעימת התיקונים (20/07)
 ASSET_TYPES = {"iso", "rt"}
 # Column limit of tank_number (String(40)). A real asset id is ~11 chars; anything
 # longer is a stray note-row from the workbook — Postgres rejects it and, before

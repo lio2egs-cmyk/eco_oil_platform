@@ -50,6 +50,7 @@
   <button class="btn" onclick="startFlow('entry')">📥 כניסה</button>
   <button class="btn" onclick="startFlow('wash')">🧼 שטיפה</button>
   <button class="btn" onclick="startFlow('exit')">📤 יציאה</button>
+  <button class="btn" style="background:#6a1b9a;" onclick="startFlow('repairs')">🔧 תיקונים</button>
   <div class="card">
     <b>אירועים אחרונים</b>
     <div id="queue"></div>
@@ -60,6 +61,7 @@
       <a href="/terminal/entry" style="flex:1; text-align:center; background:#eef4f3; border-radius:10px; padding:12px; font-size:18px; text-decoration:none; color:var(--dark); font-weight:bold;">📥 כניסה</a>
       <a href="/terminal/wash" style="flex:1; text-align:center; background:#eef4f3; border-radius:10px; padding:12px; font-size:18px; text-decoration:none; color:var(--dark); font-weight:bold;">🧼 שטיפה</a>
       <a href="/terminal/exit" style="flex:1; text-align:center; background:#eef4f3; border-radius:10px; padding:12px; font-size:18px; text-decoration:none; color:var(--dark); font-weight:bold;">📤 יציאה</a>
+      <a href="/terminal/repairs" style="flex:1; text-align:center; background:#f3e9f7; border-radius:10px; padding:12px; font-size:18px; text-decoration:none; color:#6a1b9a; font-weight:bold;">🔧 תיקונים</a>
     </div>
     <div style="display:flex; gap:10px; margin-top:8px;">
       <a href="/terminal/board-release" style="flex:1; text-align:center; background:#eef4f3; border-radius:10px; padding:12px; font-size:18px; text-decoration:none; color:var(--dark); font-weight:bold;">🚚 שחרור</a>
@@ -73,11 +75,13 @@
 <div id="flow" class="hidden">
   <div class="card">
     <div id="flowTitle" style="font-size:24px;font-weight:bold;"></div>
-    <label>סוג נכס</label>
-    <select id="assetType" onchange="onAssetType()">
-      <option value="iso">איזוטנק</option>
-      <option value="rt">מכלית (רואדטנקר)</option>
-    </select>
+    <div id="assetTypeWrap">
+      <label>סוג נכס</label>
+      <select id="assetType" onchange="onAssetType()">
+        <option value="iso">איזוטנק</option>
+        <option value="rt">מכלית (רואדטנקר)</option>
+      </select>
+    </div>
     <div id="pickWrap">
       <label>בחירת נכס — הקלידו כמה ספרות מהמספר</label>
       <input type="text" id="tankSearch" inputmode="numeric" autocomplete="off" placeholder="למשל: 4 ספרות אחרונות" oninput="filterTanks()">
@@ -112,6 +116,21 @@
     <div id="extraRt" class="hidden" style="margin-top:10px;">
       <label>פעולות נוספות</label>
       <div class="treat"><label style="background:#fff3cd;"><input type="checkbox" id="pumpChk">משאבה</label></div>
+    </div>
+    <div id="repWrap" class="hidden" style="margin-top:10px;">
+      <label>מה תוקן / בוצע? (מהמחירון)</label>
+      <div class="treat" id="repTypes"></div>
+      <div id="sealQtyWrap" class="hidden" style="margin-top:8px;">
+        <label>כמה אטמים עליונים הוחלפו?</label>
+        <div style="display:flex; gap:10px; align-items:center;">
+          <button type="button" style="font-size:26px; width:56px; padding:8px; border-radius:10px; border:2px solid #bbb; background:#fff;" onclick="sealQty(-1)">−</button>
+          <span id="sealQtyVal" style="font-size:26px; font-weight:bold; min-width:40px; text-align:center;">1</span>
+          <button type="button" style="font-size:26px; width:56px; padding:8px; border-radius:10px; border:2px solid #bbb; background:#fff;" onclick="sealQty(1)">+</button>
+        </div>
+      </div>
+      <label>הערה (לא חובה)</label>
+      <input type="text" id="repNote" autocomplete="off">
+      <div class="note" style="margin-top:6px;">📸 חובה לצלם: לפני התיקון ואחריו</div>
     </div>
     <button class="btn" onclick="submitEvent()">✅ שליחה</button>
     <button class="btn secondary" onclick="goHome()">ביטול</button>
@@ -170,10 +189,15 @@ function startFlow(t) {
   flowType = t; photos = [];
   document.getElementById("thumbs").innerHTML = "";
   document.getElementById("tankManual").value = "";
-  document.getElementById("flowTitle").textContent = {entry:"📥 כניסה", wash:"🧼 שטיפה", exit:"📤 יציאה"}[t];
+  document.getElementById("flowTitle").textContent = {entry:"📥 כניסה", wash:"🧼 שטיפה", exit:"📤 יציאה", repairs:"🔧 תיקונים"}[t];
   document.getElementById("treatWrap").classList.toggle("hidden", t !== "wash");
   document.getElementById("pickWrap").classList.toggle("hidden", t === "entry");
   document.getElementById("manualWrap").classList.toggle("hidden", t !== "entry");
+  // תיקונים = איזוטנקים בלבד (במכליות אין תיקונים) — בלי בורר סוג נכס
+  if (t === "repairs") document.getElementById("assetType").value = "iso";
+  document.getElementById("assetTypeWrap").classList.toggle("hidden", t === "repairs");
+  document.getElementById("repWrap").classList.toggle("hidden", t !== "repairs");
+  if (t === "repairs") renderRepairTypes();
   if (t === "wash") {
     document.getElementById("vacuumChk").checked = false;
     document.getElementById("pumpChk").checked = false;
@@ -256,8 +280,30 @@ async function loadInstructions() {
     if (d.instructions) {
       tankInstructions = d.instructions;
       localStorage.setItem("instr_json", JSON.stringify(tankInstructions));
+      if (flowType === "repairs") renderRepairTypes();   // הרשימה הגיעה אחרי פתיחת המסך
     }
   } catch (e) { /* אופליין — נשארים עם המטמון */ }
+}
+
+// ---------- פעימת התיקונים (20/07): רשימת סוגי התיקון מגיעה מהמחירון דרך הענן ----------
+const SEAL_NAME = "החלפת אטם עליון";
+function renderRepairTypes() {
+  const list = tankInstructions["__repair_types__"] || [];
+  const el = document.getElementById("repTypes");
+  el.innerHTML = list.length
+    ? list.map(r => `<label><input type="checkbox" value="${r.name}" onchange="onRepChange()">${r.name}</label>`).join("")
+    : '<div class="note">רשימת התיקונים עוד לא נטענה — בדקו קליטה, צאו וחזרו למסך</div>';
+  document.getElementById("sealQtyWrap").classList.add("hidden");
+  document.getElementById("sealQtyVal").textContent = "1";
+  document.getElementById("repNote").value = "";
+}
+function onRepChange() {
+  const sealOn = [...document.querySelectorAll("#repTypes input:checked")].some(c => c.value === SEAL_NAME);
+  document.getElementById("sealQtyWrap").classList.toggle("hidden", !sealOn);
+}
+function sealQty(d) {
+  const el = document.getElementById("sealQtyVal");
+  el.textContent = Math.max(1, Math.min(9, (parseInt(el.textContent) || 1) + d));
 }
 
 const STD_WASH_TEXT = "סטנדרטית: מים קרים + חמים + חומר ניקוי + יבוש + בדיקה ויזואלית וריח";
@@ -524,6 +570,11 @@ async function submitEvent() {
   if ((flowType === "entry" || unlistedMode) && photos.length === 0) { alert("חובה לצלם את לוחית המספר"); return; }
   // פעימה 3 (הכרעת יואב 19/07): תמונת פנים המכל אחרי השטיפה = חובה
   if (flowType === "wash" && photos.length === 0) { alert("חובה לצלם את פנים המכל לאחר השטיפה"); return; }
+  // פעימת התיקונים: חייבים לסמן מה תוקן + לצלם (לפני ואחרי — הכרעת יואב)
+  const repPicked = flowType === "repairs"
+    ? [...document.querySelectorAll("#repTypes input:checked")].map(c => c.value) : [];
+  if (flowType === "repairs" && repPicked.length === 0) { alert("נא לסמן לפחות תיקון אחד מהרשימה"); return; }
+  if (flowType === "repairs" && photos.length === 0) { alert("חובה לצלם את התיקון — לפני ואחרי"); return; }
   let notExpected = false;
   if (flowType === "entry" && tank && onsiteAssets.length) {
     // נוהל השער (דאמוני+יואב 16/07): מכל שאינו ברשימת הצפויים/הנמצאים — להניח בצד
@@ -546,7 +597,10 @@ async function submitEvent() {
               vacuum_test: flowType === "wash" && at === "iso" && document.getElementById("vacuumChk").checked,
               pump: flowType === "wash" && at === "rt" && document.getElementById("pumpChk").checked,
               voc_ppm: flowType === "wash" ? (document.getElementById("vocInput").value.trim() || null) : null,
-              openings_count: flowType === "wash" ? document.querySelectorAll(".openChk:checked").length : 0},
+              openings_count: flowType === "wash" ? document.querySelectorAll(".openChk:checked").length : 0,
+              repairs: repPicked.map(n => ({name: n,
+                qty: n === SEAL_NAME ? (parseInt(document.getElementById("sealQtyVal").textContent) || 1) : 1})),
+              repair_note: flowType === "repairs" ? document.getElementById("repNote").value.trim() : ""},
     photos: await Promise.all(photos.map(async f => ({name:f.name, type:f.type, blob:f}))),
     label: `${document.getElementById("flowTitle").textContent} ${tank || "(מהתמונה)"}`,
     state: "queued", ts: Date.now(),
