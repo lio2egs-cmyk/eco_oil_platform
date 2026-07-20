@@ -671,6 +671,7 @@ async function renderQueue() {
 // לחיצה על אייקון פותחת ישר את מסך הפעולה; הכותרת קובעת את שם האייקון בעת ההוספה.
 const FLOW_PARAM = "{{ flow }}" === "main" ? null : "{{ flow }}";
 const FLOW_TITLES = {entry:"כניסה — אקו דיפו", wash:"שטיפה — אקו דיפו", exit:"יציאה — אקו דיפו",
+                     repairs:"תיקונים — אקו דיפו",
                      board:"דוח תפעול — אקו דיפו", "board-release":"דוח שחרור — אקו דיפו",
                      "board-care":"דוח טיפולים — אקו דיפו", "board-expected":"דוח צפויים — אקו דיפו"};
 const BOARD_KIND = {board:"all", "board-release":"release", "board-care":"care", "board-expected":"expected"}["{{ flow }}"] || null;
