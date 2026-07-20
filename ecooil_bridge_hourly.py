@@ -51,6 +51,7 @@ def main():
                     [PY, os.path.join(REPO, script)] + extra,
                     cwd=REPO, capture_output=True, text=True,
                     encoding="utf-8", errors="replace", timeout=45 * 60,
+                    creationflags=subprocess.CREATE_NO_WINDOW,
                 )
                 took = (datetime.now() - started).seconds
                 tail = "\n".join((r.stdout or "").strip().splitlines()[-6:])

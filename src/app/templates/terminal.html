@@ -142,6 +142,8 @@
 <script>
 const TREATMENTS = ["מים קרים","מים חמים","חומר ניקוי בסיסי","אצטון","קיטור","ממיסים","יבוש",
                     "ויזואלי + ריח","ויזואלי","בדיקת pH","בדיקת אוויר"];
+// למכלית (רואדטנקר) יש בגיליון רק 6 עמודות טיפול — מציגים רק אותן (20/07)
+const TREATMENTS_RT = ["מים קרים","מים חמים","קיטור","חומר ניקוי בסיסי","יבוש","בדיקת pH"];
 const API = "";
 let flowType = null, photos = [];
 
@@ -173,8 +175,6 @@ function startFlow(t) {
   document.getElementById("pickWrap").classList.toggle("hidden", t === "entry");
   document.getElementById("manualWrap").classList.toggle("hidden", t !== "entry");
   if (t === "wash") {
-    const tw = document.getElementById("treats");
-    tw.innerHTML = TREATMENTS.map(x => `<label><input type="checkbox" value="${x}">${x}</label>`).join("");
     document.getElementById("vacuumChk").checked = false;
     document.getElementById("pumpChk").checked = false;
     document.getElementById("vocInput").value = "";
@@ -196,10 +196,16 @@ function syncOpenAll() {
   document.getElementById("openAll").checked = all.every(c => c.checked);
 }
 function updateExtras() {
-  // בדיקת ואקום = איזוטנק (עמודה Y, 55 ש"ח); משאבה = מכלית (עמודה M — בינתיים בדיווח בלבד)
+  // בדיקת ואקום = איזוטנק (עמודה Y, 55 ש"ח); משאבה = מכלית (עמודה M — נרשמת אוטומטית מ-20/07)
   const at = document.getElementById("assetType").value;
   document.getElementById("extraIso").classList.toggle("hidden", !(flowType === "wash" && at === "iso"));
   document.getElementById("extraRt").classList.toggle("hidden", !(flowType === "wash" && at === "rt"));
+  if (flowType === "wash") {
+    // רשימת הטיפולים לפי סוג הנכס (החלפת סוג מאפסת את הסימונים — במתכוון)
+    const list = at === "rt" ? TREATMENTS_RT : TREATMENTS;
+    document.getElementById("treats").innerHTML =
+      list.map(x => `<label><input type="checkbox" value="${x}">${x}</label>`).join("");
+  }
 }
 function onAssetType() { updateExtras(); if (flowType !== "entry") loadOnsite(); }
 
