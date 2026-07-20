@@ -495,9 +495,12 @@ function renderBoard(d, offline) {
       TD(warnSpan(r.arrival || "⚠ חסר"), "white-space:nowrap;"), TD(instrCell(r), "font-size:12px;"), TD(esc(r.treatment))]));
   }
   if (kind === "all" || kind === "expected") {
+    // לימור 20/07: אותו טיפול כמו בלוח הטיפולים — חומר אחרון בכיתוב קטן, הערות נשברות — שהטבלה תיכנס במסך
     parts.push(boardTable("צפויים להיכנס", ["מס' מכל", "חברה", "חומר אחרון", "סוג שירות", "הערות", "מסוכן"], b.expected || [], r => [
-      TD(esc(r.tank), "font-weight:bold; white-space:nowrap;"), TD(esc(r.customer)), TD(esc(r.material)),
-      TD(esc(r.service)), TD(esc(r.notes)),
+      TD(esc(r.tank), "font-weight:bold; white-space:nowrap;"), TD(esc(r.customer)),
+      TD(esc(r.material), "font-size:11px; color:#555; word-break:break-word; max-width:150px;"),
+      TD(esc(r.service), "font-size:12px;"),
+      TD(esc(r.notes), "font-size:12px; word-break:break-word; max-width:170px;"),
       TD(r.hazard ? chipHtml("מסוכן", "bad") : chipHtml("לא", "mut"))]));
   }
   el.innerHTML = parts.join("");
