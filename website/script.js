@@ -38,6 +38,28 @@
         });
     }
 
+    /* ---------- Portal entry dropdown (כניסת לקוחות) ---------- */
+    const portalEntry = document.querySelector('.portal-entry');
+    if (portalEntry) {
+        const portalBtn  = portalEntry.querySelector('.portal-btn');
+        const portalMenu = portalEntry.querySelector('.portal-menu');
+        const setPortalOpen = (open) => {
+            portalMenu.classList.toggle('open', open);
+            portalBtn.setAttribute('aria-expanded', String(open));
+            portalMenu.setAttribute('aria-hidden', String(!open));
+        };
+        portalBtn.addEventListener('click', e => {
+            e.stopPropagation();
+            setPortalOpen(!portalMenu.classList.contains('open'));
+        });
+        document.addEventListener('click', e => {
+            if (!portalEntry.contains(e.target)) setPortalOpen(false);
+        });
+        document.addEventListener('keydown', e => {
+            if (e.key === 'Escape') setPortalOpen(false);
+        });
+    }
+
     /* ---------- Sticky header shrink ---------- */
     const header = document.querySelector('.site-header');
     if (header) {

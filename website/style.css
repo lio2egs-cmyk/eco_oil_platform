@@ -104,6 +104,70 @@ a   { color: inherit; text-decoration: none; }
     transform: translateY(-1px);
 }
 
+/* ---------- Portal entry (כניסת לקוחות) ---------- */
+.portal-entry { position: relative; }
+
+.portal-btn {
+    font-family: var(--font-heading);
+    font-size: 1.05rem;
+    font-weight: 500;
+    font-style: italic;
+    color: var(--white);
+    background: var(--teal);
+    border: none;
+    cursor: pointer;
+    padding: .6rem 1.5rem;
+    border-radius: 999px;
+    transition: background var(--transition), transform var(--transition);
+}
+
+.portal-btn:hover,
+.portal-btn:focus-visible {
+    background: var(--teal-dark);
+    transform: translateY(-1px);
+}
+
+.portal-menu {
+    position: absolute;
+    top: calc(100% + .5rem);
+    left: 0;
+    min-width: 215px;
+    background: var(--white);
+    border-radius: 12px;
+    box-shadow: 0 10px 30px rgba(0,0,0,.15);
+    padding: .5rem;
+    display: none;
+    z-index: 1200;
+}
+
+.portal-menu.open { display: block; }
+
+.portal-menu-link {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: .8rem;
+    font-family: var(--font-heading);
+    font-size: .98rem;
+    padding: .6rem .9rem;
+    border-radius: 8px;
+    color: var(--text-dark);
+}
+
+a.portal-menu-link:hover { background: var(--pill); }
+
+.portal-menu-link--soon { color: var(--text-mid); cursor: default; }
+
+.soon-tag {
+    font-size: .72rem;
+    font-style: normal;
+    background: var(--gray);
+    color: var(--text-mid);
+    padding: .1rem .55rem;
+    border-radius: 999px;
+    white-space: nowrap;
+}
+
 /* ---------- Services bar ---------- */
 .services-bar {
     background: var(--bg);
@@ -219,6 +283,29 @@ a   { color: inherit; text-decoration: none; }
 }
 
 .mobile-link--cta:hover { background: var(--teal-dark); }
+
+.mobile-link--portal {
+    margin-top: .35rem;
+    background: var(--white);
+    color: var(--teal-dark) !important;
+    border: 2px solid var(--teal);
+    border-radius: var(--radius);
+    text-align: center;
+    padding: .7rem;
+    font-weight: 700;
+}
+
+.mobile-link--portal:hover { background: var(--pill); }
+
+.mobile-link--portal-soon {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    gap: .5rem;
+    text-align: center;
+    color: var(--text-mid);
+    cursor: default;
+}
 
 /* ============================================================
    HERO
@@ -699,6 +786,7 @@ a   { color: inherit; text-decoration: none; }
     .hero { height: 300px; }
 
     .main-nav  { display: none; }
+    .portal-entry { display: none; }
     .hamburger { display: flex; }
     .services-bar { display: none; }
 
