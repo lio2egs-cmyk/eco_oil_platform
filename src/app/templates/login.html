@@ -65,5 +65,14 @@
     var b=document.getElementById('go'); b.disabled=false; b.textContent='שלחו לי קישור כניסה';
   }
   document.addEventListener('keydown',function(e){ if(e.key==='Enter'){ var f=document.getElementById('form'); if(f && f.style.display!=='none'){ send(); } } });
+  // The magic-link email always opens a NEW tab; when that tab finishes logging in it
+  // writes eco_access_token, which fires 'storage' here — so this original tab can
+  // acknowledge (so the verify tab knows to say "you can close me") and move to the portal.
+  window.addEventListener('storage',function(e){
+    if(e.key==='eco_access_token' && e.newValue){
+      try{ localStorage.setItem('eco_login_ack', String(new Date().getTime())); }catch(_){}
+      location.href='/portal';
+    }
+  });
 </script>{% endraw %}
 </body></html>
