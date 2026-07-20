@@ -134,6 +134,22 @@ def normalize_stream(text):
                 best, best_pos = canonical, pos
     return best or "לא מסווג"
 
+def classify_doc_status(notes, stream, stream_norm):
+    """Row-level certificate expectation (rules approved by Limor 2026-07-20):
+    'awaiting_declaration' — cert withheld until the producer declaration is
+    settled (checked FIRST: these notes also say ללא אישור); 'no_cert_by_design'
+    — documentation-only (destruction / empty packaging / רמת חובב forwarding);
+    None — normal row, certificate expected."""
+    note = str(notes or "")
+    s = str(stream or "")
+    if "הצהרת יצרן" in note and ("אין" in note or "חסרה" in note or "ללא" in note):
+        return "awaiting_declaration"
+    if ("ללא אישור" in note or "השמדה" in note or "ריקות" in note
+            or "ריקים" in s or stream_norm == "פסולת להשמדה"):
+        return "no_cert_by_design"
+    return None
+
+
 def sheet_month(title):
     """Extract the month number from a monthly-sheet title, or None to skip."""
     first = title.strip().split()[0].split("_")[0]
@@ -179,9 +195,12 @@ def load_sheet(ws, year, month, log):
         if d.year != year or d.month != month:
             # tolerate stray rows but keep them under their sheet's month
             pass
+        stream_norm = normalize_stream(kwargs.get("stream"))
         db.session.add(EcoOilUnloadEvent(
             year=year, month=month, source_sheet=ws.title, source_row=excel_row,
-            stream_norm=normalize_stream(kwargs.get("stream")),
+            stream_norm=stream_norm,
+            doc_status=classify_doc_status(kwargs.get("notes"), kwargs.get("stream"),
+                                           stream_norm),
             **kwargs))
         n += 1
     return n

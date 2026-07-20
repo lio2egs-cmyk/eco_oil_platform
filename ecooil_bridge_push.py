@@ -94,6 +94,7 @@ def collect_events():
                 "customer": r.customer, "address": r.address,
                 "billed_to": r.billed_to, "stream": r.stream,
                 "stream_norm": r.stream_norm,
+                "doc_status": r.doc_status,
                 "weight_in": r.weight_in, "weight_out": r.weight_out,
                 "weight_net": r.weight_net, "declared_tons": r.declared_tons,
                 "package_type": r.package_type, "package_count": r.package_count,

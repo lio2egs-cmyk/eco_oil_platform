@@ -107,6 +107,7 @@ def create_app():
         for stmt in (
             "ALTER TABLE ecooil_unload_events ADD COLUMN pdf_key VARCHAR(500)",
             "ALTER TABLE ecooil_unload_events ADD COLUMN stream_norm VARCHAR(30)",
+            "ALTER TABLE ecooil_unload_events ADD COLUMN doc_status VARCHAR(30)",
         ):
             try:
                 db.session.execute(db.text(stmt))

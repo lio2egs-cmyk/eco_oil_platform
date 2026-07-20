@@ -190,9 +190,18 @@ with app.app_context():
             unmatched.append(ev)
     db.session.commit()
 
+    # Rows that never expect a certificate leave the gap list (Limor 20/07/2026):
+    # 'no_cert_by_design' = closed for good; 'awaiting_declaration' = its own
+    # follow-up list (the sanction rows shown in the portal).
+    awaiting = [ev for ev in unmatched if ev.doc_status == "awaiting_declaration"]
+    closed_by_design = [ev for ev in unmatched if ev.doc_status == "no_cert_by_design"]
+    unmatched = [ev for ev in unmatched if not ev.doc_status]
+
     total = len(events)
     log.write(f"matched: {matched} ({matched*100//total}%)\n")
-    log.write(f"unmatched: {len(unmatched)} ({len(unmatched)*100//total}%)\n")
+    log.write(f"unmatched (real gaps): {len(unmatched)}\n")
+    log.write(f"awaiting declaration (sanction rows): {len(awaiting)}\n")
+    log.write(f"closed by design (no cert ever): {len(closed_by_design)}\n")
     per_year = defaultdict(lambda: [0, 0])
     for ev in events:
         per_year[ev.event_date.year][0] += 1
@@ -233,6 +242,27 @@ with app.app_context():
     for i, w in enumerate(widths, 1):
         ws.column_dimensions[openpyxl.utils.get_column_letter(i)].width = w
     ws.freeze_panes = "A2"
+
+    # second sheet: the sanction rows — cert withheld until the declaration lands
+    ws2 = wb.create_sheet("ממתינות להצהרה")
+    ws2.sheet_view.rightToLeft = True
+    ws2.append(headers)
+    for c in ws2[1]:
+        c.fill, c.font, c.border = head_fill, head_font, border
+        c.alignment = Alignment(horizontal="center")
+    for ev in awaiting:
+        ws2.append([ev.year, ev.month,
+                    ev.event_date.strftime("%d/%m/%Y") if ev.event_date else "",
+                    ev.customer, ev.billed_to, ev.transporter, ev.stream,
+                    ev.declared_tons, ev.code, ev.source_sheet, ev.source_row,
+                    ev.notes, ""])
+    for row in ws2.iter_rows(min_row=2):
+        for c in row:
+            c.border = border
+    for i, w in enumerate(widths, 1):
+        ws2.column_dimensions[openpyxl.utils.get_column_letter(i)].width = w
+    ws2.freeze_panes = "A2"
+
     wb.save(OUT_XLSX)
     log.write(f"\ncompletion list -> {OUT_XLSX}\n")
 

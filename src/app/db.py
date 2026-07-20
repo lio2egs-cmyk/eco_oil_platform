@@ -636,6 +636,11 @@ class EcoOilUnloadEvent(db.Model):
     package_count = db.Column(db.Integer)                   # מס' אריזות
     exit_time = db.Column(db.String(20))                    # שעת יציאה
     notes = db.Column(db.String(400))                       # הערות
+    # doc_status: NULL = normal (certificate expected); 'awaiting_declaration' =
+    # certificate withheld until the producer declaration is settled (the sanction,
+    # shown prominently in the portal); 'no_cert_by_design' = documentation-only
+    # row (destruction / empty packaging) — no certificate ever exists.
+    doc_status = db.Column(db.String(30), index=True)
     pdf_path = db.Column(db.String(400))                    # matched filed PDF (filled by matcher)
     pdf_key = db.Column(db.String(500))                     # B2 object key (cloud copy of the PDF)
     source_sheet = db.Column(db.String(40))

@@ -28,6 +28,12 @@
          padding:6px 14px; border-radius:8px; font-size:13px; font-family:inherit; }
   .btn:hover { background:var(--dark); }
   .nofile { color:#99A; font-size:12px; background:#EEF1F1; padding:4px 10px; border-radius:8px; }
+  .sanction { display:block; max-width:280px; background:#FDF1DD; border:1.5px solid #E5B96B;
+              color:#8a5a00; font-size:12.5px; line-height:1.5; padding:7px 10px; border-radius:10px; }
+  .sanction .btn-decl { display:inline-block; margin-top:6px; background:#C47D1A; color:#fff;
+              padding:5px 12px; border-radius:8px; font-size:12.5px; text-decoration:none; font-weight:600; }
+  .sanction .btn-decl:hover { background:#a96812; }
+  .doconly { color:#667; font-size:12px; background:#E9EDEC; padding:4px 10px; border-radius:8px; }
   .back { color:var(--dark); text-decoration:none; font-size:14px; }
   .empty { text-align:center; padding:40px; color:#678; background:#fff; border-radius:10px; }
   @media (max-width:700px){ .hide-m { display:none; } }
@@ -98,11 +104,20 @@ async function load(first){
        '<td>'+esc(r.stream||'')+'</td>'+
        '<td>'+(r.tons!=null?r.tons:'')+'</td>'+
        '<td class="hide-m">'+esc(r.transporter||'')+'</td>'+
-       '<td>'+(r.has_pdf
-          ? '<button class="btn" onclick="dl('+r.id+')">הורדה</button>'
-          : '<span class="nofile">אין קובץ</span>')+'</td></tr>';
+       '<td>'+docCell(r)+'</td></tr>';
   });
   document.getElementById('content').innerHTML=h+'</table>';
+}
+
+function docCell(r){
+  if(r.has_pdf) return '<button class="btn" onclick="dl('+r.id+')">הורדה</button>';
+  if(r.doc_status==='awaiting_declaration')
+    // Wording approved by Yoav 20/07/2026 — do not change without approval.
+    return '<span class="sanction">הפריקה תועדה, אך הפסולת אינה מאושרת לקליטה ולטיפול — עקב אי-הסדרת הצהרת יצרן כנדרש בחוק.'+
+           '<br><a class="btn-decl" href="/declaration">למילוי הצהרת יצרן</a></span>';
+  if(r.doc_status==='no_cert_by_design')
+    return '<span class="doconly">מתועד — ללא אישור פריקה</span>';
+  return '<span class="nofile">אין קובץ</span>';
 }
 
 async function dl(id){

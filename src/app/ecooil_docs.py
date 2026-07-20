@@ -75,6 +75,7 @@ def my_documents():
             "tons": r.declared_tons,
             "code": r.code,
             "has_pdf": bool(r.pdf_key),
+            "doc_status": r.doc_status,
         } for r in rows],
     })
 
