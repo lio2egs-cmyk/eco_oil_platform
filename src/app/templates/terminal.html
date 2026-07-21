@@ -93,8 +93,10 @@
       <label>מספר (אם ידוע — לא חובה, המשרד מפענח מהתמונה)</label>
       <input type="text" id="tankManual" autocapitalize="characters" autocomplete="off">
     </div>
-    <button class="btn" id="camBtn" onclick="openCam()">📷 צילום</button>
-    <input type="file" id="fileInput" accept="image/*" capture="environment" class="hidden" multiple>
+    <!-- דאמוני 21/07: בלי capture — נפתח בורר שמאפשר את אפליקציית המצלמה המלאה
+         (זום, פלאש, היפוך לסלפי — חיוני לצילום דיסקיות תחתית ופנים מכל חשוך) או גלריה -->
+    <button class="btn" id="camBtn" onclick="openCam()">📷 צילום / בחירה מהגלריה</button>
+    <input type="file" id="fileInput" accept="image/*" class="hidden" multiple>
     <div class="photos" id="thumbs"></div>
     <div id="treatWrap" class="hidden">
       <label>מה בוצע?</label>
