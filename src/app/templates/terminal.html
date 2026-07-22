@@ -93,9 +93,10 @@
       <label>מספר (אם ידוע — לא חובה, המשרד מפענח מהתמונה)</label>
       <input type="text" id="tankManual" autocapitalize="characters" autocomplete="off">
     </div>
-    <!-- דאמוני 21/07: בלי capture — נפתח בורר שמאפשר את אפליקציית המצלמה המלאה
-         (זום, פלאש, היפוך לסלפי — חיוני לצילום דיסקיות תחתית ופנים מכל חשוך) או גלריה -->
-    <button class="btn" id="camBtn" onclick="openCam()">📷 צילום / בחירה מהגלריה</button>
+    <!-- דאמוני 22/07: המצלמה הפנימית שודרגה לחוויית מצלמה מלאה (זום בצביטה, פלאש,
+         היפוך לסלפי — חיוני לצילום דיסקיות תחתית ופנים מכל חשוך). הקלט הקבצי = גיבוי
+         למקרה שאין הרשאת מצלמה בלבד. -->
+    <button class="btn" id="camBtn" onclick="openCam()">📷 צילום</button>
     <input type="file" id="fileInput" accept="image/*" class="hidden" multiple>
     <div class="photos" id="thumbs"></div>
     <div id="treatWrap" class="hidden">
@@ -149,9 +150,18 @@
   <div id="boardBody"><div class="note">טוען את הדוח...</div></div>
 </div>
 
-<!-- מצלמה פנימית: כל לחיצה = תמונה, בלי אישור בין צילומים -->
+<!-- מצלמה פנימית — חוויית מצלמה מלאה כמו מצלמת הטאבלט (דאמוני 22/07):
+     זום בצביטה + כפתורי 1x/2x/4x, פלאש, היפוך למצלמה קדמית, צילום רציף בלי אישור בין תמונות -->
 <div id="camPanel" style="display:none; position:fixed; inset:0; background:#000; z-index:50; flex-direction:column;">
-  <video id="camVideo" autoplay playsinline muted style="flex:1; width:100%; object-fit:cover; min-height:0;"></video>
+  <div style="position:absolute; top:0; left:0; right:0; z-index:2; display:flex; justify-content:space-between; align-items:center; padding:10px 14px;">
+    <button id="camTorch" style="display:none; font-size:26px; width:56px; height:56px; border:none; border-radius:50%; background:rgba(30,30,30,.75); color:#fff;" onclick="toggleTorch()">⚡</button>
+    <span id="camZoomBadge" style="color:#fff; font-size:18px; background:rgba(30,30,30,.6); padding:6px 14px; border-radius:16px;">1x</span>
+    <button id="camFlip" style="font-size:26px; width:56px; height:56px; border:none; border-radius:50%; background:rgba(30,30,30,.75); color:#fff;" onclick="flipCam()">🔄</button>
+  </div>
+  <div id="camView" style="flex:1; min-height:0; position:relative; overflow:hidden;">
+    <video id="camVideo" autoplay playsinline muted style="width:100%; height:100%; object-fit:cover;"></video>
+  </div>
+  <div id="camZoomChips" style="display:flex; justify-content:center; gap:10px; padding:8px 0; background:#000;"></div>
   <div style="display:flex; gap:10px; padding:14px; background:#111; align-items:center;">
     <button style="flex:1; font-size:26px; font-weight:bold; padding:18px; border:none; border-radius:14px; background:#c62828; color:#fff;" onclick="camShot()">📷 צילום</button>
     <span id="camCount" style="color:#fff; font-size:22px; min-width:90px; text-align:center;"></span>
@@ -527,17 +537,96 @@ async function loadBoard() {
   }
 }
 
-// ---------- מצלמה פנימית: צילום רציף בלי אישור בין תמונות ----------
-let camStream = null;
+// ---------- מצלמה פנימית — חוויית מצלמה מלאה: זום בצביטה, פלאש, היפוך (דאמוני 22/07) ----------
+let camStream = null, camTrack = null, camFacing = "environment";
+let zCaps = null, zoomVal = 1, torchOn = false, digitalZoom = false;
+
 async function openCam() {
-  try {
-    camStream = await navigator.mediaDevices.getUserMedia(
-      {video: {facingMode: "environment", width: {ideal: 1920}, height: {ideal: 1080}}, audio: false});
-    document.getElementById("camVideo").srcObject = camStream;
-    document.getElementById("camPanel").style.display = "flex";
-    updateCamCount();
-  } catch (e) { fileInput.click(); }  // אין הרשאת מצלמה — נפילה למצלמת המערכת
+  try { await startCam(); }
+  catch (e) { fileInput.click(); }  // אין הרשאת מצלמה — נפילה למצלמת המערכת
 }
+
+async function startCam() {
+  stopCam();
+  camStream = await navigator.mediaDevices.getUserMedia({
+    video: {facingMode: camFacing, width: {ideal: 4096}, height: {ideal: 3072}},
+    audio: false});
+  camTrack = camStream.getVideoTracks()[0];
+  const v = document.getElementById("camVideo");
+  v.srcObject = camStream;
+  const caps = camTrack.getCapabilities ? camTrack.getCapabilities() : {};
+  // זום: מהחיישן כשהמכשיר חושף אותו; אחרת זום דיגיטלי שבו התצוגה והתמונה הנשמרת זהות
+  digitalZoom = !(caps.zoom && caps.zoom.max > caps.zoom.min);
+  zCaps = digitalZoom ? {min: 1, max: 4} : caps.zoom;
+  torchOn = false;
+  const tb = document.getElementById("camTorch");
+  tb.style.display = caps.torch ? "" : "none";
+  tb.style.background = "rgba(30,30,30,.75)";
+  buildZoomChips();
+  applyZoom(Math.max(1, zCaps.min));
+  document.getElementById("camPanel").style.display = "flex";
+  updateCamCount();
+}
+
+function applyZoom(z) {
+  z = Math.min(zCaps.max, Math.max(zCaps.min, z));
+  zoomVal = z;
+  const v = document.getElementById("camVideo");
+  const mirror = camFacing === "user" ? " scaleX(-1)" : "";  // תצוגת מראה בקדמית, כמו במצלמה הרגילה
+  if (digitalZoom) v.style.transform = "scale(" + z + ")" + mirror;
+  else {
+    v.style.transform = mirror.trim();
+    camTrack.applyConstraints({advanced: [{zoom: z}]}).catch(() => {});
+  }
+  document.getElementById("camZoomBadge").textContent =
+    (Math.round(z * 10) / 10) + "x";
+  for (const b of document.getElementById("camZoomChips").children)
+    b.style.background = Math.abs(parseFloat(b.dataset.z) - z) < 0.25 ? "#1d8a3a" : "#2a2a2a";
+}
+
+function buildZoomChips() {
+  const wrap = document.getElementById("camZoomChips");
+  wrap.innerHTML = "";
+  for (const z of [1, 2, 4]) {
+    if (z < zCaps.min || z > zCaps.max) continue;
+    const b = document.createElement("button");
+    b.textContent = z + "x"; b.dataset.z = z;
+    b.style.cssText = "font-size:18px; padding:8px 18px; border:none; border-radius:16px; background:#2a2a2a; color:#fff;";
+    b.onclick = () => applyZoom(z);
+    wrap.appendChild(b);
+  }
+}
+
+// זום בצביטה על התצוגה — אותה מחווה כמו במצלמה הרגילה
+let pinchStart = null;
+function pinchDist(e) {
+  return Math.hypot(e.touches[0].clientX - e.touches[1].clientX,
+                    e.touches[0].clientY - e.touches[1].clientY);
+}
+document.getElementById("camView").addEventListener("touchstart", e => {
+  if (e.touches.length === 2) pinchStart = {d: pinchDist(e), z: zoomVal};
+}, {passive: true});
+document.getElementById("camView").addEventListener("touchmove", e => {
+  if (pinchStart && e.touches.length === 2) {
+    e.preventDefault();
+    applyZoom(pinchStart.z * pinchDist(e) / pinchStart.d);
+  }
+}, {passive: false});
+document.getElementById("camView").addEventListener("touchend", () => { pinchStart = null; });
+
+async function toggleTorch() {
+  torchOn = !torchOn;
+  try { await camTrack.applyConstraints({advanced: [{torch: torchOn}]}); }
+  catch (e) { torchOn = false; }
+  document.getElementById("camTorch").style.background = torchOn ? "#f9a825" : "rgba(30,30,30,.75)";
+}
+
+async function flipCam() {
+  camFacing = camFacing === "environment" ? "user" : "environment";
+  try { await startCam(); }
+  catch (e) { camFacing = "environment"; try { await startCam(); } catch (_) {} }
+}
+
 function updateCamCount() {
   document.getElementById("camCount").textContent = photos.length ? photos.length + " תמונות" : "";
 }
@@ -545,8 +634,14 @@ function camShot() {
   const v = document.getElementById("camVideo");
   if (!v.videoWidth) return;
   const c = document.createElement("canvas");
-  c.width = v.videoWidth; c.height = v.videoHeight;
-  c.getContext("2d").drawImage(v, 0, 0);
+  // בזום דיגיטלי חותכים את מרכז התמונה — מה שרואים על המסך הוא מה שנשמר
+  let sx = 0, sy = 0, sw = v.videoWidth, sh = v.videoHeight;
+  if (digitalZoom && zoomVal > 1) {
+    sw = Math.round(v.videoWidth / zoomVal); sh = Math.round(v.videoHeight / zoomVal);
+    sx = (v.videoWidth - sw) >> 1; sy = (v.videoHeight - sh) >> 1;
+  }
+  c.width = sw; c.height = sh;
+  c.getContext("2d").drawImage(v, sx, sy, sw, sh, 0, 0, sw, sh);
   c.toBlob(b => {
     if (!b) return;
     const f = new File([b], "cam_" + Date.now() + ".jpg", {type: "image/jpeg"});
@@ -554,10 +649,13 @@ function camShot() {
     // הבזק משוב קצר — שהעובד יראה שהתמונה נתפסה
     v.style.opacity = "0.25";
     setTimeout(() => { v.style.opacity = "1"; }, 120);
-  }, "image/jpeg", 0.85);
+  }, "image/jpeg", 0.9);
+}
+function stopCam() {
+  if (camStream) { camStream.getTracks().forEach(t => t.stop()); camStream = null; camTrack = null; }
 }
 function closeCam() {
-  if (camStream) { camStream.getTracks().forEach(t => t.stop()); camStream = null; }
+  stopCam();
   document.getElementById("camPanel").style.display = "none";
 }
 
