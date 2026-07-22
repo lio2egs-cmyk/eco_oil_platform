@@ -52,10 +52,6 @@
   <button class="btn" onclick="startFlow('exit')">📤 יציאה</button>
   <button class="btn" style="background:#6a1b9a;" onclick="startFlow('repairs')">🔧 תיקונים</button>
   <div class="card">
-    <b>אירועים אחרונים</b>
-    <div id="queue"></div>
-  </div>
-  <div class="card">
     <div class="note">יצירת אייקון נפרד למסך הבית: לוחצים על קישור ← ואז בתפריט הדפדפן "הוספה למסך הבית".</div>
     <div style="display:flex; gap:10px; margin-top:8px;">
       <a href="/terminal/entry" style="flex:1; text-align:center; background:#eef4f3; border-radius:10px; padding:12px; font-size:18px; text-decoration:none; color:var(--dark); font-weight:bold;">📥 כניסה</a>
@@ -141,6 +137,13 @@
   </div>
 </div>
 
+<!-- אירועים אחרונים — מוצג גם במסך הבית וגם מתחת למסכי הפעולה (דאמוני 22/07:
+     "איפה הרשימה?" — האייקונים הייעודיים פותחים ישר את הפעולה, והרשימה נעלמה) -->
+<div id="queueCard" class="card hidden">
+  <b>אירועים אחרונים</b> <span class="note">(לחיצה על שורה — פרטי הדיווח והתמונות)</span>
+  <div id="queue"></div>
+</div>
+
 <!-- מסך דוח תפעול חי (דאמוני 16/07 — במקום ה-PDF המודפס) -->
 <div id="board" class="hidden">
   <div class="card" style="display:flex; justify-content:space-between; align-items:center; gap:8px;">
@@ -205,7 +208,11 @@ function idbDel(key) { return new Promise(res => { outbox("readwrite").delete(ke
 const token = () => localStorage.getItem("device_token");
 function saveToken() { localStorage.setItem("device_token", document.getElementById("tokenInput").value.trim()); location.reload(); }
 
-function show(id) { for (const s of ["setup","home","flow","board"]) document.getElementById(s).classList.toggle("hidden", s !== id); }
+function show(id) {
+  for (const s of ["setup","home","flow","board"]) document.getElementById(s).classList.toggle("hidden", s !== id);
+  // רשימת האירועים מלווה את מסך הבית וגם את מסכי הפעולה (דאמוני 22/07)
+  document.getElementById("queueCard").classList.toggle("hidden", !(id === "home" || id === "flow"));
+}
 function goHome() { closeCam(); show("home"); renderQueue(); }
 
 // ---------- מסך אירוע ----------
