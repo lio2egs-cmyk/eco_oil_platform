@@ -79,7 +79,7 @@
       </select>
     </div>
     <div id="pickWrap">
-      <label>בחירת נכס — הקלידו כמה ספרות מהמספר</label>
+      <label id="pickLabel">בחירת נכס — הקלידו כמה ספרות מהמספר</label>
       <input type="text" id="tankSearch" inputmode="numeric" autocomplete="off" placeholder="למשל: 4 ספרות אחרונות" oninput="filterTanks()">
       <div id="chosen" class="hidden" style="margin-top:8px; background:#dff0e2; border:2px solid #1d8a3a; border-radius:10px; padding:12px; font-size:20px; font-weight:bold;"></div>
       <div id="instrPanel" class="hidden" style="margin-top:8px; border:2px solid #607d8b; border-radius:10px; padding:12px; font-size:18px; background:#f4f8fa;"></div>
@@ -222,7 +222,12 @@ function startFlow(t) {
   document.getElementById("tankManual").value = "";
   document.getElementById("flowTitle").textContent = {entry:"📥 כניסה", wash:"🧼 שטיפה", exit:"📤 יציאה", repairs:"🔧 תיקונים"}[t];
   document.getElementById("treatWrap").classList.toggle("hidden", t !== "wash");
-  document.getElementById("pickWrap").classList.toggle("hidden", t === "entry");
+  // דאמוני 22/07: גם בכניסה יש בחירה מהירה — מתוך רשימת הצפויים להיכנס (מקרה KRIU2267577:
+  // כניסה מהתמונה בלי מספר חיכתה לפענוח ידני במשרד; בחירה מהרשימה נקלטת מיד)
+  document.getElementById("pickWrap").classList.remove("hidden");
+  document.getElementById("pickLabel").textContent = t === "entry"
+    ? "בחירה מרשימת הצפויים להיכנס — הקלידו כמה ספרות מהמספר"
+    : "בחירת נכס — הקלידו כמה ספרות מהמספר";
   document.getElementById("manualWrap").classList.toggle("hidden", t !== "entry");
   // תיקונים = איזוטנקים בלבד (במכליות אין תיקונים) — בלי בורר סוג נכס
   if (t === "repairs") document.getElementById("assetType").value = "iso";
@@ -379,19 +384,33 @@ function chooseTank(tank, cust) {
 
 const UNLISTED_BTN = `<button type="button" style="font-size:20px; padding:14px; border-radius:10px; border:2px dashed #b8860b; background:#fff8e6; color:#222;" onclick="enableUnlisted()">🚫 המכל לא ברשימה — דיווח עם צילום המספר</button>`;
 
+function pickPool() {
+  // בכניסה מציעים רק את הצפויים להיכנס; בשאר המסכים — כל הנכסים במגרש
+  return flowType === "entry"
+    ? onsiteAssets.filter(a => (a.status || "").trim() === "בדרך להיכנס")
+    : onsiteAssets;
+}
+
 function filterTanks() {
   const q = (document.getElementById("tankSearch").value || "").replace(/[^0-9A-Za-z]/g, "").toUpperCase();
   const res = document.getElementById("tankResults");
+  const pool = pickPool();
   if (q) { selectedTank = null; cancelUnlisted(); document.getElementById("chosen").classList.add("hidden"); document.getElementById("instrPanel").classList.add("hidden"); }
   if (!q) {
     if (unlistedMode) return;
+    if (flowType === "entry") {
+      res.innerHTML = pool.length
+        ? `<div class="note">${pool.length} מכלים צפויים להיכנס — הקלידו ספרות כדי לצמצם</div>`
+        : '<div class="note">אין מכלים ברשימת הצפויים — אפשר להקליד את המספר למטה או לצלם את הלוחית</div>';
+      return;
+    }
     res.innerHTML = onsiteAssets.length
       ? `<div class="note">${onsiteAssets.length} נכסים במגרש — הקלידו ספרות כדי לצמצם</div>`
       : '<div class="note">הרשימה לא נטענה — בדקו קליטה ונסו שוב</div>' + UNLISTED_BTN;
     return;
   }
   const norm = t => (t || "").replace(/[^0-9A-Za-z]/g, "").toUpperCase();
-  const matches = onsiteAssets.filter(a => {
+  const matches = pool.filter(a => {
     const t = norm(a.tank_number);
     return t.includes(q) || t.replace(/[^0-9]/g, "").includes(q);
   });
@@ -686,8 +705,10 @@ function localIso() {
 
 async function submitEvent() {
   const at = document.getElementById("assetType").value;
-  let tank = (flowType === "entry" || unlistedMode) ? document.getElementById("tankManual").value
-                                                    : selectedTank;
+  // כניסה: קודם הבחירה מרשימת הצפויים (דאמוני 22/07), אחרת המספר שהוקלד ידנית
+  let tank = unlistedMode ? document.getElementById("tankManual").value
+           : flowType === "entry" ? (selectedTank || document.getElementById("tankManual").value)
+           : selectedTank;
   if (flowType !== "entry" && !unlistedMode && !tank) { alert("נא לבחור נכס מהרשימה (הקלידו ספרות ולחצו על הנכס)"); return; }
   if ((flowType === "entry" || unlistedMode) && photos.length === 0) { alert("חובה לצלם את לוחית המספר"); return; }
   // פעימה 3 (הכרעת יואב 19/07): תמונת פנים המכל אחרי השטיפה = חובה
