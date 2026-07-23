@@ -451,6 +451,15 @@ function warnSpan(t) {
   return t && String(t).startsWith("⚠") ? `<span style="color:#b03030; font-weight:bold;">${e}</span>` : e;
 }
 
+// לימור 23/07: עמודת הכניסה בלוח הטיפולים ממש קטנה — dd/mm בלבד, ואזהרה מקוצרת
+// (הטקסט המלא "להשלים במשרד" נשאר ב-PDF; בטאבלט העיקר הוא עמודת "טיפול נדרש")
+function careDate(a) {
+  a = String(a || "").trim();
+  if (!a) return "⚠ חסר";
+  if (a.startsWith("⚠")) return "⚠ חסר";
+  return a.replace(/\/\d{4}$/, "");
+}
+
 // עיצוב שנבחר ע"י לימור 16/07: מסגרת טבלה (כמו אקסל, פסים מתחלפים) + תגיות צבע בעמודת השטיפה בלבד
 function chipHtml(text, kind) {
   const st = kind === "ok"  ? "background:#dff0e2; color:#1d6a34;"
@@ -541,8 +550,11 @@ function renderBoard(d, offline) {
     parts.push(boardTable("טנקים לטיפול", ["מס' מכל", "חברה", "חומר אחרון", "כניסה", "הנחיות", "טיפול נדרש"], b.care || [], r => [
       TD(esc(r.tank), "font-weight:bold; white-space:nowrap;"), TD(esc(r.customer)),
       // לימור 16/07: החומר האחרון = מידע בלבד — כיתוב קטן כדי שהטבלה תיכנס בנוח
-      TD(esc(r.material), "font-size:11px; color:#555; word-break:break-word; max-width:150px;"),
-      TD(warnSpan(r.arrival || "⚠ חסר"), "white-space:nowrap;"), TD(instrCell(r), "font-size:12px;"), TD(esc(r.treatment))]));
+      TD(esc(r.material), "font-size:11px; color:#555; word-break:break-word; max-width:110px;"),
+      // לימור 23/07: כניסה מוקטנת למינימום; הרוחב שהתפנה הולך ל"טיפול נדרש" — העמודה החשובה
+      TD(warnSpan(careDate(r.arrival)), "white-space:nowrap; font-size:11px; color:#555; padding:8px 3px;"),
+      TD(instrCell(r), "font-size:12px; max-width:180px; word-break:break-word;"),
+      TD(esc(r.treatment), "font-size:13px; word-break:break-word;")]));
   }
   if (kind === "all" || kind === "expected") {
     // לימור 20/07: אותו טיפול כמו בלוח הטיפולים — חומר אחרון בכיתוב קטן, הערות נשברות — שהטבלה תיכנס במסך
