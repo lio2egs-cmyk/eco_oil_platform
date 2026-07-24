@@ -89,17 +89,6 @@
       <label>מספר (אם ידוע — לא חובה, המשרד מפענח מהתמונה)</label>
       <input type="text" id="tankManual" autocapitalize="characters" autocomplete="off">
     </div>
-    <!-- חובת מוביל (לימור 24/07): בכניסה וביציאה חייבים לזהות את חברת ההובלה
-         כשאין כזו רשומה מראש בקובץ (מייל מקדים בלי מוביל) -->
-    <div id="carrierWrap" class="hidden" style="margin-top:10px;">
-      <label>🚛 מי המוביל? (חברת ההובלה של המשאית)</label>
-      <div id="carrierKnown" class="hidden" style="background:#dff0e2; border:2px solid #1d8a3a; border-radius:10px; padding:12px; font-size:18px;"></div>
-      <select id="carrierSel" onchange="onCarrierSel()" style="width:100%; box-sizing:border-box; font-size:20px; padding:12px; border-radius:10px; border:2px solid #b8860b; background:#fff8e6;"></select>
-      <div id="carrierOtherWrap" class="hidden" style="margin-top:8px;">
-        <label>שם המוביל (כפי שמופיע על המשאית)</label>
-        <input type="text" id="carrierOther" autocomplete="off">
-      </div>
-    </div>
     <!-- דאמוני 22/07: המצלמה הפנימית שודרגה לחוויית מצלמה מלאה (זום בצביטה, פלאש,
          היפוך לסלפי — חיוני לצילום דיסקיות תחתית ופנים מכל חשוך). הקלט הקבצי = גיבוי
          למקרה שאין הרשאת מצלמה בלבד. -->
@@ -231,9 +220,6 @@ function startFlow(t) {
   flowType = t; photos = [];
   document.getElementById("thumbs").innerHTML = "";
   document.getElementById("tankManual").value = "";
-  document.getElementById("carrierSel").value = "";
-  document.getElementById("carrierOther").value = "";
-  document.getElementById("carrierOtherWrap").classList.add("hidden");
   document.getElementById("flowTitle").textContent = {entry:"📥 כניסה", wash:"🧼 שטיפה", exit:"📤 יציאה", repairs:"🔧 תיקונים"}[t];
   document.getElementById("treatWrap").classList.toggle("hidden", t !== "wash");
   // דאמוני 22/07: גם בכניסה יש בחירה מהירה — מתוך רשימת הצפויים להיכנס (מקרה KRIU2267577:
@@ -281,7 +267,7 @@ function updateExtras() {
       list.map(x => `<label><input type="checkbox" value="${x}">${x}</label>`).join("");
   }
 }
-function onAssetType() { updateExtras(); renderCarrierBox(); if (flowType !== "entry") loadOnsite(); }
+function onAssetType() { updateExtras(); if (flowType !== "entry") loadOnsite(); }
 
 let onsiteAssets = [], selectedTank = null, unlistedMode = false;
 
@@ -291,7 +277,6 @@ function enableUnlisted() {
   unlistedMode = true; selectedTank = null;
   document.getElementById("tankSearch").value = "";
   document.getElementById("tankResults").innerHTML = "";
-  renderCarrierBox();
   document.getElementById("manualWrap").classList.remove("hidden");
   const c = document.getElementById("chosen");
   c.style.background = "#fff3cd"; c.style.borderColor = "#b8860b";
@@ -319,7 +304,6 @@ async function loadOnsite() {
   document.getElementById("instrPanel").classList.add("hidden");
   document.getElementById("tankSearch").value = "";
   filterTanks();
-  renderCarrierBox();
   loadInstructions();
 }
 
@@ -333,7 +317,6 @@ async function loadInstructions() {
       tankInstructions = d.instructions;
       localStorage.setItem("instr_json", JSON.stringify(tankInstructions));
       if (flowType === "repairs") renderRepairTypes();   // הרשימה הגיעה אחרי פתיחת המסך
-      renderCarrierBox();                                // רשימת המובילים הגיעה מהענן
     }
   } catch (e) { /* אופליין — נשארים עם המטמון */ }
 }
@@ -395,56 +378,8 @@ function chooseTank(tank, cust) {
   c.textContent = "✓ נבחר: " + tank + (cust ? " — " + cust : "");
   c.classList.remove("hidden");
   renderInstructions(tank);
-  renderCarrierBox();
   document.getElementById("tankResults").innerHTML = "";
   document.getElementById("tankSearch").value = "";
-}
-
-// ---------- חובת מוביל (לימור 24/07): כניסה/יציאה של איזוטנק בלי מוביל רשום ----------
-function carriersList() { return tankInstructions["__carriers__"] || []; }
-function carrierKnown() {
-  // המוביל שכבר רשום בקובץ לנכס הנבחר (כניסה: מוביל כניסה G, יציאה: מוביל יציאה H)
-  if (!selectedTank) return "";
-  const i = tankInstructions[(selectedTank || "").replace(/\s+/g, "").toUpperCase()];
-  if (!i) return "";
-  return (flowType === "entry" ? i.carrier_in : i.carrier_out) || "";
-}
-function carrierActive() {
-  // הבורר פעיל רק בכניסה/יציאה של איזוטנק, וכשרשימת המובילים קיימת במטמון
-  const at = document.getElementById("assetType").value;
-  return at === "iso" && (flowType === "entry" || flowType === "exit") && carriersList().length > 0;
-}
-function renderCarrierBox() {
-  const wrap = document.getElementById("carrierWrap");
-  if (!carrierActive()) { wrap.classList.add("hidden"); return; }
-  const known = carrierKnown();
-  const info = document.getElementById("carrierKnown");
-  const sel = document.getElementById("carrierSel");
-  if (known) {
-    info.textContent = "✓ המוביל כבר רשום במשרד: " + known;
-    info.classList.remove("hidden");
-    sel.classList.add("hidden");
-    document.getElementById("carrierOtherWrap").classList.add("hidden");
-  } else {
-    info.classList.add("hidden");
-    const cur = sel.value;
-    sel.innerHTML = '<option value="">— בחירת מוביל (חובה) —</option>'
-      + carriersList().map(c => `<option>${esc(c)}</option>`).join("")
-      + '<option value="__other__">מוביל אחר — לא ברשימה</option>';
-    if (cur) sel.value = cur;
-    sel.classList.remove("hidden");
-    onCarrierSel();
-  }
-  wrap.classList.remove("hidden");
-}
-function onCarrierSel() {
-  document.getElementById("carrierOtherWrap").classList.toggle("hidden",
-    document.getElementById("carrierSel").value !== "__other__");
-}
-function pickedCarrier() {
-  if (!carrierActive() || carrierKnown()) return "";
-  const v = document.getElementById("carrierSel").value;
-  return v === "__other__" ? document.getElementById("carrierOther").value.trim() : v;
 }
 
 const UNLISTED_BTN = `<button type="button" style="font-size:20px; padding:14px; border-radius:10px; border:2px dashed #b8860b; background:#fff8e6; color:#222;" onclick="enableUnlisted()">🚫 המכל לא ברשימה — דיווח עם צילום המספר</button>`;
@@ -795,14 +730,6 @@ async function submitEvent() {
     ? [...document.querySelectorAll("#repTypes input:checked")].map(c => c.value) : [];
   if (flowType === "repairs" && repPicked.length === 0) { alert("נא לסמן לפחות תיקון אחד מהרשימה"); return; }
   if (flowType === "repairs" && photos.length === 0) { alert("חובה לצלם את התיקון — לפני ואחרי"); return; }
-  // חובת מוביל (לימור 24/07): כניסה/יציאה בלי מוביל רשום מראש — חייבים לבחור
-  if (carrierActive() && !carrierKnown()) {
-    const cs = document.getElementById("carrierSel").value;
-    if (!cs) { alert("🚛 חובה לבחור את המוביל (חברת ההובלה של המשאית)"); return; }
-    if (cs === "__other__" && !document.getElementById("carrierOther").value.trim()) {
-      alert("נא לרשום את שם המוביל כפי שמופיע על המשאית"); return;
-    }
-  }
   let notExpected = false;
   if (flowType === "entry" && tank && onsiteAssets.length) {
     // נוהל השער (דאמוני+יואב 16/07): מכל שאינו ברשימת הצפויים/הנמצאים — להניח בצד
@@ -822,7 +749,6 @@ async function submitEvent() {
     tank_number: (tank || "").trim().toUpperCase(),
     event_at: localIso(),   // שעון מקומי! toISOString = UTC וגרם להזחת 3 שעות (לקח פיילוט 16/07)
     payload: {treatments, not_listed: unlistedMode, not_expected: notExpected,
-              carrier: pickedCarrier(),
               vacuum_test: flowType === "wash" && at === "iso" && document.getElementById("vacuumChk").checked,
               pump: flowType === "wash" && at === "rt" && document.getElementById("pumpChk").checked,
               voc_ppm: flowType === "wash" ? (document.getElementById("vocInput").value.trim() || null) : null,
