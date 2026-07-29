@@ -9,6 +9,7 @@ from .web import web
 from .field import field
 from .ecooil_bridge import ecooil_bridge
 from .ecooil_docs import ecooil_docs
+from .digest import digest
 from .db import db
 
 jwt = JWTManager()
@@ -157,6 +158,7 @@ def create_app():
     app.register_blueprint(field)
     app.register_blueprint(ecooil_bridge)
     app.register_blueprint(ecooil_docs)
+    app.register_blueprint(digest)
 
     @app.route("/health")
     def health():
