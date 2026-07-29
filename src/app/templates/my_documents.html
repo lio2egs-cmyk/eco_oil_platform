@@ -27,6 +27,8 @@
   .btn { display:inline-block; background:var(--green); color:#fff; border:none; cursor:pointer;
          padding:6px 14px; border-radius:8px; font-size:13px; font-family:inherit; }
   .btn:hover { background:var(--dark); }
+  .btn-manifest { background:#8A6FB8; }
+  .btn-manifest:hover { background:#6B549A; }
   .nofile { color:#99A; font-size:12px; background:#EEF1F1; padding:4px 10px; border-radius:8px; }
   .sanction { display:block; max-width:280px; background:#FDF1DD; border:1.5px solid #E5B96B;
               color:#8a5a00; font-size:12.5px; line-height:1.5; padding:7px 10px; border-radius:10px; }
@@ -110,7 +112,10 @@ async function load(first){
 }
 
 function docCell(r){
-  if(r.has_pdf) return '<button class="btn" onclick="dl('+r.id+')">הורדה</button>';
+  var out='';
+  if(r.has_pdf) out+='<button class="btn" onclick="dl('+r.id+')">אישור פריקה</button>';
+  if(r.has_manifest) out+=' <button class="btn btn-manifest" onclick="dlm('+r.id+')">טופס מלווה</button>';
+  if(out) return out;
   if(r.doc_status==='awaiting_declaration')
     // Wording approved by Yoav 20/07/2026 — do not change without approval.
     return '<span class="sanction">הפריקה תועדה, אך הפסולת אינה מאושרת לקליטה ולטיפול — עקב אי-הסדרת הצהרת יצרן כנדרש בחוק.'+
@@ -120,12 +125,14 @@ function docCell(r){
   return '<span class="nofile">אין קובץ</span>';
 }
 
-async function dl(id){
-  var r=await apiGet('/eco-oil/my-documents/'+id+'/download');
+async function dl(id,doc){
+  var url='/eco-oil/my-documents/'+id+'/download'+(doc?'?doc='+doc:'');
+  var r=await apiGet(url);
   if(!r||!r.ok){ alert('הקובץ אינו זמין כרגע'); return; }
   var d=await r.json();
   if(d.url) window.open(d.url,'_blank');
 }
+function dlm(id){ dl(id,'manifest'); }
 
 ['fYear','fStream'].forEach(function(id){
   document.getElementById(id).addEventListener('change',function(){load(false);});

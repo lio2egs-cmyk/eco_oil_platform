@@ -60,10 +60,11 @@ def name_score(a, b):
     return 0.0
 
 # ---------- legacy billed-name aliases ----------
-# The 21/07/2026 canonicalization unified 1,264 ריכוז rows to Limor's official
-# spellings, but filing FOLDERS on Z: may still carry the old names. Score
-# against the old spellings too so those files keep matching.
-LEGACY_BILLED_ALIASES = {
+# Shared with the manifest matcher via ecooil_pdf_matcher_aliases.py — keep the
+# module as the single source of truth; the inline dict below is superseded.
+from ecooil_pdf_matcher_aliases import LEGACY_BILLED_ALIASES  # noqa: F811
+
+_UNUSED_LEGACY = {
     'עידן שאיבות בע"מ': ['עידן שאיבות'],
     'ר.מ. שאיבות': ['ר.מ שאיבות בע"מ', 'ר.מ שאיבות'],
     'מיקוש שאיבות': ['מיקוש שאיבות בע"מ'],

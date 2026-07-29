@@ -100,6 +100,7 @@ def collect_events():
                 "package_type": r.package_type, "package_count": r.package_count,
                 "exit_time": r.exit_time, "notes": r.notes,
                 "pdf_path": r.pdf_path,
+                "manifest_path": r.manifest_path,
                 "source_sheet": r.source_sheet, "source_row": r.source_row,
             })
     return events
@@ -112,18 +113,20 @@ def upload_pdfs(events, manifest, limit=None, dry_run=False):
     todo, missing_on_disk = [], 0
     seen = set()
     for ev in events:
-        p = ev.get("pdf_path")
-        if not p or p in seen:
-            continue
-        seen.add(p)
-        if not os.path.exists(p):
-            missing_on_disk += 1
-            continue
-        key = pdf_key_for(p)
-        size = os.path.getsize(p)
-        if manifest.get(key) == size:
-            continue
-        todo.append((p, key, size))
+        # certificates + signed טופס מלווה scans go through the same pipe
+        for field in ("pdf_path", "manifest_path"):
+            p = ev.get(field)
+            if not p or p in seen:
+                continue
+            seen.add(p)
+            if not os.path.exists(p):
+                missing_on_disk += 1
+                continue
+            key = pdf_key_for(p)
+            size = os.path.getsize(p)
+            if manifest.get(key) == size:
+                continue
+            todo.append((p, key, size))
 
     if limit:
         todo = todo[:limit]
@@ -164,7 +167,7 @@ def push_data(events, manifest, api_base, dry_run=False):
         print("ERROR: ECOOIL_BRIDGE_TOKEN missing from .env")
         return False
     payload = []
-    with_key = 0
+    with_key = with_manifest = 0
     for ev in events:
         item = dict(ev)
         p = item.get("pdf_path")
@@ -173,8 +176,14 @@ def push_data(events, manifest, api_base, dry_run=False):
             if key in manifest:
                 item["pdf_key"] = key
                 with_key += 1
+        mp = item.get("manifest_path")
+        if mp:
+            mkey = pdf_key_for(mp)
+            if mkey in manifest:
+                item["manifest_key"] = mkey
+                with_manifest += 1
         payload.append(item)
-    print(f"events to push: {len(payload)} ({with_key} with a cloud PDF)")
+    print(f"events to push: {len(payload)} ({with_key} with a cloud PDF, {with_manifest} with a cloud manifest)")
     if dry_run:
         print("DRY RUN — not pushing")
         return True

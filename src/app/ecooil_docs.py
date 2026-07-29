@@ -83,6 +83,7 @@ def my_documents():
             "tons": r.declared_tons,
             "code": r.code,
             "has_pdf": bool(r.pdf_key),
+            "has_manifest": bool(r.manifest_key),
             "doc_status": r.doc_status,
         } for r in rows],
     })
@@ -98,7 +99,9 @@ def download(event_id):
     ev = q.filter(EcoOilUnloadEvent.id == event_id).first()
     if ev is None:
         return jsonify({"error": "not found"}), 404
-    if not ev.pdf_key:
+    # ?doc=manifest serves the signed טופס מלווה scan; default = the certificate
+    key = ev.manifest_key if request.args.get("doc") == "manifest" else ev.pdf_key
+    if not key:
         return jsonify({"error": "no file"}), 404
     for var in ("B2_KEY_ID", "B2_APP_KEY", "B2_BUCKET_CERTS", "B2_ENDPOINT"):
         if not os.environ.get(var):
@@ -112,10 +115,10 @@ def download(event_id):
         config=Config(signature_version="s3v4"),
     )
     from urllib.parse import quote
-    fname = quote(ev.pdf_key.rsplit("/", 1)[-1])
+    fname = quote(key.rsplit("/", 1)[-1])
     url = s3.generate_presigned_url(
         "get_object",
-        Params={"Bucket": os.environ["B2_BUCKET_CERTS"], "Key": ev.pdf_key,
+        Params={"Bucket": os.environ["B2_BUCKET_CERTS"], "Key": key,
                 "ResponseContentDisposition": f"attachment; filename*=UTF-8''{fname}"},
         ExpiresIn=PRESIGN_SECONDS,
     )

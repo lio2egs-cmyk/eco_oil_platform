@@ -25,7 +25,7 @@ MAX_EVENTS = 30000
 _STR_FIELDS = (
     "code", "vehicle", "transporter", "customer", "address", "billed_to",
     "stream", "stream_norm", "doc_status", "package_type", "exit_time", "notes",
-    "pdf_path", "pdf_key", "source_sheet",
+    "pdf_path", "pdf_key", "manifest_path", "manifest_key", "source_sheet",
 )
 _INT_FIELDS = ("year", "month", "serial", "package_count", "source_row")
 _FLOAT_FIELDS = ("weight_in", "weight_out", "weight_net", "declared_tons")
@@ -126,6 +126,8 @@ def status():
     last = db.session.query(func.max(EcoOilUnloadEvent.synced_at)).scalar()
     with_pdf = (db.session.query(func.count(EcoOilUnloadEvent.id))
                 .filter(EcoOilUnloadEvent.pdf_key.isnot(None)).scalar() or 0)
+    with_manifest = (db.session.query(func.count(EcoOilUnloadEvent.id))
+                     .filter(EcoOilUnloadEvent.manifest_key.isnot(None)).scalar() or 0)
     per_year = dict(
         db.session.query(EcoOilUnloadEvent.year, func.count(EcoOilUnloadEvent.id))
         .group_by(EcoOilUnloadEvent.year).all())
@@ -139,6 +141,7 @@ def status():
     return jsonify({
         "total": total,
         "with_pdf_key": with_pdf,
+        "with_manifest_key": with_manifest,
         "per_year": {str(k): v for k, v in per_year.items()},
         "per_stream": {str(k): v for k, v in per_stream.items()},
         "per_doc_status": per_doc_status,

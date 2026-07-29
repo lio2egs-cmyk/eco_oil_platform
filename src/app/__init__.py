@@ -116,6 +116,8 @@ def create_app():
             "ALTER TABLE ecooil_unload_events ADD COLUMN pdf_key VARCHAR(500)",
             "ALTER TABLE ecooil_unload_events ADD COLUMN stream_norm VARCHAR(30)",
             "ALTER TABLE ecooil_unload_events ADD COLUMN doc_status VARCHAR(30)",
+            "ALTER TABLE ecooil_unload_events ADD COLUMN manifest_path VARCHAR(400)",
+            "ALTER TABLE ecooil_unload_events ADD COLUMN manifest_key VARCHAR(500)",
         ):
             try:
                 db.session.execute(db.text(stmt))

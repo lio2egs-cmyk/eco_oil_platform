@@ -3,9 +3,10 @@
 Eco-Oil bridge — the HOURLY production cycle, run by Windows Task Scheduler
 on Limor's office PC (daily 07:00-18:00, every hour):
 
-    1. ecooil_bridge_sync.py   — ריכוז workbooks → local snapshot DB (read-only)
-    2. ecooil_pdf_matcher.py   — link rows to filed certificate PDFs
-    3. ecooil_bridge_push.py   — upload new PDFs to B2 + push snapshot to portal
+    1. ecooil_bridge_sync.py       — ריכוז workbooks → local snapshot DB (read-only)
+    2. ecooil_pdf_matcher.py       — link rows to filed certificate PDFs
+    3. ecooil_manifest_matcher.py  — link rows to signed טופס מלווה scans
+    4. ecooil_bridge_push.py       — upload new PDFs+manifests to B2 + push snapshot
 
 A lock file prevents overlapping runs; each run appends to a daily log under
 C:\\eco_oil_portal\\bridge_logs\\.
@@ -24,6 +25,7 @@ LOCK_STALE_MINUTES = 50
 STEPS = [
     ("reader", "ecooil_bridge_sync.py", []),
     ("matcher", "ecooil_pdf_matcher.py", []),
+    ("manifest-matcher", "ecooil_manifest_matcher.py", []),
     ("push", "ecooil_bridge_push.py", []),
 ]
 

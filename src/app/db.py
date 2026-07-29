@@ -654,6 +654,8 @@ class EcoOilUnloadEvent(db.Model):
     doc_status = db.Column(db.String(30), index=True)
     pdf_path = db.Column(db.String(400))                    # matched filed PDF (filled by matcher)
     pdf_key = db.Column(db.String(500))                     # B2 object key (cloud copy of the PDF)
+    manifest_path = db.Column(db.String(400))               # matched signed טופס מלווה scan (matcher)
+    manifest_key = db.Column(db.String(500))                # B2 object key of the manifest scan
     source_sheet = db.Column(db.String(40))
     source_row = db.Column(db.Integer)
     synced_at = db.Column(db.DateTime, default=datetime.utcnow)
