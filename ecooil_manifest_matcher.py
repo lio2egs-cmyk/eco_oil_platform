@@ -82,7 +82,7 @@ def base_stream(s):
 DATE_ANY = re.compile(r"(\d{1,2})\.(\d{1,2})(?:\.(\d{2,4}))?")
 NOISE_WORDS = {"מלווה", "טופס", "נספח", "ג", "משקל", "שקילה", "מעורב", "קוביות",
                "חביות", "פילטרים", "בוצה", "תשטיפי", "תשטיפיי", "תוסף", "בטון",
-               "אתר", "לייצוא", "ללא", "אישור", "MOE"}
+               "אתר", "לייצוא", "ללא", "אישור", "MOE", "תעודת", "משלוח"}
 
 YEAR_NAMES = {str(y) for y in YEARS}
 SKIP_PARTS = {"אישורים", "ישן"}
@@ -127,8 +127,14 @@ def scan_owner(base, owner):
                 and "מלווה" not in p
                 and not re.fullmatch(r"\d{1,2}([\./]\d{2,4})?", p)]
         owner_full = " ".join([owner] + subs)
+        # Rule (Limor 29/07): ANYTHING inside a customer's טופס-מלווה folder
+        # counts as a manifest (e.g. תעודות משלוח in the one-off Gadot case),
+        # regardless of the filename.
+        in_manifest_folder = any("מלווה" in p for p in parts)
         for f in filenames:
-            if not f.lower().endswith(".pdf") or "מלווה" not in f:
+            if not f.lower().endswith(".pdf"):
+                continue
+            if "מלווה" not in f and not in_manifest_folder:
                 continue
             p = parse_manifest_name(f, year_on_path)
             if p is None:
