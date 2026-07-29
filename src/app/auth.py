@@ -436,6 +436,40 @@ def create_portal_user():
     ), 201
 
 
+@auth.route("/portal-users", methods=["GET"])
+@admin_required
+def list_portal_users():
+    """Admin-only: all portal users with their company — feeds the future admin
+    screen and lets mistakes be found and fixed."""
+    users = (User.query.filter(User.role.in_(PORTAL_ROLES))
+             .order_by(User.client_id, User.id).all())
+    clients = {c.id: c.name for c in Client.query.all()}
+    return jsonify(users=[{
+        "id": u.id, "email": u.email, "role": u.role,
+        "client_id": u.client_id, "client_name": clients.get(u.client_id),
+        "last_login_at": u.last_login_at.isoformat() if u.last_login_at else None,
+    } for u in users])
+
+
+@auth.route("/portal-users/<int:user_id>", methods=["DELETE"])
+@admin_required
+def delete_portal_user(user_id):
+    """Admin-only: remove a portal user (wrong assignment / offboarding).
+    Portal roles only — the admin account can never be deleted this way.
+    Their audit-log rows are kept (user_id set NULL by the FK) for history."""
+    user = db.session.get(User, user_id)
+    if user is None:
+        return jsonify(error="User not found"), 404
+    if user.role not in PORTAL_ROLES:
+        return jsonify(error="Only portal users can be deleted"), 403
+    MagicLinkToken.query.filter_by(user_id=user.id).delete()
+    LoginAuditLog.query.filter_by(user_id=user.id).update({"user_id": None})
+    email = user.email
+    db.session.delete(user)
+    db.session.commit()
+    return jsonify(deleted=True, email=email), 200
+
+
 @auth.route("/request-magic-link", methods=["POST"])
 def request_magic_link():
     """Public: customer enters their email; if it matches a portal user, a magic link is sent."""
