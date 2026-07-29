@@ -82,8 +82,11 @@ def my_documents():
             "stream_norm": r.stream_norm,
             "tons": r.declared_tons,
             "code": r.code,
-            "has_pdf": bool(r.pdf_key),
-            "has_manifest": bool(r.manifest_key),
+            # Sanction (Limor 29/07): she ALWAYS produces+files the documents and
+            # withholds only the SENDING — so a filed PDF must never override the
+            # sanction. awaiting_declaration hides BOTH downloads.
+            "has_pdf": bool(r.pdf_key) and r.doc_status != "awaiting_declaration",
+            "has_manifest": bool(r.manifest_key) and r.doc_status != "awaiting_declaration",
             "doc_status": r.doc_status,
         } for r in rows],
     })
@@ -99,6 +102,10 @@ def download(event_id):
     ev = q.filter(EcoOilUnloadEvent.id == event_id).first()
     if ev is None:
         return jsonify({"error": "not found"}), 404
+    # Sanction enforcement at the API level (not just the UI): a row awaiting a
+    # producer declaration serves NOTHING, even though the files are filed.
+    if ev.doc_status == "awaiting_declaration":
+        return jsonify({"error": "withheld until the producer declaration is settled"}), 403
     # ?doc=manifest serves the signed טופס מלווה scan; default = the certificate
     key = ev.manifest_key if request.args.get("doc") == "manifest" else ev.pdf_key
     if not key:
