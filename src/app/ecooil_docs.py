@@ -27,11 +27,19 @@ def _client_for_request():
     return db.session.get(Client, client_id) if client_id else None
 
 
-def _scoped_query(client_name):
-    billed = EcoOilUnloadEvent.query.filter(EcoOilUnloadEvent.billed_to == client_name)
+def _scoped_query(client):
+    """All billed names the client owns: primary name + billing_aliases
+    (former names, absorbed companies, per-site names, spelling variants).
+    A parenthetical billed row like 'X (customer)' belongs to X (rule 21/07)."""
+    names = client.billed_names()
+    billed_match = or_(
+        EcoOilUnloadEvent.billed_to.in_(names),
+        *[EcoOilUnloadEvent.billed_to.like(n + " (%") for n in names],
+    )
+    billed = EcoOilUnloadEvent.query.filter(billed_match)
     if db.session.query(billed.exists()).scalar():
         return billed, "billed"
-    return (EcoOilUnloadEvent.query.filter(EcoOilUnloadEvent.customer == client_name),
+    return (EcoOilUnloadEvent.query.filter(EcoOilUnloadEvent.customer.in_(names)),
             "source")
 
 
@@ -41,7 +49,7 @@ def my_documents():
     client = _client_for_request()
     if client is None:
         return jsonify({"error": "no client"}), 403
-    q, mode = _scoped_query(client.name)
+    q, mode = _scoped_query(client)
 
     base = q  # facets reflect the full scope, not the current filter
     if request.args.get("year"):
@@ -86,7 +94,7 @@ def download(event_id):
     client = _client_for_request()
     if client is None:
         return jsonify({"error": "no client"}), 403
-    q, _mode = _scoped_query(client.name)
+    q, _mode = _scoped_query(client)
     ev = q.filter(EcoOilUnloadEvent.id == event_id).first()
     if ev is None:
         return jsonify({"error": "not found"}), 404

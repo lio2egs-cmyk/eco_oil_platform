@@ -12,8 +12,19 @@ class Client(db.Model):
     division = db.Column(db.String(50), nullable=False)  # eco_oil / eco_depot
     client_type = db.Column(db.String(50))  # direct / indirect / agent
     parent_client_id = db.Column(db.Integer, db.ForeignKey("clients.id"), nullable=True)
+    # Additional billed-party spellings this client owns (newline-separated):
+    # former names, absorbed companies, per-site billed names, ריכוז spelling variants.
+    billing_aliases = db.Column(db.Text)
 
     sub_clients = db.relationship("Client", backref=db.backref("parent_client", remote_side="Client.id"), lazy="dynamic")
+
+    def billed_names(self):
+        names = [self.name]
+        for line in (self.billing_aliases or "").splitlines():
+            line = line.strip()
+            if line and line not in names:
+                names.append(line)
+        return names
 
     def __repr__(self):
         return f"<Client {self.name}>"

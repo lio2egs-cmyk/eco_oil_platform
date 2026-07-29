@@ -79,6 +79,13 @@ def create_app():
         except Exception:
             db.session.rollback()
 
+        # Migrate: additional billed-name aliases per client (additive, idempotent)
+        try:
+            db.session.execute(db.text("ALTER TABLE clients ADD COLUMN billing_aliases TEXT"))
+            db.session.commit()
+        except Exception:
+            db.session.rollback()
+
         # Migrate: add email + last_login_at to users
         for stmt in (
             "ALTER TABLE users ADD COLUMN email VARCHAR(200)",

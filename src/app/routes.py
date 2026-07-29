@@ -32,6 +32,7 @@ def create_client():
         name=data["name"],
         division=data["division"],
         client_type=data.get("client_type"),
+        billing_aliases=data.get("billing_aliases"),
     )
 
     db.session.add(client)
@@ -48,7 +49,7 @@ def update_client(client_id):
         return {"error": "Client not found"}, 404
 
     data = request.get_json() or {}
-    for field in ("name", "division", "client_type"):
+    for field in ("name", "division", "client_type", "billing_aliases"):
         if field in data:
             setattr(client, field, data[field])
     db.session.commit()
@@ -60,6 +61,7 @@ def update_client(client_id):
             "name": client.name,
             "division": client.division,
             "client_type": client.client_type,
+            "billing_aliases": client.billing_aliases,
         },
     }, 200
 
