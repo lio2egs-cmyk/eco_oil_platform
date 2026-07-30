@@ -1,4 +1,4 @@
-from flask import Blueprint, request
+from flask import Blueprint, request, current_app
 from datetime import datetime
 from calendar import monthrange
 import secrets
@@ -2902,6 +2902,43 @@ def depot_client_portal(client_id):
         "release_documents": release_docs_data,
     }, 200
 
+def _notify_office_declaration_submitted(client, producer, stream, created, submitted_by):
+    """מייל התראה למשרד על הגשת הצהרת יצרן מהפורטל (לימור 30/07) —
+    טבלה ממוסגרת RTL לפי כלל העיצוב; שולח דרך mailer (Resend/SMTP)."""
+    from .db import User
+    from .mailer import send_office_email
+
+    submitter = db.session.get(User, submitted_by)
+    submitter_email = submitter.email if submitter else "?"
+    th = "border:1px solid #999;background:#e8f0ee;padding:6px 10px;text-align:right;"
+    td = "border:1px solid #999;padding:6px 10px;text-align:right;"
+    rows = "".join(
+        f'<tr><td style="{td}">{d.material_name}</td>'
+        f'<td style="{td}">{d.waste_stream_number}</td>'
+        f'<td style="{td}">{d.annual_quantity_text}</td>'
+        f'<td style="{td}">{d.packaging_type}</td>'
+        f'<td style="{td}">{d.valid_until.strftime("%m/%Y")}</td></tr>'
+        for d in created)
+    permit = (producer.get("permit_number") or "").strip() or "—"
+    html = f"""<div dir="rtl" style="font-family:Arial,sans-serif;">
+<h2 style="color:#2C6E63;">הצהרת יצרן חדשה הוגשה בפורטל</h2>
+<p><b>חברה (חשבון פורטל):</b> {client.name}<br>
+<b>שם העסק בהצהרה:</b> {producer["business_name"].strip()}<br>
+<b>כתובת / אתר:</b> {producer["address"].strip()}<br>
+<b>ח.פ.:</b> {producer["business_id"].strip()} · <b>היתר רעלים:</b> {permit}<br>
+<b>הוגש על ידי:</b> {submitter_email}<br>
+<b>זרם:</b> {stream["label"]}</p>
+<table style="border-collapse:collapse;">
+<tr><th style="{th}">שם זרם</th><th style="{th}">מספר פסולת</th><th style="{th}">כמות שנתית</th><th style="{th}">אריזה</th><th style="{th}">תוקף עד</th></tr>
+{rows}
+</table>
+<p>ההצהרה נשמרה במעמד "הוגשה" וממתינה לטיפולך: בדיקה → הפקה לחתימה → לאחר חתימה עדכון תוקף במסד.</p>
+<p style="color:#777;">נשלח אוטומטית על ידי פורטל אקו-אויל.</p></div>"""
+    send_office_email(
+        subject=f"הצהרת יצרן חדשה בפורטל — {producer['business_name'].strip()}",
+        html=html)
+
+
 @main.route("/eco-oil/portal/declarations", methods=["POST"])
 @jwt_required()
 def submit_portal_declaration():
@@ -3035,6 +3072,12 @@ def submit_portal_declaration():
         db.session.add(declaration)
         created.append(declaration)
     db.session.commit()
+
+    # התראה למשרד על כל הגשה (לימור 30/07) — כשל בשליחה לא מפיל את ההגשה.
+    try:
+        _notify_office_declaration_submitted(client, producer, stream, created, submitted_by)
+    except Exception as exc:
+        current_app.logger.error("declaration office notification failed: %s", exc)
 
     return {
         "message": "ההצהרה נקלטה",
