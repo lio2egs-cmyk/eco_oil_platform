@@ -134,6 +134,26 @@ def normalize_stream(text):
                 best, best_pos = canonical, pos
     return best or "לא מסווג"
 
+# --- "הערות למערכת פורטל" — Limor's dedicated publish-control column (30/07/2026) ---
+# She marks problematic rows herself with a fixed value dictionary; a value here
+# OVERRIDES the note-based classification below. Empty = publish normally.
+#   "לא לפרסם - אין הצהרה" → awaiting_declaration (orange legal notice + button)
+#   "לא לפרסם"             → unpublished (no docs shown, no explanation)
+# Any other value containing "לא לפרסם" withholds rather than leaks; free text
+# without it is ignored for status but reported in the run log.
+PORTAL_COL_ALIASES = ["הערות למערכת פורטל", "הערות למערת פורטל"]
+
+def portal_directive(text):
+    if text is None:
+        return None
+    t = re.sub(r"\s+", " ", str(text)).strip()
+    if not t:
+        return None
+    if "לא לפרסם" in t:
+        return "awaiting_declaration" if "הצהרה" in t else "unpublished"
+    return None
+
+
 def classify_doc_status(notes, stream, stream_norm):
     """Row-level certificate expectation (rules approved by Limor 2026-07-20):
     'awaiting_declaration' — cert withheld until the producer declaration is
@@ -176,7 +196,18 @@ def load_sheet(ws, year, month, log):
         log.write(f"    SKIP {ws.title}: missing key headers {missing}\n")
         return 0
 
+    # locate Limor's publish-control column (2026 sheets; older files lack it)
+    pcol = None
+    for a in PORTAL_COL_ALIASES:
+        for i, h in enumerate(header):
+            if h is not None and str(h).strip() == a:
+                pcol = i
+                break
+        if pcol is not None:
+            break
+
     n, empty_streak = 0, 0
+    ignored_portal_values = []
     for excel_row, row in enumerate(it, start=2):
         if all(v is None or str(v).strip() == "" for v in row):
             empty_streak += 1
@@ -196,13 +227,20 @@ def load_sheet(ws, year, month, log):
             # tolerate stray rows but keep them under their sheet's month
             pass
         stream_norm = normalize_stream(kwargs.get("stream"))
+        pval = row[pcol] if (pcol is not None and pcol < len(row)) else None
+        directive = portal_directive(pval)
+        if pval is not None and str(pval).strip() and directive is None:
+            ignored_portal_values.append(f"r{excel_row}: {str(pval).strip()[:60]}")
         db.session.add(EcoOilUnloadEvent(
             year=year, month=month, source_sheet=ws.title, source_row=excel_row,
             stream_norm=stream_norm,
-            doc_status=classify_doc_status(kwargs.get("notes"), kwargs.get("stream"),
-                                           stream_norm),
+            doc_status=directive or classify_doc_status(
+                kwargs.get("notes"), kwargs.get("stream"), stream_norm),
             **kwargs))
         n += 1
+    if ignored_portal_values:
+        log.write(f"    {ws.title}: portal-column values NOT understood (ignored): "
+                  + "; ".join(ignored_portal_values) + "\n")
     return n
 
 def load_workbook_months(path, year, log, only_sheet=None, month_override=None):

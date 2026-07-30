@@ -18,6 +18,12 @@ ecooil_docs = Blueprint("ecooil_docs", __name__, url_prefix="/eco-oil")
 
 PRESIGN_SECONDS = 300
 
+# doc_status values that withhold the filed documents from the customer
+# (Limor's ריכוז column "הערות למערכת פורטל", 30/07/2026):
+# awaiting_declaration → orange legal notice + declaration button;
+# unpublished → nothing shown, no explanation.
+WITHHELD_STATUSES = {"awaiting_declaration", "unpublished"}
+
 
 def _client_for_request():
     claims = get_jwt()
@@ -84,9 +90,9 @@ def my_documents():
             "code": r.code,
             # Sanction (Limor 29/07): she ALWAYS produces+files the documents and
             # withholds only the SENDING — so a filed PDF must never override the
-            # sanction. awaiting_declaration hides BOTH downloads.
-            "has_pdf": bool(r.pdf_key) and r.doc_status != "awaiting_declaration",
-            "has_manifest": bool(r.manifest_key) and r.doc_status != "awaiting_declaration",
+            # sanction. Withheld statuses hide BOTH downloads.
+            "has_pdf": bool(r.pdf_key) and r.doc_status not in WITHHELD_STATUSES,
+            "has_manifest": bool(r.manifest_key) and r.doc_status not in WITHHELD_STATUSES,
             "doc_status": r.doc_status,
         } for r in rows],
     })
@@ -102,10 +108,10 @@ def download(event_id):
     ev = q.filter(EcoOilUnloadEvent.id == event_id).first()
     if ev is None:
         return jsonify({"error": "not found"}), 404
-    # Sanction enforcement at the API level (not just the UI): a row awaiting a
-    # producer declaration serves NOTHING, even though the files are filed.
-    if ev.doc_status == "awaiting_declaration":
-        return jsonify({"error": "withheld until the producer declaration is settled"}), 403
+    # Sanction enforcement at the API level (not just the UI): a withheld row
+    # serves NOTHING, even though the files are filed.
+    if ev.doc_status in WITHHELD_STATUSES:
+        return jsonify({"error": "withheld"}), 403
     # ?doc=manifest serves the signed טופס מלווה scan; default = the certificate
     key = ev.manifest_key if request.args.get("doc") == "manifest" else ev.pdf_key
     if not key:

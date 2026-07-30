@@ -122,6 +122,9 @@ function docCell(r){
            '<br><a class="btn-decl" href="/declaration">למילוי הצהרת יצרן</a></span>';
   if(r.doc_status==='no_cert_by_design')
     return '<span class="doconly">מתועד — ללא אישור פריקה</span>';
+  if(r.doc_status==='unpublished')
+    // Limor's "לא לפרסם" — docs withheld, deliberately with no explanation.
+    return '<span class="nofile">—</span>';
   return '<span class="nofile">אין קובץ</span>';
 }
 
