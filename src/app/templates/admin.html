@@ -1,0 +1,283 @@
+<!doctype html>
+<html lang="he" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ניהול הפורטל — {{ brand }}</title>
+<style>
+  :root { --green:#5B9E96; --dark:#2E5E58; --bg:#F5F8F7; --line:#D8E4E2; }
+  * { box-sizing:border-box; margin:0; }
+  body { font-family:Arial,"Segoe UI",sans-serif; background:var(--bg); color:#233; }
+  header { background:#fff; border-bottom:3px solid var(--green); padding:14px 22px;
+           display:flex; align-items:center; gap:14px; }
+  header img { height:44px; }
+  header .t { font-size:20px; font-weight:bold; color:var(--dark); }
+  header .who { margin-inline-start:auto; color:#567; font-size:14px; }
+  .wrap { max-width:1080px; margin:22px auto; padding:0 16px; }
+  .card { background:#fff; border-radius:10px; box-shadow:0 1px 4px rgba(0,0,0,.07);
+          padding:16px 18px; margin-bottom:14px; }
+  .card h3 { color:var(--dark); font-size:16px; margin-bottom:10px; }
+  input[type=text],input[type=password],textarea { padding:8px 10px; border:1px solid var(--line);
+          border-radius:8px; font-family:inherit; font-size:14px; background:#fff; width:100%; }
+  textarea { min-height:64px; resize:vertical; }
+  .btn { display:inline-block; background:var(--green); color:#fff; border:none; cursor:pointer;
+         padding:7px 16px; border-radius:8px; font-size:13.5px; font-family:inherit; }
+  .btn:hover { background:var(--dark); }
+  .btn-soft { background:#EDF3F2; color:var(--dark); }
+  .btn-soft:hover { background:#DCE8E6; color:var(--dark); }
+  .btn-danger { background:#C0564F; }
+  .btn-danger:hover { background:#9E423C; }
+  .row { display:flex; gap:10px; align-items:center; flex-wrap:wrap; margin-bottom:10px; }
+  .muted { color:#678; font-size:13px; }
+  .client { border:1px solid var(--line); border-radius:10px; padding:12px 14px; margin-bottom:10px; background:#fff; }
+  .client .name { font-weight:bold; color:var(--dark); font-size:15px; }
+  .client .meta { color:#678; font-size:12.5px; margin:3px 0 8px; }
+  table { width:100%; border-collapse:collapse; margin-top:6px; }
+  th { background:#EDF3F2; color:var(--dark); padding:6px 10px; font-size:12.5px; text-align:right; }
+  td { padding:6px 10px; border-bottom:1px solid var(--line); font-size:13px; }
+  .ok { color:#2E7D32; } .warn { color:#B45309; }
+  .pill { display:inline-block; background:#EDF3F2; color:var(--dark); border-radius:8px;
+          padding:2px 9px; font-size:12px; margin-inline-start:6px; }
+  .toast { position:fixed; bottom:18px; right:18px; background:var(--dark); color:#fff;
+           padding:10px 18px; border-radius:10px; font-size:14px; display:none; z-index:9; }
+  #login { max-width:420px; margin:60px auto; }
+  .hidden { display:none; }
+  .aliascheck { font-size:13px; margin-top:8px; }
+  .aliascheck div { padding:2px 0; }
+</style>
+</head>
+<body>
+<header>
+  <img src="{{ url_for('static', filename=logo) }}" alt="{{ brand }}">
+  <div class="t">ניהול הפורטל</div>
+  <div class="who" id="who"></div>
+</header>
+
+<!-- ── login ── -->
+<div id="login" class="card hidden">
+  <h3>כניסת מנהלת</h3>
+  <p class="muted" style="margin-bottom:10px">הזיני את סיסמת המנהל של הפורטל. המחשב הזה יזכור אותך כחודש.</p>
+  <div class="row"><input type="password" id="pw" placeholder="סיסמה"></div>
+  <div class="row"><button class="btn" onclick="doLogin()">כניסה</button><span class="muted" id="loginMsg"></span></div>
+</div>
+
+<!-- ── main ── -->
+<div class="wrap hidden" id="app">
+  <div class="card">
+    <h3>חברה חדשה</h3>
+    <div class="row"><input type="text" id="newName" placeholder="שם החברה — בדיוק כפי שמופיע בעמודת החיוב בריכוז"></div>
+    <div class="row"><textarea id="newAliases" placeholder="צורות כתיב נוספות (שמות קודמים, אתרים, וריאציות) — שורה לכל צורה. אפשר להשאיר ריק."></textarea></div>
+    <div class="row">
+      <button class="btn btn-soft" onclick="checkNew()">בדקי כמה מסמכים נמצאו</button>
+      <button class="btn" onclick="createClient()">צרי חברה</button>
+      <span class="muted">אחרי היצירה — מוסיפים משתמשים בכרטיס החברה למטה.</span>
+    </div>
+    <div class="aliascheck" id="newCheck"></div>
+  </div>
+
+  <div class="card">
+    <div class="row">
+      <input type="text" id="q" placeholder="חיפוש חברה או מייל…" style="max-width:320px" oninput="render()">
+      <span class="muted" id="stats"></span>
+    </div>
+    <div id="list">טוען…</div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+var CLIENTS=[], USERS=[];
+
+function esc(s){ return (s==null?'':String(s)).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+function toast(m){ var t=document.getElementById('toast'); t.textContent=m; t.style.display='block';
+  clearTimeout(t._h); t._h=setTimeout(function(){ t.style.display='none'; },3200); }
+
+async function api(url, opts){
+  opts=opts||{}; opts.headers=opts.headers||{};
+  opts.headers['Authorization']='Bearer '+localStorage.getItem('eco_access_token');
+  if(opts.body){ opts.headers['Content-Type']='application/json'; }
+  var r=await fetch(url,opts);
+  if(r.status===401){
+    var rt=localStorage.getItem('eco_refresh_token');
+    if(rt){
+      var rr=await fetch('/auth/refresh',{method:'POST',headers:{'Authorization':'Bearer '+rt}});
+      if(rr.ok){
+        localStorage.setItem('eco_access_token',(await rr.json()).access_token||'');
+        opts.headers['Authorization']='Bearer '+localStorage.getItem('eco_access_token');
+        r=await fetch(url,opts);
+      } else { showLogin(); return null; }
+    } else { showLogin(); return null; }
+  }
+  return r;
+}
+
+function showLogin(){
+  document.getElementById('login').classList.remove('hidden');
+  document.getElementById('app').classList.add('hidden');
+}
+async function doLogin(){
+  var pw=document.getElementById('pw').value;
+  if(!pw){ return; }
+  document.getElementById('loginMsg').textContent='רגע…';
+  var r=await fetch('/auth/login',{method:'POST',headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({username:'admin',password:pw})});
+  if(!r.ok){
+    document.getElementById('loginMsg').textContent=
+      r.status===429?'יותר מדי ניסיונות — המתיני כמה דקות':'הסיסמה שגויה, נסי שוב';
+    return;
+  }
+  var d=await r.json();
+  if((d.user||{}).role!=='admin'){ document.getElementById('loginMsg').textContent='חשבון זה אינו מנהל'; return; }
+  localStorage.setItem('eco_access_token',d.access_token);
+  localStorage.setItem('eco_refresh_token',d.refresh_token);
+  document.getElementById('pw').value='';
+  boot();
+}
+
+async function boot(){
+  var me=await api('/auth/me');
+  if(!me||!me.ok){ showLogin(); return; }
+  var mi=await me.json();
+  if(mi.role!=='admin'){ showLogin(); return; }
+  document.getElementById('login').classList.add('hidden');
+  document.getElementById('app').classList.remove('hidden');
+  document.getElementById('who').textContent='מחוברת כמנהלת';
+  await reload();
+}
+
+async function reload(){
+  var rc=await api('/clients'); var ru=await api('/auth/portal-users');
+  if(!rc||!ru||!rc.ok||!ru.ok){ document.getElementById('list').textContent='שגיאה בטעינה'; return; }
+  CLIENTS=(await rc.json()).clients.filter(function(c){ return c.division==='eco_oil'; });
+  USERS=(await ru.json()).users;
+  render();
+}
+
+function fmtDate(iso){
+  if(!iso) return '<span class="warn">עוד לא נכנס/ה</span>';
+  var d=new Date(iso);
+  return '<span class="ok">'+('0'+d.getDate()).slice(-2)+'/'+('0'+(d.getMonth()+1)).slice(-2)+'/'+d.getFullYear()+'</span>';
+}
+
+function render(){
+  var q=(document.getElementById('q').value||'').trim();
+  var byClient={};
+  USERS.forEach(function(u){ (byClient[u.client_id]=byClient[u.client_id]||[]).push(u); });
+  var shown=0, h='';
+  CLIENTS.forEach(function(c){
+    var users=byClient[c.id]||[];
+    if(q && c.name.indexOf(q)<0 && !users.some(function(u){ return u.email.indexOf(q)>=0; })) return;
+    shown++;
+    var aliases=(c.billing_aliases||'').split('\n').map(function(a){return a.trim();}).filter(Boolean);
+    var rows=users.map(function(u){
+      return '<tr><td>'+esc(u.email)+'</td><td>'+fmtDate(u.last_login_at)+'</td>'+
+        '<td><button class="btn btn-soft" onclick="sendLink(\''+esc(u.email)+'\')">שלחי קישור כניסה</button> '+
+        '<button class="btn btn-danger" onclick="delUser('+u.id+',\''+esc(u.email)+'\')">הסירי</button></td></tr>';
+    }).join('');
+    h+='<div class="client" data-cid="'+c.id+'">'+
+       '<div class="name">'+esc(c.name)+
+         (aliases.length?'<span class="pill">'+aliases.length+' צורות כתיב נוספות</span>':'')+
+         '<span class="pill" id="cnt-'+c.id+'">…</span></div>'+
+       '<div class="meta">מס׳ חברה: '+c.id+(aliases.length?' · כתיבים: '+esc(aliases.join(' | ')):'')+'</div>'+
+       (users.length?
+         '<table><tr><th>מייל</th><th>כניסה אחרונה</th><th></th></tr>'+rows+'</table>':
+         '<div class="muted">אין עדיין משתמשים לחברה זו.</div>')+
+       '<div class="row" style="margin-top:8px">'+
+         '<button class="btn" onclick="addUser('+c.id+',\''+esc(c.name)+'\')">הוסיפי משתמש</button>'+
+         '<a class="btn btn-soft" target="_blank" href="/documents?client_id='+c.id+'">מה הלקוח רואה</a>'+
+         '<button class="btn btn-soft" onclick="editAliases('+c.id+')">עריכת צורות כתיב</button>'+
+       '</div></div>';
+  });
+  document.getElementById('stats').textContent=shown+' חברות · '+USERS.length+' משתמשים בסה"כ';
+  document.getElementById('list').innerHTML=h||'<div class="muted">לא נמצאו חברות</div>';
+  CLIENTS.forEach(function(c){ lazyCount(c.id); });
+}
+
+var COUNTS={};
+async function lazyCount(cid){
+  var el=document.getElementById('cnt-'+cid);
+  if(!el) return;
+  if(COUNTS[cid]!=null){ el.textContent=COUNTS[cid]+' מסמכים'; return; }
+  var r=await api('/eco-oil/admin/billed-count?client_id='+cid);
+  if(r&&r.ok){ var d=await r.json(); COUNTS[cid]=d.count; el.textContent=d.count+' מסמכים'; }
+  else el.textContent='';
+}
+
+async function checkNew(){
+  var name=document.getElementById('newName').value.trim();
+  var aliases=document.getElementById('newAliases').value.split('\n').map(function(a){return a.trim();}).filter(Boolean);
+  if(!name){ toast('מלאי קודם את שם החברה'); return; }
+  var out=document.getElementById('newCheck'); out.innerHTML='בודקת…';
+  var h='';
+  var names=[name].concat(aliases);
+  for(var i=0;i<names.length;i++){
+    var r=await api('/eco-oil/admin/billed-count?name='+encodeURIComponent(names[i]));
+    var cnt=(r&&r.ok)?(await r.json()).count:'?';
+    h+='<div>'+(cnt>0?'✓':'✗')+' "'+esc(names[i])+'" — <b>'+cnt+'</b> מסמכים'+
+       (cnt===0?' <span class="warn">(0 — בדקי אם הכתיב מדויק כמו בריכוז)</span>':'')+'</div>';
+  }
+  out.innerHTML=h;
+}
+
+async function createClient(){
+  var name=document.getElementById('newName').value.trim();
+  var aliases=document.getElementById('newAliases').value.split('\n').map(function(a){return a.trim();}).filter(Boolean);
+  if(!name){ toast('מלאי את שם החברה'); return; }
+  if(CLIENTS.some(function(c){ return c.name===name; })){ toast('חברה בשם הזה כבר קיימת'); return; }
+  var r=await api('/clients',{method:'POST',body:JSON.stringify(
+    {name:name,division:'eco_oil',client_type:'direct',billing_aliases:aliases.join('\n')||null})});
+  if(!r||!r.ok){ toast('שגיאה ביצירת החברה'); return; }
+  toast('החברה נוצרה ✓ עכשיו הוסיפי לה משתמש');
+  document.getElementById('newName').value=''; document.getElementById('newAliases').value='';
+  document.getElementById('newCheck').innerHTML='';
+  await reload();
+}
+
+async function addUser(cid,cname){
+  var email=prompt('המייל של איש הקשר בחברת "'+cname+'":');
+  if(!email) return;
+  email=email.trim().toLowerCase();
+  if(email.indexOf('@')<1){ toast('כתובת מייל לא תקינה'); return; }
+  var r=await api('/auth/portal-users',{method:'POST',
+    body:JSON.stringify({email:email,role:'eco_oil_client',client_id:cid})});
+  if(r&&r.status===409){ toast('המייל הזה כבר רשום במערכת'); return; }
+  if(!r||!r.ok){ toast('שגיאה בהוספת המשתמש'); return; }
+  toast(email+' נוסף ✓ אפשר לשלוח הזמנה');
+  await reload();
+}
+
+async function delUser(uid,email){
+  if(!confirm('להסיר את '+email+' מהפורטל? הוא לא יוכל להיכנס יותר.')) return;
+  var r=await api('/auth/portal-users/'+uid,{method:'DELETE'});
+  if(!r||!r.ok){ toast('שגיאה בהסרה'); return; }
+  toast(email+' הוסר');
+  await reload();
+}
+
+async function sendLink(email){
+  if(!confirm('לשלוח ל-'+email+' מייל עם קישור כניסה לפורטל?\n(אפשר גם פשוט לשלוח לו הודעה אישית עם כתובת הפורטל — כמו שאת עושה היום)')) return;
+  var r=await fetch('/auth/request-magic-link',{method:'POST',
+    headers:{'Content-Type':'application/json'},body:JSON.stringify({email:email})});
+  if(r.ok) toast('קישור כניסה נשלח ל-'+email);
+  else toast('השליחה לא הצליחה, נסי שוב עוד רגע');
+}
+
+async function editAliases(cid){
+  var c=CLIENTS.find(function(x){ return x.id===cid; });
+  var cur=c.billing_aliases||'';
+  var v=prompt('צורות כתיב נוספות ל"'+c.name+'" (הפרידי ב-|):',cur.split('\n').filter(Boolean).join(' | '));
+  if(v===null) return;
+  var aliases=v.split('|').map(function(a){ return a.trim(); }).filter(Boolean);
+  var r=await api('/clients/'+cid,{method:'PUT',body:JSON.stringify({billing_aliases:aliases.join('\n')||null})});
+  if(!r||!r.ok){ toast('שגיאה בעדכון'); return; }
+  COUNTS[cid]=null;
+  toast('צורות הכתיב עודכנו ✓');
+  await reload();
+}
+
+document.getElementById('pw').addEventListener('keydown',function(e){ if(e.key==='Enter') doLogin(); });
+boot();
+</script>
+</body>
+</html>

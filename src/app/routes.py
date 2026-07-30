@@ -77,6 +77,7 @@ def list_clients():
                 "name": c.name,
                 "division": c.division,
                 "client_type": c.client_type,
+                "billing_aliases": c.billing_aliases,
             }
             for c in clients
         ]

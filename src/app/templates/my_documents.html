@@ -79,11 +79,15 @@ async function apiGet(url){
 
 function esc(s){ return (s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
 
+// admin preview: /documents?client_id=N shows that client's view (server enforces admin role)
+var ADMIN_CID=new URLSearchParams(location.search).get('client_id');
+
 async function load(first){
   var p=new URLSearchParams();
   var y=document.getElementById('fYear').value, s=document.getElementById('fStream').value,
       q=document.getElementById('fQ').value.trim();
   if(y)p.set('year',y); if(s)p.set('stream',s); if(q)p.set('q',q);
+  if(ADMIN_CID)p.set('client_id',ADMIN_CID);
   var r=await apiGet('/eco-oil/my-documents?'+p.toString());
   if(!r||!r.ok){ document.getElementById('content').innerHTML='<div class="empty">שגיאה בטעינה</div>'; return; }
   var d=await r.json();
@@ -129,7 +133,10 @@ function docCell(r){
 }
 
 async function dl(id,doc){
-  var url='/eco-oil/my-documents/'+id+'/download'+(doc?'?doc='+doc:'');
+  var qp=new URLSearchParams();
+  if(doc)qp.set('doc',doc);
+  if(ADMIN_CID)qp.set('client_id',ADMIN_CID);
+  var url='/eco-oil/my-documents/'+id+'/download'+(qp.toString()?'?'+qp.toString():'');
   var r=await apiGet(url);
   if(!r||!r.ok){ alert('הקובץ אינו זמין כרגע'); return; }
   var d=await r.json();

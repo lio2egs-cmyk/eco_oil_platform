@@ -49,6 +49,29 @@ def _scoped_query(client):
             "source")
 
 
+@ecooil_docs.route("/admin/billed-count", methods=["GET"])
+@jwt_required()
+def billed_count():
+    """Admin screen helper: how many unload rows a billed-name spelling (or a
+    whole client incl. aliases) matches — catches spelling mistakes instantly."""
+    if get_jwt().get("role") != "admin":
+        return jsonify({"error": "admin only"}), 403
+    name = (request.args.get("name") or "").strip()
+    if name:
+        cnt = EcoOilUnloadEvent.query.filter(or_(
+            EcoOilUnloadEvent.billed_to == name,
+            EcoOilUnloadEvent.billed_to.like(name + " (%"))).count()
+        return jsonify({"name": name, "count": cnt})
+    cid = request.args.get("client_id")
+    if cid:
+        client = db.session.get(Client, int(cid))
+        if client is None:
+            return jsonify({"error": "client not found"}), 404
+        q, mode = _scoped_query(client)
+        return jsonify({"client_id": client.id, "count": q.count(), "mode": mode})
+    return jsonify({"error": "name or client_id required"}), 400
+
+
 @ecooil_docs.route("/my-documents", methods=["GET"])
 @jwt_required()
 def my_documents():

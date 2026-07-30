@@ -57,6 +57,13 @@ def declaration_page():
     )
 
 
+@web.route("/admin")
+def admin_page():
+    """מסך הניהול של לימור — יצירת חברות ומשתמשי פורטל (אקו-אויל; שלב 5).
+    ההרשאה בצד השרת: כל ה-API שהמסך קורא דורש תפקיד admin."""
+    return render_template("admin.html", **_brand_for_host())
+
+
 @web.route("/sw.js")
 def field_sw():
     """ה-service worker חייב להיות מוגש משורש האתר כדי לכסות את /terminal."""
