@@ -63,13 +63,16 @@
 
 <!-- ── main ── -->
 <div class="wrap hidden" id="app">
-  <div class="card">
-    <h3>חברה חדשה</h3>
+  <!-- the everyday action (search) comes FIRST; creating a company is rare and
+       hides behind a button — Limor typed a search into the creation form (02/08) -->
+  <div class="card hidden" id="newCard">
+    <h3>הקמת חברה חדשה</h3>
     <div class="row"><input type="text" id="newName" placeholder="שם החברה — בדיוק כפי שמופיע בעמודת החיוב בריכוז"></div>
     <div class="row"><textarea id="newAliases" placeholder="צורות כתיב נוספות (שמות קודמים, אתרים, וריאציות) — שורה לכל צורה. אפשר להשאיר ריק."></textarea></div>
     <div class="row">
       <button class="btn btn-soft" onclick="checkNew()">בדקי כמה מסמכים נמצאו</button>
       <button class="btn" onclick="createClient()">צרי חברה</button>
+      <button class="btn btn-soft" onclick="toggleNewCard()">סגרי בלי ליצור</button>
       <span class="muted">אחרי היצירה — מוסיפים משתמשים בכרטיס החברה למטה.</span>
     </div>
     <div class="aliascheck" id="newCheck"></div>
@@ -77,8 +80,9 @@
 
   <div class="card">
     <div class="row">
-      <input type="text" id="q" placeholder="חיפוש חברה או מייל…" style="max-width:320px" oninput="render()">
+      <input type="text" id="q" placeholder="חיפוש חברה או מייל — הקלידי והרשימה תצטמצם מיד" style="max-width:360px" oninput="render()">
       <span class="muted" id="stats"></span>
+      <button class="btn btn-soft" style="margin-inline-start:auto" onclick="toggleNewCard()">+ הקמת חברה חדשה</button>
     </div>
     <div id="list">טוען…</div>
   </div>
