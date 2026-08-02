@@ -449,6 +449,7 @@ def list_portal_users():
         "client_id": u.client_id, "client_name": clients.get(u.client_id),
         "last_login_at": u.last_login_at.isoformat() if u.last_login_at else None,
         "weekly_reminder": bool(u.weekly_reminder),
+        "extra_client_ids": [i for i in u.allowed_client_ids() if i != u.client_id],
     } for u in users])
 
 
@@ -466,9 +467,29 @@ def update_portal_user(user_id):
     data = request.get_json(silent=True) or {}
     if "weekly_reminder" in data:
         user.weekly_reminder = bool(data["weekly_reminder"])
+    if "extra_client_ids" in data:
+        # Multi-company user (Limor 02/08): validate every id is a real
+        # eco_oil client and not the primary; store comma-separated.
+        ids = data["extra_client_ids"] or []
+        if not isinstance(ids, list):
+            return jsonify(error="extra_client_ids must be a list"), 400
+        clean = []
+        for i in ids:
+            try:
+                i = int(i)
+            except (TypeError, ValueError):
+                return jsonify(error=f"bad client id: {i}"), 400
+            c = db.session.get(Client, i)
+            if c is None or c.division != "eco_oil":
+                return jsonify(error=f"client {i} not found"), 404
+            if i != user.client_id and i not in clean:
+                clean.append(i)
+        user.extra_client_ids = ",".join(str(i) for i in clean) or None
     db.session.commit()
     return jsonify(id=user.id, email=user.email,
-                   weekly_reminder=bool(user.weekly_reminder)), 200
+                   weekly_reminder=bool(user.weekly_reminder),
+                   extra_client_ids=[i for i in user.allowed_client_ids()
+                                     if i != user.client_id]), 200
 
 
 @auth.route("/portal-users/<int:user_id>", methods=["DELETE"])

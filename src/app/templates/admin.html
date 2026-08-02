@@ -176,10 +176,14 @@ function render(){
     var aliases=(c.billing_aliases||'').split('\n').map(function(a){return a.trim();}).filter(Boolean);
     var rows=users.map(function(u){
       var rem=u.weekly_reminder;
-      return '<tr><td>'+esc(u.email)+'</td><td>'+fmtDate(u.last_login_at)+'</td>'+
+      var extras=(u.extra_client_ids||[]).map(clientName).join(' · ');
+      return '<tr><td>'+esc(u.email)+
+        (extras?'<div class="muted" style="font-size:12px">רואה גם: '+esc(extras)+'</div>':'')+
+        '</td><td>'+fmtDate(u.last_login_at)+'</td>'+
         '<td><button class="btn '+(rem?'':'btn-soft')+'" title="מייל תזכורת קצר בכל יום חמישי — רק מספרים וקישור לפורטל, בלי מסמכים. נשלח רק אם היו פעולות באותו שבוע." '+
         'onclick="toggleRem('+u.id+','+(rem?1:0)+',\''+esc(u.email)+'\')">'+(rem?'🔔 פועלת':'🔕 כבויה')+'</button></td>'+
         '<td><button class="btn btn-soft" onclick="sendLink(\''+esc(u.email)+'\')">שלחי קישור כניסה</button> '+
+        '<button class="btn btn-soft" title="משתמש שרואה כמה חברות בפורטל (מתג מעבר) — למשל לאורה עם שתי חברות גדות" onclick="editExtras('+u.id+',\''+esc(u.email)+'\')">חברות נוספות</button> '+
         '<button class="btn btn-danger" onclick="delUser('+u.id+',\''+esc(u.email)+'\')">הסירי</button></td></tr>';
     }).join('');
     h+='<div class="client" data-cid="'+c.id+'">'+
@@ -259,6 +263,38 @@ async function delUser(uid,email){
   var r=await api('/auth/portal-users/'+uid,{method:'DELETE'});
   if(!r||!r.ok){ toast('שגיאה בהסרה'); return; }
   toast(email+' הוסר');
+  await reload();
+}
+
+function clientName(id){
+  var c=CLIENTS.find(function(x){ return x.id===id; });
+  return c?c.name:('חברה #'+id);
+}
+
+async function editExtras(uid,email){
+  var u=USERS.find(function(x){ return x.id===uid; });
+  if(!u) return;
+  var curNames=(u.extra_client_ids||[]).map(clientName).join(' | ');
+  var v=prompt('אילו חברות נוספות '+email+' רואה בפורטל, בנוסף ל"'+clientName(u.client_id)+'"?\n'+
+    'הקלידי את שמות החברות מופרדים ב-| (אפשר שם חלקי אם הוא חד-משמעי).\nמחיקת הכול = ניקוי השיוכים הנוספים.', curNames);
+  if(v===null) return;
+  var names=v.split('|').map(function(a){ return a.trim(); }).filter(Boolean);
+  var ids=[], missing=[], ambiguous=[];
+  names.forEach(function(n){
+    var c=CLIENTS.find(function(x){ return x.name===n; });
+    if(!c){
+      var hits=CLIENTS.filter(function(x){ return x.name.indexOf(n)>=0; });
+      if(hits.length===1) c=hits[0];
+      else if(hits.length>1){ ambiguous.push(n+' ('+hits.length+' התאמות)'); return; }
+    }
+    if(c){ if(c.id!==u.client_id && ids.indexOf(c.id)<0) ids.push(c.id); }
+    else missing.push(n);
+  });
+  if(missing.length){ toast('לא נמצאה חברה בשם: '+missing.join(', ')); return; }
+  if(ambiguous.length){ toast('שם לא חד-משמעי: '+ambiguous.join(', ')+' — דייקי את השם'); return; }
+  var r=await api('/auth/portal-users/'+uid,{method:'PATCH',body:JSON.stringify({extra_client_ids:ids})});
+  if(!r||!r.ok){ toast('שגיאה בעדכון החברות הנוספות'); return; }
+  toast(ids.length?email+' רואה עכשיו '+(ids.length+1)+' חברות ✓':'השיוכים הנוספים נוקו');
   await reload();
 }
 

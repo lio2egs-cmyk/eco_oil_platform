@@ -45,6 +45,21 @@ class User(db.Model):
     # Opt-in Thursday reminder email (Laura's request via Limor, 02/08/2026):
     # a short "your week's documents are in the portal" nudge, no attachments.
     weekly_reminder = db.Column(db.Boolean, default=False)
+    # Multi-company user (Limor 02/08/2026): comma-separated ADDITIONAL client
+    # ids this login may view (e.g. Laura = both Gadot companies, Shulamit =
+    # Gilboa + Beit-El). The portal shows a company switcher; client_id above
+    # stays the primary/default company. NOT for same-company spelling
+    # variants — those belong in Client.billing_aliases.
+    extra_client_ids = db.Column(db.String(200))
+
+    def allowed_client_ids(self):
+        """Primary + extra client ids this user may view, primary first."""
+        ids = [self.client_id] if self.client_id else []
+        for part in (self.extra_client_ids or "").split(","):
+            part = part.strip()
+            if part.isdigit() and int(part) not in ids:
+                ids.append(int(part))
+        return ids
 
     client = db.relationship("Client", backref="users")
 

@@ -9,10 +9,10 @@ URLs — the bucket stays private.
 """
 import os
 from flask import Blueprint, jsonify, request
-from flask_jwt_extended import jwt_required, get_jwt
+from flask_jwt_extended import jwt_required, get_jwt, get_jwt_identity
 from sqlalchemy import func, or_
 
-from .db import db, Client, EcoOilUnloadEvent
+from .db import db, Client, User, EcoOilUnloadEvent
 
 ecooil_docs = Blueprint("ecooil_docs", __name__, url_prefix="/eco-oil")
 
@@ -26,11 +26,37 @@ WITHHELD_STATUSES = {"awaiting_declaration", "unpublished"}
 
 
 def _client_for_request():
+    """The client whose documents this request may see.
+
+    Admin: any client via ?client_id (preview). Customer: their primary client,
+    or — for multi-company users (Limor 02/08) — any client from their
+    allowed_client_ids() via ?client_id (the portal's company switcher).
+    A client_id outside the allowed set falls back to the primary, never leaks."""
     claims = get_jwt()
     client_id = claims.get("client_id")
-    if claims.get("role") == "admin" and request.args.get("client_id"):
-        client_id = int(request.args["client_id"])
+    requested = request.args.get("client_id")
+    if claims.get("role") == "admin":
+        if requested:
+            client_id = int(requested)
+    elif requested and requested.isdigit():
+        user = db.session.get(User, int(get_jwt_identity()))
+        if user and int(requested) in user.allowed_client_ids():
+            client_id = int(requested)
     return db.session.get(Client, client_id) if client_id else None
+
+
+def _companies_for_user(claims):
+    """[{id, name}] the logged-in customer may switch between (empty for admin)."""
+    if claims.get("role") == "admin":
+        return []
+    user = db.session.get(User, int(get_jwt_identity()))
+    if user is None:
+        return []
+    ids = user.allowed_client_ids()
+    if len(ids) < 2:
+        return []
+    clients = {c.id: c for c in Client.query.filter(Client.id.in_(ids)).all()}
+    return [{"id": i, "name": clients[i].name} for i in ids if i in clients]
 
 
 def _scoped_query(client):
@@ -100,6 +126,8 @@ def my_documents():
     return jsonify({
         "mode": mode,
         "client_name": client.name,
+        "client_id": client.id,
+        "companies": _companies_for_user(get_jwt()),
         "years": years,
         "streams": streams,
         "rows": [{

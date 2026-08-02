@@ -185,16 +185,29 @@ def _week_counts(client, start, end):
     return len(rows), certs, manifests
 
 
-def _weekly_reminder_email(client_name, start, end, events, certs, manifests):
+def _weekly_reminder_email(sections, start, end):
+    """sections = [(client_name, events, certs, manifests)] — one per company
+    with activity. Multi-company users (e.g. Laura's two Gadot companies) get
+    ONE email covering all of them — the unified weekly anchor she asked for."""
     period = f"{start.strftime('%d/%m/%Y')} — {end.strftime('%d/%m/%Y')}"
     subject = "עדכון שבועי — פורטל הלקוחות של אקו-אויל"
+    if len(sections) == 1:
+        name, events, certs, manifests = sections[0]
+        body = f"""<p>בשבוע שבין <b>{period}</b> נרשמו עבורכם ({name}) במערכת אקו-אויל
+<b>{events} פעולות פריקה</b>.<br>
+בפורטל הלקוחות זמינים כעת עבור השבוע הזה: <b>{certs} אישורי פריקה</b>
+ו-<b>{manifests} טופסי מלווה חתומים</b>.</p>"""
+    else:
+        lines = "".join(
+            f"<li style='margin-bottom:6px;'><b>{name}</b> — {events} פעולות פריקה · "
+            f"{certs} אישורי פריקה · {manifests} טופסי מלווה זמינים בפורטל</li>"
+            for name, events, certs, manifests in sections)
+        body = f"""<p>בשבוע שבין <b>{period}</b> נרשמו עבורכם במערכת אקו-אויל
+פעולות בחברות הבאות:</p><ul style="padding-inline-start:18px;">{lines}</ul>"""
     html = f"""<div dir="rtl" style="font-family:Arial,sans-serif;font-size:15px;color:#222;line-height:1.7;">
 <h2 style="color:#2C6E63;">העדכון השבועי שלכם מאקו-אויל</h2>
 <p>שלום רב,</p>
-<p>בשבוע שבין <b>{period}</b> נרשמו עבורכם ({client_name}) במערכת אקו-אויל
-<b>{events} פעולות פריקה</b>.<br>
-בפורטל הלקוחות זמינים כעת עבור השבוע הזה: <b>{certs} אישורי פריקה</b>
-ו-<b>{manifests} טופסי מלווה חתומים</b>.</p>
+{body}
 <p style="margin:22px 0;">
 <a href="{PORTAL_URL}" style="background:#5B9E96;color:#fff;text-decoration:none;
 padding:12px 28px;border-radius:8px;font-weight:bold;">כניסה לפורטל</a></p>
@@ -223,22 +236,29 @@ def weekly_portal_reminder():
     sent, skipped_empty, skipped_other, errors = [], [], [], []
     counts_cache = {}
     for u in users:
-        client = db.session.get(Client, u.client_id) if u.client_id else None
-        if client is None or client.division != "eco_oil":
+        # Multi-company users (Limor 02/08): one email covers ALL their companies
+        clients = [c for c in (db.session.get(Client, cid) for cid in u.allowed_client_ids())
+                   if c is not None and c.division == "eco_oil"]
+        if not clients:
             skipped_other.append((u.email, "חשבון ללא חברת אקו-אויל (דיפו עדיין לא נתמך)"))
             continue
-        if client.id not in counts_cache:
-            counts_cache[client.id] = _week_counts(client, start, end)
-        events, certs, manifests = counts_cache[client.id]
-        if events == 0:
-            skipped_empty.append((u.email, client.name))
+        sections = []
+        for client in clients:
+            if client.id not in counts_cache:
+                counts_cache[client.id] = _week_counts(client, start, end)
+            events, certs, manifests = counts_cache[client.id]
+            if events:
+                sections.append((client.name, events, certs, manifests))
+        if not sections:
+            skipped_empty.append((u.email, " + ".join(c.name for c in clients)))
             continue
-        subject, html = _weekly_reminder_email(client.name, start, end,
-                                               events, certs, manifests)
+        subject, html = _weekly_reminder_email(sections, start, end)
         if send_office_email(subject=subject, html=html, to=u.email):
-            sent.append((u.email, client.name, events, certs, manifests))
+            names = " + ".join(s[0] for s in sections)
+            sent.append((u.email, names, sum(s[1] for s in sections),
+                         sum(s[2] for s in sections), sum(s[3] for s in sections)))
         else:
-            errors.append((u.email, client.name))
+            errors.append((u.email, " + ".join(s[0] for s in sections)))
 
     # Office oversight summary — only when the mechanism had anyone to consider,
     # so quiet weeks don't add inbox noise on top of the Sunday digest.

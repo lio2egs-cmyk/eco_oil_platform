@@ -38,6 +38,10 @@
   .doconly { color:#667; font-size:12px; background:#E9EDEC; padding:4px 10px; border-radius:8px; }
   .back { color:var(--dark); text-decoration:none; font-size:14px; }
   .empty { text-align:center; padding:40px; color:#678; background:#fff; border-radius:10px; }
+  .tabs { display:none; gap:8px; flex-wrap:wrap; margin-bottom:12px; }
+  .tab { background:#fff; border:1.5px solid var(--line); color:var(--dark); cursor:pointer;
+         padding:8px 18px; border-radius:10px; font-size:14px; font-family:inherit; }
+  .tab.on { background:var(--green); border-color:var(--green); color:#fff; font-weight:bold; }
   @media (max-width:700px){ .hide-m { display:none; } }
 </style>
 </head>
@@ -49,6 +53,8 @@
   <a class="back" href="/portal">→ חזרה לעמוד הראשי</a>
 </header>
 <div class="wrap">
+  <!-- multi-company users (Limor 02/08): switch between their companies -->
+  <div class="tabs" id="companyTabs"></div>
   <div class="filters">
     <select id="fYear"><option value="">כל השנים</option></select>
     <select id="fStream"><option value="">כל הזרמים</option></select>
@@ -79,20 +85,40 @@ async function apiGet(url){
 
 function esc(s){ return (s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
 
-// admin preview: /documents?client_id=N shows that client's view (server enforces admin role)
-var ADMIN_CID=new URLSearchParams(location.search).get('client_id');
+// CID = which company's documents to show. Starts from the URL (admin preview);
+// multi-company users change it via the company tabs (server validates ownership).
+var CID=new URLSearchParams(location.search).get('client_id');
+
+function renderTabs(companies, currentId){
+  var el=document.getElementById('companyTabs');
+  if(!companies||companies.length<2){ el.style.display='none'; return; }
+  el.style.display='flex';
+  el.innerHTML=companies.map(function(c){
+    return '<button class="tab'+(c.id===currentId?' on':'')+'" onclick="switchCompany('+c.id+')">'+esc(c.name)+'</button>';
+  }).join('');
+}
+
+function switchCompany(id){
+  CID=String(id);
+  // facets (years/streams) belong to the company — rebuild them on switch
+  document.getElementById('fYear').innerHTML='<option value="">כל השנים</option>';
+  document.getElementById('fStream').innerHTML='<option value="">כל הזרמים</option>';
+  document.getElementById('fQ').value='';
+  load(true);
+}
 
 async function load(first){
   var p=new URLSearchParams();
   var y=document.getElementById('fYear').value, s=document.getElementById('fStream').value,
       q=document.getElementById('fQ').value.trim();
   if(y)p.set('year',y); if(s)p.set('stream',s); if(q)p.set('q',q);
-  if(ADMIN_CID)p.set('client_id',ADMIN_CID);
+  if(CID)p.set('client_id',CID);
   var r=await apiGet('/eco-oil/my-documents?'+p.toString());
   if(!r||!r.ok){ document.getElementById('content').innerHTML='<div class="empty">שגיאה בטעינה</div>'; return; }
   var d=await r.json();
   MODE=d.mode;
   document.getElementById('who').textContent=d.client_name;
+  renderTabs(d.companies, d.client_id);
   if(first){
     d.years.forEach(function(v){ var o=document.createElement('option'); o.value=v; o.textContent=v;
       document.getElementById('fYear').appendChild(o); });
@@ -135,7 +161,7 @@ function docCell(r){
 async function dl(id,doc){
   var qp=new URLSearchParams();
   if(doc)qp.set('doc',doc);
-  if(ADMIN_CID)qp.set('client_id',ADMIN_CID);
+  if(CID)qp.set('client_id',CID);
   var url='/eco-oil/my-documents/'+id+'/download'+(qp.toString()?'?'+qp.toString():'');
   var r=await apiGet(url);
   if(!r||!r.ok){ alert('הקובץ אינו זמין כרגע'); return; }

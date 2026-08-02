@@ -94,6 +94,7 @@ def create_app():
             "CREATE UNIQUE INDEX IF NOT EXISTS ix_users_email ON users(email)",
             "ALTER TABLE users ADD COLUMN last_login_at DATETIME",
             "ALTER TABLE users ADD COLUMN weekly_reminder BOOLEAN DEFAULT FALSE",
+            "ALTER TABLE users ADD COLUMN extra_client_ids VARCHAR(200)",
         ):
             try:
                 db.session.execute(db.text(stmt))
