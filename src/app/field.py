@@ -290,6 +290,19 @@ def bridge_instructions():
     return jsonify({"ok": True})
 
 
+@field.route("/bridge/board", methods=["GET"])
+@bridge_required
+def bridge_board_get():
+    """Read back the current board blob — office-side monitoring (02/08/2026):
+    lets the office verify remotely what the bridge last pushed (and when),
+    e.g. to prove a bridge restart actually picked up new board code."""
+    b = db.session.get(FieldBoard, 1)
+    if b is None or not b.data:
+        return jsonify({"board": None, "updated_at": None})
+    return jsonify({"board": json.loads(b.data),
+                    "updated_at": b.updated_at.isoformat() if b.updated_at else None})
+
+
 @field.route("/bridge/board", methods=["POST"])
 @bridge_required
 def bridge_board():
