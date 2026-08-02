@@ -42,6 +42,9 @@ class User(db.Model):
     is_active = db.Column(db.Boolean, default=True)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     last_login_at = db.Column(db.DateTime, nullable=True)
+    # Opt-in Thursday reminder email (Laura's request via Limor, 02/08/2026):
+    # a short "your week's documents are in the portal" nudge, no attachments.
+    weekly_reminder = db.Column(db.Boolean, default=False)
 
     client = db.relationship("Client", backref="users")
 

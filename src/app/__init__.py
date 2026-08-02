@@ -93,6 +93,7 @@ def create_app():
             "ALTER TABLE users ADD COLUMN email VARCHAR(200)",
             "CREATE UNIQUE INDEX IF NOT EXISTS ix_users_email ON users(email)",
             "ALTER TABLE users ADD COLUMN last_login_at DATETIME",
+            "ALTER TABLE users ADD COLUMN weekly_reminder BOOLEAN DEFAULT FALSE",
         ):
             try:
                 db.session.execute(db.text(stmt))

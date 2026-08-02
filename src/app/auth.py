@@ -448,7 +448,27 @@ def list_portal_users():
         "id": u.id, "email": u.email, "role": u.role,
         "client_id": u.client_id, "client_name": clients.get(u.client_id),
         "last_login_at": u.last_login_at.isoformat() if u.last_login_at else None,
+        "weekly_reminder": bool(u.weekly_reminder),
     } for u in users])
+
+
+@auth.route("/portal-users/<int:user_id>", methods=["PATCH"])
+@admin_required
+def update_portal_user(user_id):
+    """Admin-only: per-user settings. Currently just the opt-in Thursday
+    reminder flag (weekly_reminder) — Limor toggles it in the admin screen
+    for customers who asked for the weekly anchor email."""
+    user = db.session.get(User, user_id)
+    if user is None:
+        return jsonify(error="User not found"), 404
+    if user.role not in PORTAL_ROLES:
+        return jsonify(error="Only portal users can be updated"), 403
+    data = request.get_json(silent=True) or {}
+    if "weekly_reminder" in data:
+        user.weekly_reminder = bool(data["weekly_reminder"])
+    db.session.commit()
+    return jsonify(id=user.id, email=user.email,
+                   weekly_reminder=bool(user.weekly_reminder)), 200
 
 
 @auth.route("/portal-users/<int:user_id>", methods=["DELETE"])

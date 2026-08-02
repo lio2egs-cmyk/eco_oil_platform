@@ -171,7 +171,10 @@ function render(){
     shown++;
     var aliases=(c.billing_aliases||'').split('\n').map(function(a){return a.trim();}).filter(Boolean);
     var rows=users.map(function(u){
+      var rem=u.weekly_reminder;
       return '<tr><td>'+esc(u.email)+'</td><td>'+fmtDate(u.last_login_at)+'</td>'+
+        '<td><button class="btn '+(rem?'':'btn-soft')+'" title="מייל תזכורת קצר בכל יום חמישי — רק מספרים וקישור לפורטל, בלי מסמכים. נשלח רק אם היו פעולות באותו שבוע." '+
+        'onclick="toggleRem('+u.id+','+(rem?1:0)+',\''+esc(u.email)+'\')">'+(rem?'🔔 פועלת':'🔕 כבויה')+'</button></td>'+
         '<td><button class="btn btn-soft" onclick="sendLink(\''+esc(u.email)+'\')">שלחי קישור כניסה</button> '+
         '<button class="btn btn-danger" onclick="delUser('+u.id+',\''+esc(u.email)+'\')">הסירי</button></td></tr>';
     }).join('');
@@ -181,7 +184,7 @@ function render(){
          '<span class="pill" id="cnt-'+c.id+'">…</span></div>'+
        '<div class="meta">מס׳ חברה: '+c.id+(aliases.length?' · כתיבים: '+esc(aliases.join(' | ')):'')+'</div>'+
        (users.length?
-         '<table><tr><th>מייל</th><th>כניסה אחרונה</th><th></th></tr>'+rows+'</table>':
+         '<table><tr><th>מייל</th><th>כניסה אחרונה</th><th>תזכורת חמישי</th><th></th></tr>'+rows+'</table>':
          '<div class="muted">אין עדיין משתמשים לחברה זו.</div>')+
        '<div class="row" style="margin-top:8px">'+
          '<button class="btn" onclick="addUser('+c.id+',\''+esc(c.name)+'\')">הוסיפי משתמש</button>'+
@@ -252,6 +255,14 @@ async function delUser(uid,email){
   var r=await api('/auth/portal-users/'+uid,{method:'DELETE'});
   if(!r||!r.ok){ toast('שגיאה בהסרה'); return; }
   toast(email+' הוסר');
+  await reload();
+}
+
+async function toggleRem(uid,cur,email){
+  if(!cur && !confirm('להפעיל ל-'+email+' תזכורת שבועית בכל יום חמישי?\nמייל קצר עם מספרי הפעולות של השבוע וקישור לפורטל — בלי מסמכים מצורפים. בשבוע ללא פעילות לא יישלח כלום.')) return;
+  var r=await api('/auth/portal-users/'+uid,{method:'PATCH',body:JSON.stringify({weekly_reminder:!cur})});
+  if(!r||!r.ok){ toast('שגיאה בעדכון התזכורת'); return; }
+  toast(cur?'תזכורת יום חמישי כובתה ל-'+email:'תזכורת יום חמישי הופעלה ל-'+email+' ✓');
   await reload();
 }
 

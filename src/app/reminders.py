@@ -12,11 +12,13 @@ customers/transporters is a later stage (needs Yoav-approved wording).
 Auth: ECOOIL_BRIDGE_TOKEN bearer (same pattern as the weekly digest).
 """
 import re
+from datetime import date, timedelta
 
 from flask import Blueprint, jsonify, request
 
-from .db import db, User, Client
+from .db import db, User, Client, EcoOilUnloadEvent
 from .ecooil_bridge import ecooil_bridge_required
+from .ecooil_docs import _scoped_query, WITHHELD_STATUSES
 from .mailer import send_office_email
 
 reminders = Blueprint("reminders", __name__)
@@ -159,3 +161,114 @@ def declaration_reminders():
         html=html)
     return jsonify({"sent": sent, "direct": len(direct), "via": len(via),
                     "expired": len(expired), "notes": len(notes)})
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# Weekly Thursday customer reminder — opt-in per user (Laura/Gadot's request
+# via Limor, approved 02/08/2026): a short anchor email — "here's what your
+# week at Eco-Oil looked like, the documents await you in the portal" — with
+# COUNTS ONLY, never attachments. Rules Limor fixed: reminder + numbers;
+# SKIP a customer whose week had zero unload events; triggered by the office
+# PC's Thursday scheduled task (same pattern as the weekly login digest).
+# Nothing is sent to anyone whose weekly_reminder flag Limor hasn't switched
+# on in the admin screen.
+# ═══════════════════════════════════════════════════════════════════════════
+
+def _week_counts(client, start, end):
+    """(events, available certs, available manifests) in the window, using the
+    exact same billed-party scoping + sanction withholding as the portal."""
+    q, _mode = _scoped_query(client)
+    rows = q.filter(EcoOilUnloadEvent.event_date >= start,
+                    EcoOilUnloadEvent.event_date <= end).all()
+    certs = sum(1 for r in rows if r.pdf_key and r.doc_status not in WITHHELD_STATUSES)
+    manifests = sum(1 for r in rows if r.manifest_key and r.doc_status not in WITHHELD_STATUSES)
+    return len(rows), certs, manifests
+
+
+def _weekly_reminder_email(client_name, start, end, events, certs, manifests):
+    period = f"{start.strftime('%d/%m/%Y')} — {end.strftime('%d/%m/%Y')}"
+    subject = "עדכון שבועי — פורטל הלקוחות של אקו-אויל"
+    html = f"""<div dir="rtl" style="font-family:Arial,sans-serif;font-size:15px;color:#222;line-height:1.7;">
+<h2 style="color:#2C6E63;">העדכון השבועי שלכם מאקו-אויל</h2>
+<p>שלום רב,</p>
+<p>בשבוע שבין <b>{period}</b> נרשמו עבורכם ({client_name}) במערכת אקו-אויל
+<b>{events} פעולות פריקה</b>.<br>
+בפורטל הלקוחות זמינים כעת עבור השבוע הזה: <b>{certs} אישורי פריקה</b>
+ו-<b>{manifests} טופסי מלווה חתומים</b>.</p>
+<p style="margin:22px 0;">
+<a href="{PORTAL_URL}" style="background:#5B9E96;color:#fff;text-decoration:none;
+padding:12px 28px;border-radius:8px;font-weight:bold;">כניסה לפורטל</a></p>
+<p style="color:#555;font-size:13.5px;">בפורטל מזינים את כתובת המייל שלכם ומקבלים
+קישור כניסה אישי — ללא סיסמה.</p>
+<p style="color:#777;font-size:13px;">מייל תזכורת זה נשלח מדי יום חמישי לבקשתכם
+ואינו כולל מסמכים מצורפים — כל המסמכים זמינים בפורטל, בכל עת.<br>
+להפסקת התזכורת השבועית — השיבו למייל זה או פנו אלינו:
+<a href="mailto:office@eco-oil.co.il">office@eco-oil.co.il</a>.</p>
+<p>בברכה,<br>אקו-אויל</p></div>"""
+    return subject, html
+
+
+@reminders.route("/admin/weekly-portal-reminder", methods=["POST"])
+@ecooil_bridge_required
+def weekly_portal_reminder():
+    """Thursday morning run: email every opted-in portal user whose company had
+    unload events in the closing week (previous Thursday → Wednesday)."""
+    today = date.today()
+    end = today - timedelta(days=1)
+    start = today - timedelta(days=7)
+
+    users = (User.query.filter_by(weekly_reminder=True, is_active=True)
+             .filter(User.email.isnot(None)).order_by(User.client_id).all())
+
+    sent, skipped_empty, skipped_other, errors = [], [], [], []
+    counts_cache = {}
+    for u in users:
+        client = db.session.get(Client, u.client_id) if u.client_id else None
+        if client is None or client.division != "eco_oil":
+            skipped_other.append((u.email, "חשבון ללא חברת אקו-אויל (דיפו עדיין לא נתמך)"))
+            continue
+        if client.id not in counts_cache:
+            counts_cache[client.id] = _week_counts(client, start, end)
+        events, certs, manifests = counts_cache[client.id]
+        if events == 0:
+            skipped_empty.append((u.email, client.name))
+            continue
+        subject, html = _weekly_reminder_email(client.name, start, end,
+                                               events, certs, manifests)
+        if send_office_email(subject=subject, html=html, to=u.email):
+            sent.append((u.email, client.name, events, certs, manifests))
+        else:
+            errors.append((u.email, client.name))
+
+    # Office oversight summary — only when the mechanism had anyone to consider,
+    # so quiet weeks don't add inbox noise on top of the Sunday digest.
+    if users:
+        period = f"{start.strftime('%d/%m/%Y')} — {end.strftime('%d/%m/%Y')}"
+        rows = ""
+        for em, cn, ev, ce, mf in sent:
+            rows += (f'<tr><td style="{TD}">{cn}</td><td style="{TD}">{em}</td>'
+                     f'<td style="{TD}">נשלח ✓</td><td style="{TD}">{ev} פעולות · {ce} אישורים · {mf} טופסי מלווה</td></tr>')
+        for em, cn in skipped_empty:
+            rows += (f'<tr><td style="{TD}">{cn}</td><td style="{TD}">{em}</td>'
+                     f'<td style="{TD}">דולג — שבוע ללא פעילות</td><td style="{TD}"></td></tr>')
+        for em, why in skipped_other:
+            rows += (f'<tr><td style="{TD}"></td><td style="{TD}">{em}</td>'
+                     f'<td style="{TD}">דולג</td><td style="{TD}">{why}</td></tr>')
+        for em, cn in errors:
+            rows += (f'<tr><td style="{TD}">{cn}</td><td style="{TD}">{em}</td>'
+                     f'<td style="{TD}" ><b style="color:#B45309;">שגיאת שליחה</b></td><td style="{TD}"></td></tr>')
+        office_html = f"""<div dir="rtl" style="font-family:Arial,sans-serif;">
+<h2 style="color:#2C6E63;">תזכורת חמישי ללקוחות — סיכום ריצה</h2>
+<p>שבוע: <b>{period}</b> · נשלחו: <b>{len(sent)}</b> · דולגו (שבוע ריק): <b>{len(skipped_empty)}</b>
+· דולגו (אחר): <b>{len(skipped_other)}</b> · שגיאות: <b>{len(errors)}</b></p>
+<table style="border-collapse:collapse;">
+<tr><th style="{TH}">חברה</th><th style="{TH}">מייל</th><th style="{TH}">סטטוס</th><th style="{TH}">פירוט</th></tr>
+{rows}</table>
+<p style="color:#777;">נשלח אוטומטית על ידי פורטל אקו-אויל — מנגנון תזכורת יום חמישי.</p></div>"""
+        send_office_email(
+            subject=f"תזכורת חמישי ללקוחות — נשלחו {len(sent)}, דולגו {len(skipped_empty) + len(skipped_other)}",
+            html=office_html)
+
+    return jsonify({"opted_in": len(users), "sent": len(sent),
+                    "skipped_empty": len(skipped_empty),
+                    "skipped_other": len(skipped_other), "errors": len(errors)})
