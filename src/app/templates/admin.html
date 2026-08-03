@@ -175,15 +175,47 @@ function fmtDT(iso){
 }
 function declStatus(d){
   if(d.status==='approved') return '<span class="ok">אושרה</span>';
+  if(d.status==='released') return '<span class="ok">בתא הלקוח — ממתינה לחתימת היצרן</span>';
+  if(d.status==='rejected') return '<span class="muted">נפסלה</span>';
   return '<span class="warn">הוגשה — ממתינה לטיפולך</span>';
+}
+async function rejectDecl(id,name){
+  var reason=prompt('פסילת ההגשה של "'+name+'".\nאפשר לרשום סיבה (תישמר בתיעוד; אפשר גם להשאיר ריק):','');
+  if(reason===null) return;
+  var r=await api('/eco-oil/admin/producer-declarations/'+id,{method:'PATCH',body:JSON.stringify({action:'reject',reason:reason})});
+  if(!r||!r.ok){ toast('שגיאה בפסילה'); return; }
+  toast('ההגשה נפסלה');
+  await loadDeclarations();
+}
+async function unrejectDecl(id,name){
+  if(!confirm('להחזיר את ההגשה של "'+name+'" למעמד "הוגשה"?')) return;
+  var r=await api('/eco-oil/admin/producer-declarations/'+id,{method:'PATCH',body:JSON.stringify({action:'unreject'})});
+  if(!r||!r.ok){ toast('שגיאה בהחזרה'); return; }
+  toast('ההגשה חזרה למעמד "הוגשה"');
+  await loadDeclarations();
+}
+async function releaseDecl(id,name){
+  if(!confirm('לשמור את מסמך ההצהרה של "'+name+'" בתא הלקוח בפורטל?\nהלקוח יראה את המסמך ויוכל להוריד ולהדפיס אותו לחתימה וחותמת.')) return;
+  var r=await api('/eco-oil/admin/producer-declarations/'+id,{method:'PATCH',body:JSON.stringify({action:'release'})});
+  if(!r||!r.ok){ toast('שגיאה בשמירה לתא הלקוח'); return; }
+  toast('המסמך נשמר בתא הלקוח ✓');
+  await loadDeclarations();
+}
+async function unreleaseDecl(id,name){
+  if(!confirm('להסיר את המסמך של "'+name+'" מתא הלקוח? ההצהרה תחזור למעמד "הוגשה".')) return;
+  var r=await api('/eco-oil/admin/producer-declarations/'+id,{method:'PATCH',body:JSON.stringify({action:'unrelease'})});
+  if(!r||!r.ok){ toast('שגיאה בביטול'); return; }
+  toast('המסמך הוסר מתא הלקוח');
+  await loadDeclarations();
 }
 async function loadDeclarations(){
   var box=document.getElementById('declList'), cnt=document.getElementById('declCount');
   var r=await api('/eco-oil/admin/producer-declarations');
   if(!r||!r.ok){ box.textContent='שגיאה בטעינת ההצהרות'; cnt.textContent=''; return; }
   var ds=(await r.json()).declarations;
-  var pending=ds.filter(function(d){ return d.status!=='approved'; }).length;
-  cnt.textContent=ds.length?(ds.length+' הצהרות'+(pending?' · '+pending+' ממתינות':'')):'';
+  var pending=ds.filter(function(d){ return d.status==='submitted'; }).length;
+  var atClient=ds.filter(function(d){ return d.status==='released'; }).length;
+  cnt.textContent=ds.length?(ds.length+' הצהרות'+(pending?' · '+pending+' ממתינות לטיפולך':'')+(atClient?' · '+atClient+' אצל הלקוח לחתימה':'')):'';
   if(!ds.length){ box.textContent='אין עדיין הצהרות שהוגשו מהפורטל.'; return; }
   var h='<table><tr><th>הוגשה בתאריך</th><th>חשבון פורטל</th><th>שם העסק בהצהרה</th>'+
         '<th>שם הזרם</th><th>מספר פסולת</th><th>כמות שנתית</th><th>מעמד</th><th></th></tr>';
@@ -193,7 +225,12 @@ async function loadDeclarations(){
        '<td>'+esc(d.waste_stream_number)+'</td><td>'+esc(d.quantity)+'</td>'+
        '<td>'+declStatus(d)+'</td>'+
        '<td><button class="btn btn-soft" onclick="toggleDecl('+i+')">פרטים מלאים</button> '+
-       '<a class="btn btn-soft" target="_blank" href="/declaration-doc?id='+d.id+'" title="המסמך הרשמי (נספח 3) ממולא מהנתונים שהוגשו — להדפסה ושליחה ליצרן לחתימה וחותמת">🖨 מסמך לחתימה</a></td></tr>'+
+       '<a class="btn btn-soft" target="_blank" href="/declaration-doc?id='+d.id+'" title="המסמך הרשמי (נספח 3) ממולא מהנתונים שהוגשו — להדפסה ושליחה ליצרן לחתימה וחותמת">🖨 מסמך לחתימה</a> '+
+       (d.status==='submitted'?'<button class="btn" title="הלקוח יראה את המסמך בפורטל שלו ויוכל להוריד ולהדפיס לחתימה" onclick="releaseDecl('+d.id+',\''+esc(d.producer_name)+'\')">📤 שמרי לתא הלקוח</button> ':'')+
+       (d.status==='released'?'<button class="btn btn-soft" onclick="unreleaseDecl('+d.id+',\''+esc(d.producer_name)+'\')">בטלי שיתוף</button> ':'')+
+       ((d.status==='submitted'||d.status==='released')?'<button class="btn btn-danger" title="הגשה לא תקינה — נשארת בתיעוד, לא מוצגת ללקוח" onclick="rejectDecl('+d.id+',\''+esc(d.producer_name)+'\')">✖ פסלי</button>':'')+
+       (d.status==='rejected'?'<button class="btn btn-soft" onclick="unrejectDecl('+d.id+',\''+esc(d.producer_name)+'\')">החזירי</button>':'')+
+       '</td></tr>'+
        '<tr id="decl-'+i+'" class="hidden"><td colspan="8" style="background:#F8FBFA">'+declDetails(d)+'</td></tr>';
   });
   box.innerHTML=h+'</table>';

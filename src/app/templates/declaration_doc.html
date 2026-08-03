@@ -118,10 +118,12 @@ async function api(url){
 (async function(){
   var id=parseInt(new URLSearchParams(location.search).get('id')||'0');
   if(!id){ show('חסר מזהה הצהרה בכתובת.'); return; }
+  /* מנהלת — דרך נקודת הניהול; לקוח — דרך תא הלקוח (רק מסמכים ששוחררו) */
   var r=await api('/eco-oil/admin/producer-declarations');
-  if(!r||!r.ok){ show('אין הרשאה — היכנסי קודם למסך הניהול ואז פתחי שוב את המסמך.'); return; }
+  if(!r||!r.ok){ r=await api('/eco-oil/portal/my-declaration-docs'); }
+  if(!r||!r.ok){ show('אין הרשאה — יש להתחבר לפורטל ואז לפתוח שוב את המסמך.'); return; }
   var d=((await r.json()).declarations||[]).find(function(x){ return x.id===id; });
-  if(!d){ show('ההצהרה לא נמצאה.'); return; }
+  if(!d){ show('המסמך לא נמצא או שעדיין לא שוחרר להורדה.'); return; }
   var day=(d.submitted_at||'').slice(0,10).split('-');
   document.getElementById('d_date').textContent=day.length===3?day[2]+'/'+day[1]+'/'+day[0]:'';
   var cells=[d.producer_name,d.material_name,d.waste_stream_number,d.production_facility,

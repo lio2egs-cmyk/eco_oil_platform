@@ -98,29 +98,9 @@ def billed_count():
     return jsonify({"error": "name or client_id required"}), 400
 
 
-@ecooil_docs.route("/admin/producer-declarations", methods=["GET"])
-@jwt_required()
-def admin_producer_declarations():
-    """מסך הניהול — הצהרות היצרן שהוגשו דרך הפורטל, החדשות ראשונות.
-
-    צפייה בלבד (לימור 03/08): היא בוחנת את ההגשה ומטפלת ידנית — בדיקה,
-    הפקה לחתימת היצרן, עדכון המסד. פעולות מסך (אישור וכו') יוגדרו איתה
-    אחרי שתראה את ההגשות. רק הגשות פורטל (submitted_by_user_id מלא)."""
-    if get_jwt().get("role") != "admin":
-        return jsonify({"error": "admin only"}), 403
-    from .db import ProducerDeclaration
-
-    decls = (ProducerDeclaration.query
-             .filter(ProducerDeclaration.submitted_by_user_id.isnot(None))
-             .order_by(ProducerDeclaration.issued_at.desc(),
-                       ProducerDeclaration.id.desc())
-             .limit(500).all())
-
-    user_ids = {d.submitted_by_user_id for d in decls}
-    users = {u.id: u.email for u in User.query.filter(User.id.in_(user_ids)).all()} if user_ids else {}
-    clients = {c.id: c.name for c in Client.query.all()}
-
-    return jsonify({"declarations": [{
+def _decl_dict(d, clients, users):
+    """הצהרת יצרן כמילון מלא — משרת גם את מסך הניהול וגם את מסמך-החתימה."""
+    return {
         "id": d.id,
         "submitted_at": d.issued_at.isoformat() if d.issued_at else None,
         "status": d.status,
@@ -157,7 +137,106 @@ def admin_producer_declarations():
         # תוקף
         "valid_from": d.valid_from.strftime("%d/%m/%Y") if d.valid_from else None,
         "valid_until": d.valid_until.strftime("%d/%m/%Y") if d.valid_until else None,
-    } for d in decls]})
+        "notes": d.notes,
+    }
+
+
+@ecooil_docs.route("/admin/producer-declarations", methods=["GET"])
+@jwt_required()
+def admin_producer_declarations():
+    """מסך הניהול — הצהרות היצרן שהוגשו דרך הפורטל, החדשות ראשונות.
+    רק הגשות פורטל (submitted_by_user_id מלא)."""
+    if get_jwt().get("role") != "admin":
+        return jsonify({"error": "admin only"}), 403
+    from .db import ProducerDeclaration
+
+    decls = (ProducerDeclaration.query
+             .filter(ProducerDeclaration.submitted_by_user_id.isnot(None))
+             .order_by(ProducerDeclaration.issued_at.desc(),
+                       ProducerDeclaration.id.desc())
+             .limit(500).all())
+
+    user_ids = {d.submitted_by_user_id for d in decls}
+    users = {u.id: u.email for u in User.query.filter(User.id.in_(user_ids)).all()} if user_ids else {}
+    clients = {c.id: c.name for c in Client.query.all()}
+
+    return jsonify({"declarations": [_decl_dict(d, clients, users) for d in decls]})
+
+
+@ecooil_docs.route("/admin/producer-declarations/<int:decl_id>", methods=["PATCH"])
+@jwt_required()
+def admin_release_declaration(decl_id):
+    """שמירת מסמך ההצהרה לתא הלקוח (לימור 03/08) — ורק בלחיצה שלה, אחרי בדיקה.
+
+    action=release: הוגשה → נשמרה לתא הלקוח (הלקוח רואה ומוריד לחתימה).
+    action=unrelease: ביטול — חוזרת ל"הוגשה" ונעלמת מתא הלקוח."""
+    if get_jwt().get("role") != "admin":
+        return jsonify({"error": "admin only"}), 403
+    from .db import ProducerDeclaration
+
+    d = db.session.get(ProducerDeclaration, decl_id)
+    if d is None or d.submitted_by_user_id is None:
+        return jsonify({"error": "not found"}), 404
+    body = request.get_json(silent=True) or {}
+    action = body.get("action")
+    if action == "release":
+        if d.status != "submitted":
+            return jsonify({"error": f"אי אפשר לשחרר הצהרה במעמד '{d.status}'"}), 409
+        d.status = "released"
+    elif action == "unrelease":
+        if d.status != "released":
+            return jsonify({"error": f"אי אפשר לבטל שיתוף במעמד '{d.status}'"}), 409
+        d.status = "submitted"
+    elif action == "reject":
+        # פסילה (לימור 03/08) — הגשה לא תקינה; נעלמת מתא הלקוח, נשארת בתיעוד.
+        if d.status not in ("submitted", "released"):
+            return jsonify({"error": f"אי אפשר לפסול הצהרה במעמד '{d.status}'"}), 409
+        d.status = "rejected"
+        reason = (body.get("reason") or "").strip()
+        if reason:
+            stamp = f"נפסלה: {reason}"
+            d.notes = f"{d.notes}\n{stamp}" if d.notes else stamp
+    elif action == "unreject":
+        if d.status != "rejected":
+            return jsonify({"error": f"אי אפשר להחזיר הצהרה במעמד '{d.status}'"}), 409
+        d.status = "submitted"
+    else:
+        return jsonify({"error": "action must be release/unrelease/reject/unreject"}), 400
+    db.session.commit()
+    return jsonify({"id": d.id, "status": d.status})
+
+
+@ecooil_docs.route("/portal/my-declaration-docs", methods=["GET"])
+@jwt_required()
+def my_declaration_docs():
+    """תא הלקוח — המסמכים שלימור שחררה לחתימה (status=released בלבד).
+    ההיקף: החברות המותרות למשתמש (כולל רב-חברות). מנהלת משתמשת בנקודת
+    הקצה הניהולית — כאן היא מקבלת רשימה ריקה."""
+    from .db import ProducerDeclaration
+
+    claims = get_jwt()
+    if claims.get("role") == "admin":
+        return jsonify({"declarations": []})
+    user = db.session.get(User, int(get_jwt_identity()))
+    if user is None:
+        return jsonify({"error": "no user"}), 403
+    allowed = user.allowed_client_ids()
+    if not allowed:
+        return jsonify({"declarations": []})
+
+    decls = (ProducerDeclaration.query
+             .filter(ProducerDeclaration.client_id.in_(allowed),
+                     ProducerDeclaration.status == "released",
+                     ProducerDeclaration.submitted_by_user_id.isnot(None))
+             .order_by(ProducerDeclaration.issued_at.desc(),
+                       ProducerDeclaration.id.desc())
+             .limit(200).all())
+
+    user_ids = {d.submitted_by_user_id for d in decls}
+    users = {u.id: u.email for u in User.query.filter(User.id.in_(user_ids)).all()} if user_ids else {}
+    clients = {c.id: c.name for c in Client.query.filter(Client.id.in_(allowed)).all()}
+
+    return jsonify({"declarations": [_decl_dict(d, clients, users) for d in decls]})
 
 
 @ecooil_docs.route("/my-documents", methods=["GET"])
