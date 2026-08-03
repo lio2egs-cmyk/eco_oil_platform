@@ -211,7 +211,9 @@
         <div class="field"><label>מספר ח.פ. של העסק <span class="m">*</span></label><input type="text" id="p_hp" placeholder="הקלדה"></div>
         <div class="field"><label>כתובת העסק / מפעל <span class="m">*</span></label><input type="text" id="p_addr" placeholder="הקלדה"></div>
         <div class="field"><label>מייל למשלוח אישורים <span class="m">*</span></label><input type="email" id="p_email" placeholder="לכאן יישלחו ההצהרה החתומה והתזכורות"></div>
-        <div class="field"><label>שם מנכ"ל / אחראי היתר <span class="m">*</span></label><input type="text" id="p_ceo" placeholder="הקלדה"></div>
+        <!-- שם מלא = שתי תיבות חובה (לימור 03/08): שם חלקי חסר תוקף משפטי -->
+        <div class="field"><label>מנכ"ל / אחראי היתר — שם פרטי <span class="m">*</span></label><input type="text" id="p_ceo_first" placeholder="הקלדה"></div>
+        <div class="field"><label>מנכ"ל / אחראי היתר — שם משפחה <span class="m">*</span></label><input type="text" id="p_ceo_last" placeholder="חובה — להצהרה נדרש שם מלא"></div>
       </div>
     </section>
 
@@ -407,7 +409,8 @@ function collect(){
       business_id:   document.getElementById('p_hp').value.trim(),
       address:       document.getElementById('p_addr').value.trim(),
       email:         document.getElementById('p_email').value.trim(),
-      ceo_name:      document.getElementById('p_ceo').value.trim()
+      ceo_first_name: document.getElementById('p_ceo_first').value.trim(),
+      ceo_last_name:  document.getElementById('p_ceo_last').value.trim()
     }
   };
 }
@@ -430,7 +433,8 @@ function validate(payload){
       }
     }
   }
-  var req=[['p_name','שם העסק'],['p_hp','מספר ח.פ.'],['p_addr','כתובת'],['p_email','מייל'],['p_ceo','שם מנכ"ל/אחראי היתר']];
+  var req=[['p_name','שם העסק'],['p_hp','מספר ח.פ.'],['p_addr','כתובת'],['p_email','מייל'],
+           ['p_ceo_first','שם פרטי של מנכ"ל/אחראי היתר'],['p_ceo_last','שם משפחה של מנכ"ל/אחראי היתר']];
   for(var r=0;r<req.length;r++){
     var el=document.getElementById(req[r][0]);
     if(!el.value.trim()){ el.classList.add('miss'); problems.push('חסר: '+req[r][1]+'.'); }
@@ -485,7 +489,14 @@ function restoreDraft(){
       document.getElementById('p_hp').value=d.producer.business_id||'';
       document.getElementById('p_addr').value=d.producer.address||'';
       document.getElementById('p_email').value=d.producer.email||'';
-      document.getElementById('p_ceo').value=d.producer.ceo_name||'';
+      /* טיוטות ישנות שמרו שם אחד — מפצלים: מילה ראשונה=פרטי, השאר=משפחה */
+      var ceoF=d.producer.ceo_first_name||'', ceoL=d.producer.ceo_last_name||'';
+      if(!ceoF && d.producer.ceo_name){
+        var parts=(d.producer.ceo_name||'').trim().split(/\s+/);
+        ceoF=parts.shift()||''; ceoL=parts.join(' ');
+      }
+      document.getElementById('p_ceo_first').value=ceoF;
+      document.getElementById('p_ceo_last').value=ceoL;
     }
     updatePermit();
   }catch(e){}

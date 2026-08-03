@@ -2977,12 +2977,14 @@ def submit_portal_declaration():
 
     # ─── פרטי יצרן הפסולת ───
     producer = data.get("producer") or {}
+    # שם מלא = שני שדות חובה נפרדים (לימור 03/08): שם חלקי חסר תוקף משפטי
     required_producer = {
         "business_name": "שם העסק / המפעל",
         "business_id": "מספר ח.פ.",
         "address": "כתובת העסק",
         "email": "מייל למשלוח אישורים",
-        "ceo_name": 'שם מנכ"ל / אחראי היתר',
+        "ceo_first_name": 'שם פרטי — מנכ"ל / אחראי היתר',
+        "ceo_last_name": 'שם משפחה — מנכ"ל / אחראי היתר',
     }
     for key, label in required_producer.items():
         if not (producer.get(key) or "").strip():
@@ -3041,7 +3043,7 @@ def submit_portal_declaration():
             client_address=producer["address"].strip(),
             business_id=producer["business_id"].strip(),
             permit_number=permit_number or None,
-            ceo_name=producer["ceo_name"].strip(),
+            ceo_name=f'{producer["ceo_first_name"].strip()} {producer["ceo_last_name"].strip()}',
             client_email=email,
             producer_size="גדול" if mat["quantity_band"] == "מעל 10 טון" else "קטן",
             # פרטי זרם — בחירות הלקוח
