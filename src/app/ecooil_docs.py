@@ -98,6 +98,68 @@ def billed_count():
     return jsonify({"error": "name or client_id required"}), 400
 
 
+@ecooil_docs.route("/admin/producer-declarations", methods=["GET"])
+@jwt_required()
+def admin_producer_declarations():
+    """מסך הניהול — הצהרות היצרן שהוגשו דרך הפורטל, החדשות ראשונות.
+
+    צפייה בלבד (לימור 03/08): היא בוחנת את ההגשה ומטפלת ידנית — בדיקה,
+    הפקה לחתימת היצרן, עדכון המסד. פעולות מסך (אישור וכו') יוגדרו איתה
+    אחרי שתראה את ההגשות. רק הגשות פורטל (submitted_by_user_id מלא)."""
+    if get_jwt().get("role") != "admin":
+        return jsonify({"error": "admin only"}), 403
+    from .db import ProducerDeclaration
+
+    decls = (ProducerDeclaration.query
+             .filter(ProducerDeclaration.submitted_by_user_id.isnot(None))
+             .order_by(ProducerDeclaration.issued_at.desc(),
+                       ProducerDeclaration.id.desc())
+             .limit(500).all())
+
+    user_ids = {d.submitted_by_user_id for d in decls}
+    users = {u.id: u.email for u in User.query.filter(User.id.in_(user_ids)).all()} if user_ids else {}
+    clients = {c.id: c.name for c in Client.query.all()}
+
+    return jsonify({"declarations": [{
+        "id": d.id,
+        "submitted_at": d.issued_at.isoformat() if d.issued_at else None,
+        "status": d.status,
+        "is_active": d.is_active,
+        "client_id": d.client_id,
+        "client_name": clients.get(d.client_id, f"חברה #{d.client_id}"),
+        "submitted_by": users.get(d.submitted_by_user_id, "?"),
+        # פרטי יצרן הפסולת
+        "producer_name": d.producer_name,
+        "address": d.client_address,
+        "business_id": d.business_id,
+        "permit_number": d.permit_number,
+        "ceo_name": d.ceo_name,
+        "producer_email": d.client_email,
+        "producer_size": d.producer_size,
+        # פרטי הזרם — בחירות הלקוח
+        "material_name": d.material_name,
+        "waste_stream_number": d.waste_stream_number,
+        "production_facility": d.production_facility,
+        "quantity": d.annual_quantity_text,
+        "packaging": d.packaging_type,
+        "treatment_type": d.treatment_facility_type,
+        "pollutant_type": d.pollutant_type,
+        "concentration_range": d.concentration_range,
+        # ערכים שנגזרו בשרת לפי הזרם
+        "characteristic": d.waste_main_characteristic,
+        "y_code": d.basel_y_code,
+        "annex8": d.basel_annexviii_code,
+        "catalog": d.european_catalog_code,
+        "h_code": d.basel_h_code,
+        "un_group": d.un_risk_group,
+        "r_code": d.basel_r_code,
+        "d_code": d.basel_d_code,
+        # תוקף
+        "valid_from": d.valid_from.strftime("%d/%m/%Y") if d.valid_from else None,
+        "valid_until": d.valid_until.strftime("%d/%m/%Y") if d.valid_until else None,
+    } for d in decls]})
+
+
 @ecooil_docs.route("/my-documents", methods=["GET"])
 @jwt_required()
 def my_documents():

@@ -78,6 +78,13 @@
     <div class="aliascheck" id="newCheck"></div>
   </div>
 
+  <!-- הצהרות יצרן שהוגשו בפורטל (לימור 03/08): צפייה בלבד בשלב זה —
+       היא בוחנת את ההגשה ומטפלת ידנית; פעולות מסך יוגדרו איתה בהמשך -->
+  <div class="card" id="declCard">
+    <h3>הצהרות יצרן שהוגשו בפורטל <span class="pill" id="declCount">…</span></h3>
+    <div id="declList" class="muted">טוען…</div>
+  </div>
+
   <div class="card">
     <div class="row">
       <input type="text" id="q" placeholder="חיפוש חברה או מייל — הקלידי והרשימה תצטמצם מיד" style="max-width:360px" oninput="render()">
@@ -156,6 +163,71 @@ async function reload(){
   CLIENTS=(await rc.json()).clients.filter(function(c){ return c.division==='eco_oil'; });
   USERS=(await ru.json()).users;
   render();
+  loadDeclarations();
+}
+
+/* ── הצהרות יצרן מהפורטל (צפייה בלבד בשלב זה) ── */
+function fmtDT(iso){
+  if(!iso) return '';
+  var d=new Date(iso+(iso.indexOf('Z')<0&&iso.indexOf('+')<0?'Z':''));  // הזמן נשמר ב-UTC
+  return ('0'+d.getDate()).slice(-2)+'/'+('0'+(d.getMonth()+1)).slice(-2)+'/'+d.getFullYear()+
+         ' '+('0'+d.getHours()).slice(-2)+':'+('0'+d.getMinutes()).slice(-2);
+}
+function declStatus(d){
+  if(d.status==='approved') return '<span class="ok">אושרה</span>';
+  return '<span class="warn">הוגשה — ממתינה לטיפולך</span>';
+}
+async function loadDeclarations(){
+  var box=document.getElementById('declList'), cnt=document.getElementById('declCount');
+  var r=await api('/eco-oil/admin/producer-declarations');
+  if(!r||!r.ok){ box.textContent='שגיאה בטעינת ההצהרות'; cnt.textContent=''; return; }
+  var ds=(await r.json()).declarations;
+  var pending=ds.filter(function(d){ return d.status!=='approved'; }).length;
+  cnt.textContent=ds.length?(ds.length+' הצהרות'+(pending?' · '+pending+' ממתינות':'')):'';
+  if(!ds.length){ box.textContent='אין עדיין הצהרות שהוגשו מהפורטל.'; return; }
+  var h='<table><tr><th>הוגשה בתאריך</th><th>חשבון פורטל</th><th>שם העסק בהצהרה</th>'+
+        '<th>שם הזרם</th><th>מספר פסולת</th><th>כמות שנתית</th><th>מעמד</th><th></th></tr>';
+  ds.forEach(function(d,i){
+    h+='<tr><td>'+fmtDT(d.submitted_at)+'</td><td>'+esc(d.client_name)+'</td>'+
+       '<td><b>'+esc(d.producer_name)+'</b></td><td>'+esc(d.material_name)+'</td>'+
+       '<td>'+esc(d.waste_stream_number)+'</td><td>'+esc(d.quantity)+'</td>'+
+       '<td>'+declStatus(d)+'</td>'+
+       '<td><button class="btn btn-soft" onclick="toggleDecl('+i+')">פרטים מלאים</button></td></tr>'+
+       '<tr id="decl-'+i+'" class="hidden"><td colspan="8" style="background:#F8FBFA">'+declDetails(d)+'</td></tr>';
+  });
+  box.innerHTML=h+'</table>';
+}
+function toggleDecl(i){ document.getElementById('decl-'+i).classList.toggle('hidden'); }
+function declDetails(d){
+  function row(label,val){ return '<tr><td style="width:220px;color:#456;font-weight:bold">'+label+'</td><td>'+esc(val==null||val===''?'—':val)+'</td></tr>'; }
+  return '<table style="margin:4px 0">'+
+    row('הוגש על ידי',d.submitted_by)+
+    row('שם העסק / המפעל',d.producer_name)+
+    row('כתובת / אתר',d.address)+
+    row('מספר ח.פ.',d.business_id)+
+    row('מספר היתר רעלים',d.permit_number)+
+    row('שם מנכ"ל / אחראי היתר',d.ceo_name)+
+    row('מייל למשלוח אישורים',d.producer_email)+
+    row('גודל יצרן',d.producer_size)+
+    row('שם זרם הפסולת',d.material_name)+
+    row('מספר הפסולת',d.waste_stream_number)+
+    row('מתקן הייצור',d.production_facility)+
+    row('כמות שנתית',d.quantity)+
+    row('סוג האריזה',d.packaging)+
+    row('מתקן / סוג טיפול',d.treatment_type)+
+    row('סוג המזהם',d.pollutant_type)+
+    row('טווח ריכוזים',d.concentration_range)+
+    row('מאפיין עיקרי',d.characteristic)+
+    row('קוד Y',d.y_code)+
+    row('נספח VIII',d.annex8)+
+    row('סיווג ע"פ קטלוג',d.catalog)+
+    row('קוד סיכון H',d.h_code)+
+    row('קבוצת סיכון או"ם',d.un_group)+
+    row('קוד השבה R',d.r_code)+
+    row('קוד טיפול D',d.d_code)+
+    row('בתוקף מ־',d.valid_from)+
+    row('בתוקף עד',d.valid_until)+
+    '</table>';
 }
 
 function fmtDate(iso){
