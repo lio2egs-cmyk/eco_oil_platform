@@ -216,7 +216,8 @@ async function releaseDecl(id,name){
   if(!confirm('לשמור את מסמך ההצהרה של "'+name+'" בתא הלקוח בפורטל?\nהלקוח יראה את המסמך ויוכל להוריד ולהדפיס אותו לחתימה וחותמת.')) return;
   var r=await api('/eco-oil/admin/producer-declarations/'+id,{method:'PATCH',body:JSON.stringify({action:'release'})});
   if(!r||!r.ok){ toast('שגיאה בשמירה לתא הלקוח'); return; }
-  toast('המסמך נשמר בתא הלקוח ✓');
+  var d2=await r.json();
+  toast(d2.email_sent?'המסמך נשמר בתא הלקוח ✓ ונשלח מייל ללקוח':'המסמך נשמר בתא הלקוח ✓ (מייל ללקוח לא נשלח — עדכני אותו ידנית)');
   await loadDeclarations();
 }
 async function unreleaseDecl(id,name){

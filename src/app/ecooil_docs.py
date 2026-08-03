@@ -8,7 +8,7 @@ view; otherwise source view. Downloads are served as short-lived presigned B2
 URLs — the bucket stays private.
 """
 import os
-from flask import Blueprint, jsonify, request
+from flask import Blueprint, current_app, jsonify, request
 from flask_jwt_extended import jwt_required, get_jwt, get_jwt_identity
 from sqlalchemy import func, or_
 
@@ -180,10 +180,17 @@ def admin_release_declaration(decl_id):
         return jsonify({"error": "not found"}), 404
     body = request.get_json(silent=True) or {}
     action = body.get("action")
+    email_sent = None
     if action == "release":
         if d.status != "submitted":
             return jsonify({"error": f"אי אפשר לשחרר הצהרה במעמד '{d.status}'"}), 409
         d.status = "released"
+        # מייל אוטומטי למגיש (נוסח אושר ע"י לימור 03/08) — כשל בשליחה לא מפיל
+        email_sent = False
+        try:
+            email_sent = _notify_customer_declaration_released(d)
+        except Exception as exc:
+            current_app.logger.error("release notification failed: %s", exc)
     elif action == "unrelease":
         if d.status != "released":
             return jsonify({"error": f"אי אפשר לבטל שיתוף במעמד '{d.status}'"}), 409
@@ -219,7 +226,34 @@ def admin_release_declaration(decl_id):
     else:
         return jsonify({"error": "action must be release/unrelease/return_fix/cancel_fix/reject/unreject"}), 400
     db.session.commit()
-    return jsonify({"id": d.id, "status": d.status})
+    resp = {"id": d.id, "status": d.status}
+    if email_sent is not None:
+        resp["email_sent"] = email_sent
+    return jsonify(resp)
+
+
+def _notify_customer_declaration_released(d):
+    """מייל למגיש ההצהרה כשלימור מאשרת נוסח ושומרת לתא הלקוח.
+    הנוסח אושר על ידה 03/08/2026 — אין לשנות בלי אישורה."""
+    from .mailer import send_office_email
+
+    submitter = db.session.get(User, d.submitted_by_user_id) if d.submitted_by_user_id else None
+    if submitter is None or not submitter.email:
+        return False
+    portal_url = "https://portal.eco-oil.co.il"
+    biz = (d.producer_name or "").strip()
+    html = f"""<div dir="rtl" style="font-family:Arial,sans-serif;color:#222;">
+<p>שלום,</p>
+<p>הצהרת היצרן של <b>{biz}</b> נבדקה ואושרה על ידי אקו-אויל.<br>
+המסמך ממתין לכם בפורטל הלקוחות — יש להוריד או להדפיס אותו, להחתים בחתימה
+ובחותמת של יצרן הפסולת, ולהחזיר לאקו-אויל.</p>
+<p style="margin:22px 0;">
+<a href="{portal_url}" style="background:#5B9E96;color:#fff;text-decoration:none;
+padding:12px 28px;border-radius:8px;font-weight:bold;">כניסה לפורטל</a></p>
+<p>בברכה,<br>פורטל הלקוחות של אקו-אויל</p></div>"""
+    return send_office_email(
+        subject=f"מסמך הצהרת יצרן ממתין לחתימתכם — {biz}",
+        html=html, to=submitter.email)
 
 
 @ecooil_docs.route("/portal/my-declaration-docs", methods=["GET"])
