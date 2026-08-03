@@ -138,6 +138,7 @@ def _decl_dict(d, clients, users):
         "valid_from": d.valid_from.strftime("%d/%m/%Y") if d.valid_from else None,
         "valid_until": d.valid_until.strftime("%d/%m/%Y") if d.valid_until else None,
         "notes": d.notes,
+        "fix_note": d.fix_note,
     }
 
 
@@ -187,9 +188,24 @@ def admin_release_declaration(decl_id):
         if d.status != "released":
             return jsonify({"error": f"אי אפשר לבטל שיתוף במעמד '{d.status}'"}), 409
         d.status = "submitted"
-    elif action == "reject":
-        # פסילה (לימור 03/08) — הגשה לא תקינה; נעלמת מתא הלקוח, נשארת בתיעוד.
+    elif action == "return_fix":
+        # החזרה לתיקון (לימור 03/08) — הכלי המרכזי: הערות מה לתקן, הטופס
+        # נפתח ללקוח ממולא מראש, והגשה מחודשת מחליפה את הישנה.
         if d.status not in ("submitted", "released"):
+            return jsonify({"error": f"אי אפשר להחזיר לתיקון במעמד '{d.status}'"}), 409
+        reason = (body.get("reason") or "").strip()
+        if not reason:
+            return jsonify({"error": "חובה לרשום מה דורש תיקון"}), 400
+        d.status = "needs_fix"
+        d.fix_note = reason
+    elif action == "cancel_fix":
+        if d.status != "needs_fix":
+            return jsonify({"error": f"אי אפשר לבטל החזרה במעמד '{d.status}'"}), 409
+        d.status = "submitted"
+        d.fix_note = None
+    elif action == "reject":
+        # פסילה — כלי צדדי (כפילות/ניסיון/ביטול); נעלמת מתא הלקוח, נשארת בתיעוד.
+        if d.status not in ("submitted", "released", "needs_fix"):
             return jsonify({"error": f"אי אפשר לפסול הצהרה במעמד '{d.status}'"}), 409
         d.status = "rejected"
         reason = (body.get("reason") or "").strip()
@@ -201,7 +217,7 @@ def admin_release_declaration(decl_id):
             return jsonify({"error": f"אי אפשר להחזיר הצהרה במעמד '{d.status}'"}), 409
         d.status = "submitted"
     else:
-        return jsonify({"error": "action must be release/unrelease/reject/unreject"}), 400
+        return jsonify({"error": "action must be release/unrelease/return_fix/cancel_fix/reject/unreject"}), 400
     db.session.commit()
     return jsonify({"id": d.id, "status": d.status})
 
@@ -209,9 +225,9 @@ def admin_release_declaration(decl_id):
 @ecooil_docs.route("/portal/my-declaration-docs", methods=["GET"])
 @jwt_required()
 def my_declaration_docs():
-    """תא הלקוח — המסמכים שלימור שחררה לחתימה (status=released בלבד).
-    ההיקף: החברות המותרות למשתמש (כולל רב-חברות). מנהלת משתמשת בנקודת
-    הקצה הניהולית — כאן היא מקבלת רשימה ריקה."""
+    """תא הלקוח — מסמכים ששוחררו לחתימה (released) + הצהרות שהוחזרו לתיקון
+    (needs_fix, עם הערות לימור). ההיקף: החברות המותרות למשתמש (כולל
+    רב-חברות). מנהלת משתמשת בנקודת הקצה הניהולית — כאן רשימה ריקה."""
     from .db import ProducerDeclaration
 
     claims = get_jwt()
@@ -226,7 +242,7 @@ def my_declaration_docs():
 
     decls = (ProducerDeclaration.query
              .filter(ProducerDeclaration.client_id.in_(allowed),
-                     ProducerDeclaration.status == "released",
+                     ProducerDeclaration.status.in_(("released", "needs_fix")),
                      ProducerDeclaration.submitted_by_user_id.isnot(None))
              .order_by(ProducerDeclaration.issued_at.desc(),
                        ProducerDeclaration.id.desc())

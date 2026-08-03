@@ -176,8 +176,26 @@ function fmtDT(iso){
 function declStatus(d){
   if(d.status==='approved') return '<span class="ok">אושרה</span>';
   if(d.status==='released') return '<span class="ok">בתא הלקוח — ממתינה לחתימת היצרן</span>';
+  if(d.status==='needs_fix') return '<span class="warn">הוחזרה לתיקון אצל הלקוח</span>';
+  if(d.status==='superseded') return '<span class="muted">הוגשה מחדש (גרסה ישנה)</span>';
   if(d.status==='rejected') return '<span class="muted">נפסלה</span>';
   return '<span class="warn">הוגשה — ממתינה לטיפולך</span>';
+}
+async function returnFixDecl(id,name){
+  var reason=prompt('החזרת ההצהרה של "'+name+'" לתיקון.\nרשמי מה דורש תיקון — ההערות יוצגו ללקוח והטופס ייפתח לו ממולא מראש:','');
+  if(reason===null) return;
+  if(!reason.trim()){ toast('חובה לרשום מה דורש תיקון'); return; }
+  var r=await api('/eco-oil/admin/producer-declarations/'+id,{method:'PATCH',body:JSON.stringify({action:'return_fix',reason:reason})});
+  if(!r||!r.ok){ toast('שגיאה בהחזרה לתיקון'); return; }
+  toast('ההצהרה הוחזרה ללקוח לתיקון');
+  await loadDeclarations();
+}
+async function cancelFixDecl(id,name){
+  if(!confirm('לבטל את ההחזרה לתיקון של "'+name+'"? ההצהרה תחזור למעמד "הוגשה".')) return;
+  var r=await api('/eco-oil/admin/producer-declarations/'+id,{method:'PATCH',body:JSON.stringify({action:'cancel_fix'})});
+  if(!r||!r.ok){ toast('שגיאה בביטול'); return; }
+  toast('ההחזרה לתיקון בוטלה');
+  await loadDeclarations();
 }
 async function rejectDecl(id,name){
   var reason=prompt('פסילת ההגשה של "'+name+'".\nאפשר לרשום סיבה (תישמר בתיעוד; אפשר גם להשאיר ריק):','');
@@ -215,7 +233,8 @@ async function loadDeclarations(){
   var ds=(await r.json()).declarations;
   var pending=ds.filter(function(d){ return d.status==='submitted'; }).length;
   var atClient=ds.filter(function(d){ return d.status==='released'; }).length;
-  cnt.textContent=ds.length?(ds.length+' הצהרות'+(pending?' · '+pending+' ממתינות לטיפולך':'')+(atClient?' · '+atClient+' אצל הלקוח לחתימה':'')):'';
+  var inFix=ds.filter(function(d){ return d.status==='needs_fix'; }).length;
+  cnt.textContent=ds.length?(ds.length+' הצהרות'+(pending?' · '+pending+' ממתינות לטיפולך':'')+(atClient?' · '+atClient+' אצל הלקוח לחתימה':'')+(inFix?' · '+inFix+' בתיקון אצל הלקוח':'')):'';
   if(!ds.length){ box.textContent='אין עדיין הצהרות שהוגשו מהפורטל.'; return; }
   var h='<table><tr><th>הוגשה בתאריך</th><th>חשבון פורטל</th><th>שם העסק בהצהרה</th>'+
         '<th>שם הזרם</th><th>מספר פסולת</th><th>כמות שנתית</th><th>מעמד</th><th></th></tr>';
@@ -226,9 +245,11 @@ async function loadDeclarations(){
        '<td>'+declStatus(d)+'</td>'+
        '<td><button class="btn btn-soft" onclick="toggleDecl('+i+')">פרטים מלאים</button> '+
        '<a class="btn btn-soft" target="_blank" href="/declaration-doc?id='+d.id+'" title="המסמך הרשמי (נספח 3) ממולא מהנתונים שהוגשו — להדפסה ושליחה ליצרן לחתימה וחותמת">🖨 מסמך לחתימה</a> '+
-       (d.status==='submitted'?'<button class="btn" title="הלקוח יראה את המסמך בפורטל שלו ויוכל להוריד ולהדפיס לחתימה" onclick="releaseDecl('+d.id+',\''+esc(d.producer_name)+'\')">📤 שמרי לתא הלקוח</button> ':'')+
+       (d.status==='submitted'?'<button class="btn" title="אישור הנוסח: הלקוח יראה את המסמך בפורטל שלו ויוכל להוריד ולהדפיס לחתימה" onclick="releaseDecl('+d.id+',\''+esc(d.producer_name)+'\')">📤 שמרי לתא הלקוח</button> ':'')+
        (d.status==='released'?'<button class="btn btn-soft" onclick="unreleaseDecl('+d.id+',\''+esc(d.producer_name)+'\')">בטלי שיתוף</button> ':'')+
-       ((d.status==='submitted'||d.status==='released')?'<button class="btn btn-danger" title="הגשה לא תקינה — נשארת בתיעוד, לא מוצגת ללקוח" onclick="rejectDecl('+d.id+',\''+esc(d.producer_name)+'\')">✖ פסלי</button>':'')+
+       ((d.status==='submitted'||d.status==='released')?'<button class="btn btn-soft" title="הכלי המרכזי להגשה עם פגם: ההערות שלך מוצגות ללקוח והטופס נפתח לו ממולא לתיקון" onclick="returnFixDecl('+d.id+',\''+esc(d.producer_name)+'\')">🛠 החזירי לתיקון</button> ':'')+
+       (d.status==='needs_fix'?'<button class="btn btn-soft" onclick="cancelFixDecl('+d.id+',\''+esc(d.producer_name)+'\')">בטלי החזרה</button> ':'')+
+       ((d.status==='submitted'||d.status==='released'||d.status==='needs_fix')?'<button class="btn btn-danger" title="כלי צדדי — כפילות / הגשת ניסיון / ביטול; נשארת בתיעוד, לא מוצגת ללקוח" onclick="rejectDecl('+d.id+',\''+esc(d.producer_name)+'\')">✖ פסלי</button>':'')+
        (d.status==='rejected'?'<button class="btn btn-soft" onclick="unrejectDecl('+d.id+',\''+esc(d.producer_name)+'\')">החזירי</button>':'')+
        '</td></tr>'+
        '<tr id="decl-'+i+'" class="hidden"><td colspan="8" style="background:#F8FBFA">'+declDetails(d)+'</td></tr>';
@@ -265,6 +286,8 @@ function declDetails(d){
     row('קוד טיפול D',d.d_code)+
     row('בתוקף מ־',d.valid_from)+
     row('בתוקף עד',d.valid_until)+
+    (d.fix_note?row('הערות התיקון שלך',d.fix_note):'')+
+    (d.notes?row('הערות',d.notes):'')+
     '</table>';
 }
 

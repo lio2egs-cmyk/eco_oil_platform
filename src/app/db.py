@@ -443,10 +443,13 @@ class ProducerDeclaration(db.Model):
     valid_until = db.Column(db.DateTime, nullable=False)
     is_active = db.Column(db.Boolean, default=True)
 
-    # מחזור חיים: submitted (הוגשה בפורטל, ממתינה לחתימה+אישור) / approved (אושרה).
-    # הצהרה שהוגשה בפורטל נשמרת is_active=False עד שאקו-אויל מאשרת אותה.
+    # מחזור חיים (לימור 03/08): submitted (הוגשה) → released (אושר הנוסח, בתא
+    # הלקוח לחתימה) → approved (אישור סופי אחרי סריקה חתומה). צדדיים:
+    # needs_fix (הוחזרה לתיקון עם fix_note) / superseded (הוגשה מחדש אחרי תיקון)
+    # / rejected (נפסלה). הצהרה נשמרת is_active=False עד האישור הסופי.
     status = db.Column(db.String(30), default="approved")
     submitted_by_user_id = db.Column(db.Integer, db.ForeignKey("users.id"))
+    fix_note = db.Column(db.Text)          # הערות לימור "מה דורש תיקון" (needs_fix)
 
     issued_at = db.Column(db.DateTime, default=datetime.utcnow)
     notes = db.Column(db.Text)

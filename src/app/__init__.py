@@ -107,6 +107,7 @@ def create_app():
             "ALTER TABLE producer_declarations ADD COLUMN producer_name VARCHAR(200)",
             "ALTER TABLE producer_declarations ADD COLUMN status VARCHAR(30)",
             "ALTER TABLE producer_declarations ADD COLUMN submitted_by_user_id INTEGER REFERENCES users(id)",
+            "ALTER TABLE producer_declarations ADD COLUMN fix_note TEXT",
         ):
             try:
                 db.session.execute(db.text(stmt))

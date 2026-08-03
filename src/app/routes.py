@@ -3026,6 +3026,16 @@ def submit_portal_declaration():
     if any_big and not permit_number:
         return {"error": 'נבחר "מעל 10 טון" — חובה למלא מספר היתר רעלים של העסק'}, 400
 
+    # ─── הגשה מחדש אחרי "החזרה לתיקון" (לימור 03/08): ההגשה החדשה מחליפה
+    # את הישנה — הישנה נשמרת כהיסטוריה במעמד superseded ───
+    fixed_decl = None
+    fix_id = data.get("fix_id")
+    if fix_id:
+        fixed_decl = db.session.get(ProducerDeclaration, int(fix_id))
+        if (fixed_decl is None or fixed_decl.client_id != target_client_id
+                or fixed_decl.status != "needs_fix"):
+            return {"error": "ההצהרה לתיקון לא נמצאה או שאינה במעמד תיקון"}, 409
+
     # ─── תוקף: שנתיים לפי חודש (עד סוף אותו חודש, שנתיים קדימה) ───
     now = datetime.utcnow()
     until_year = now.year + 2
@@ -3074,6 +3084,8 @@ def submit_portal_declaration():
         )
         db.session.add(declaration)
         created.append(declaration)
+    if fixed_decl is not None:
+        fixed_decl.status = "superseded"
     db.session.commit()
 
     # התראה למשרד על כל הגשה (לימור 30/07) — כשל בשליחה לא מפיל את ההגשה.

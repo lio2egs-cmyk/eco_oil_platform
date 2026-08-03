@@ -169,6 +169,13 @@
       </div>
     </section>
 
+    <!-- מצב תיקון: ההצהרה הוחזרה עם הערות לימור — הטופס נטען ממולא מראש -->
+    <div id="fixBanner" style="display:none;background:#FDECEA;border:1.5px solid #E5A29B;border-radius:12px;padding:14px 16px;margin-bottom:18px">
+      <div style="font-weight:600;color:#9E423C;margin-bottom:6px">🛠 ההצהרה הוחזרה אליכם לתיקון</div>
+      <div style="font-size:14px;color:#7a3b35">הערות אקו-אויל: <b id="fixNoteText"></b></div>
+      <div style="font-size:12.5px;color:#9a5a53;margin-top:6px">הטופס נטען עם הפרטים שהוגשו — תקנו את הנדרש ולחצו "שמירה ושליחת ההצהרה". ההגשה המתוקנת תחליף את הקודמת.</div>
+    </div>
+
     <div class="steps">
       <div class="step"><b>שלב 1</b>בחירת סוג הזרם</div>
       <div class="step"><b>שלב 2</b>מילוי כרטיס לכל חומר</div>
@@ -402,6 +409,7 @@ function collect(){
   }
   return {
     stream: current,
+    fix_id: FIX_ID || undefined,
     materials: mats,
     producer: {
       business_name: document.getElementById('p_name').value.trim(),
@@ -506,7 +514,60 @@ function discardDraft(){
   try{ localStorage.removeItem(DRAFT_KEY); }catch(e){}
   document.getElementById('draftBar').classList.remove('show');
 }
-if(localStorage.getItem(DRAFT_KEY)){ document.getElementById('draftBar').classList.add('show'); }
+/* ── מצב תיקון: /declaration?fix=ID — טעינת ההצהרה שהוחזרה + מילוי מראש ── */
+var FIX_ID = parseInt(new URLSearchParams(location.search).get('fix')||'0') || 0;
+async function loadFixMode(){
+  if(!FIX_ID) return false;
+  try{
+    var r=await fetch('/eco-oil/portal/my-declaration-docs',
+      {headers:{'Authorization':'Bearer '+localStorage.getItem('eco_access_token')}});
+    if(r.status===401){
+      var rt=localStorage.getItem('eco_refresh_token');
+      if(rt){
+        var rr=await fetch('/auth/refresh',{method:'POST',headers:{'Authorization':'Bearer '+rt}});
+        if(rr.ok){
+          localStorage.setItem('eco_access_token',(await rr.json()).access_token||'');
+          r=await fetch('/eco-oil/portal/my-declaration-docs',
+            {headers:{'Authorization':'Bearer '+localStorage.getItem('eco_access_token')}});
+        }
+      }
+    }
+    if(!r.ok) return false;
+    var d=((await r.json()).declarations||[]).find(function(x){ return x.id===FIX_ID && x.status==='needs_fix'; });
+    if(!d){ FIX_ID=0; return false; }
+    document.getElementById('fixNoteText').textContent=d.fix_note||'';
+    document.getElementById('fixBanner').style.display='block';
+    /* איתור הזרם לפי שם החומר */
+    var sk=null;
+    Object.keys(DATA).forEach(function(k){ if(DATA[k].streamName.indexOf(d.material_name)>=0){ sk=k; } });
+    if(sk){ selectStream(sk); }
+    var card=document.querySelector('#cards .mcard');
+    if(card){
+      var fill={stream_name:d.material_name, production_facility:d.production_facility,
+        waste_number:d.waste_stream_number, y_code:d.y_code, annex8:d.annex8, catalog:d.catalog,
+        treatment_type:d.treatment_type, pollutant_type:d.pollutant_type,
+        concentration_range:d.concentration_range||'', quantity_band:d.quantity, packaging:d.packaging};
+      var els=card.querySelectorAll('[data-k]');
+      for(var j=0;j<els.length;j++){
+        var k=els[j].getAttribute('data-k');
+        if(fill[k]!==undefined && fill[k]!==null){ els[j].value=fill[k]; showPick(els[j]); }
+      }
+    }
+    document.getElementById('p_name').value=d.producer_name||'';
+    document.getElementById('p_permit').value=d.permit_number||'';
+    document.getElementById('p_hp').value=d.business_id||'';
+    document.getElementById('p_addr').value=d.address||'';
+    document.getElementById('p_email').value=d.producer_email||'';
+    var parts=(d.ceo_name||'').trim().split(/\s+/);
+    document.getElementById('p_ceo_first').value=parts.shift()||'';
+    document.getElementById('p_ceo_last').value=parts.join(' ');
+    updatePermit();
+    return true;
+  }catch(e){ return false; }
+}
+if(FIX_ID){
+  loadFixMode();
+}else if(localStorage.getItem(DRAFT_KEY)){ document.getElementById('draftBar').classList.add('show'); }
 
 /* ── שליחה לשרת, כולל רענון טוקן שקוף אם פגה שעת הכניסה ──── */
 async function apiPost(url, body){

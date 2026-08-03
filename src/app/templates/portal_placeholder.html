@@ -31,6 +31,12 @@
       <div style="font-size:13px;color:#6b5a2e;margin-bottom:10px">יש להוריד או להדפיס, לחתום ולהחתים בחותמת העסק, ולהחזיר לאקו-אויל.</div>
       <div id="signDocsList"></div>
     </div>
+    <!-- הצהרות שהוחזרו לתיקון (לימור 03/08) — עם ההערות שלה -->
+    <div id="fixDocs" style="display:none;margin-top:16px;text-align:right;background:#FDECEA;border:1.5px solid #E5A29B;border-radius:12px;padding:14px 16px">
+      <div style="font-family:var(--fh);color:#9E423C;font-size:15px;margin-bottom:6px">🛠 הצהרות שהוחזרו לתיקון</div>
+      <div style="font-size:13px;color:#7a3b35;margin-bottom:10px">אקו-אויל החזירה את ההצהרה עם הערות — לחיצה פותחת את הטופס ממולא, לתיקון ושליחה מחדש.</div>
+      <div id="fixDocsList"></div>
+    </div>
     <a class="btn-main" href="/documents">📂 המסמכים שלי</a><br>
     <a class="btn-main" href="/declaration">📄 מילוי הצהרת יצרן</a><br>
     {% endif %}
@@ -51,16 +57,30 @@
         {headers:{'Authorization':'Bearer '+localStorage.getItem('eco_access_token')}});
       if(!r.ok) return;
       var ds=(await r.json()).declarations||[];
-      if(!ds.length) return;
-      document.getElementById('signDocsList').innerHTML=ds.map(function(d){
-        var day=(d.submitted_at||'').slice(0,10).split('-');
-        var dt=day.length===3?day[2]+'/'+day[1]+'/'+day[0]:'';
-        return '<div style="margin:6px 0"><a target="_blank" href="/declaration-doc?id='+d.id+'" '+
-          'style="color:#2F5F59;font-weight:600;text-decoration:underline">הצהרת יצרן — '+
-          (d.producer_name||'')+' ('+(d.material_name||'')+')</a>'+
-          '<span style="color:#8a8a8a;font-size:12px"> · '+dt+'</span></div>';
-      }).join('');
-      box.style.display='block';
+      var rel=ds.filter(function(d){ return d.status==='released'; });
+      var fix=ds.filter(function(d){ return d.status==='needs_fix'; });
+      function dt(d){ var p=(d.submitted_at||'').slice(0,10).split('-'); return p.length===3?p[2]+'/'+p[1]+'/'+p[0]:''; }
+      function esc(s){ return (s==null?'':String(s)).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+      if(rel.length){
+        document.getElementById('signDocsList').innerHTML=rel.map(function(d){
+          return '<div style="margin:6px 0"><a target="_blank" href="/declaration-doc?id='+d.id+'" '+
+            'style="color:#2F5F59;font-weight:600;text-decoration:underline">הצהרת יצרן — '+
+            esc(d.producer_name)+' ('+esc(d.material_name)+')</a>'+
+            '<span style="color:#8a8a8a;font-size:12px"> · '+dt(d)+'</span></div>';
+        }).join('');
+        box.style.display='block';
+      }
+      if(fix.length){
+        document.getElementById('fixDocsList').innerHTML=fix.map(function(d){
+          return '<div style="margin:8px 0"><a href="/declaration?fix='+d.id+'" '+
+            'style="color:#9E423C;font-weight:600;text-decoration:underline">הצהרת יצרן — '+
+            esc(d.producer_name)+' ('+esc(d.material_name)+')</a>'+
+            '<span style="color:#8a8a8a;font-size:12px"> · '+dt(d)+'</span>'+
+            (d.fix_note?'<div style="font-size:12.5px;color:#7a3b35;margin-top:2px">ההערות: '+esc(d.fix_note)+'</div>':'')+
+            '</div>';
+        }).join('');
+        document.getElementById('fixDocs').style.display='block';
+      }
     }catch(e){}
   })();
   function logout(){
