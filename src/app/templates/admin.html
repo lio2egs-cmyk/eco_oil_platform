@@ -192,7 +192,8 @@ async function loadDeclarations(){
        '<td><b>'+esc(d.producer_name)+'</b></td><td>'+esc(d.material_name)+'</td>'+
        '<td>'+esc(d.waste_stream_number)+'</td><td>'+esc(d.quantity)+'</td>'+
        '<td>'+declStatus(d)+'</td>'+
-       '<td><button class="btn btn-soft" onclick="toggleDecl('+i+')">פרטים מלאים</button></td></tr>'+
+       '<td><button class="btn btn-soft" onclick="toggleDecl('+i+')">פרטים מלאים</button> '+
+       '<a class="btn btn-soft" target="_blank" href="/declaration-doc?id='+d.id+'" title="המסמך הרשמי (נספח 3) ממולא מהנתונים שהוגשו — להדפסה ושליחה ליצרן לחתימה וחותמת">🖨 מסמך לחתימה</a></td></tr>'+
        '<tr id="decl-'+i+'" class="hidden"><td colspan="8" style="background:#F8FBFA">'+declDetails(d)+'</td></tr>';
   });
   box.innerHTML=h+'</table>';

@@ -57,6 +57,14 @@ def declaration_page():
     )
 
 
+@web.route("/declaration-doc")
+def declaration_doc_page():
+    """מסמך הצהרת יצרן לחתימה (?id=N) — העיצוב המאושר של נספח 3, ממולא
+    מהנתונים שהוגשו; אזור החתימה ריק — נשלח ליצרן לחתימה וחותמת.
+    ההרשאה בצד ה-API (המסך שואב דרך נקודת הקצה של המנהלת)."""
+    return render_template("declaration_doc.html")
+
+
 @web.route("/admin")
 def admin_page():
     """מסך הניהול של לימור — יצירת חברות ומשתמשי פורטל (אקו-אויל; שלב 5).

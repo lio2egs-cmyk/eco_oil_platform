@@ -1,0 +1,146 @@
+<!doctype html><html lang="he" dir="rtl"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>הצהרת יצרן — מסמך לחתימה</title>
+<link href="https://fonts.googleapis.com/css2?family=Rubik:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+{% raw %}
+<style>
+  /* נאמן לעיצוב שאושר ע"י לימור 25/06/2026 (_build_form_output.py) — עמוד אחד לרוחב,
+     נספח 3. הבדל מכוון יחיד: אזור החתימה ריק — זה המסמך שנשלח ליצרן לחתימה וחותמת. */
+  @page { size: A4 landscape; margin: 7mm; }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{background:#d9d9d9;font-family:'Rubik',Arial,sans-serif;color:#111;padding:14px}
+  .toolbar{max-width:1040px;margin:0 auto 12px;text-align:center}
+  .toolbar button{background:#5B9E96;color:#fff;border:none;border-radius:8px;padding:9px 18px;font-size:14px;cursor:pointer;font-family:inherit}
+  .msg{max-width:1040px;margin:0 auto 12px;background:#fff3cd;border:1px solid #f0d98a;border-radius:8px;padding:8px 14px;font-size:12.5px;color:#7a5d1a;text-align:center;display:none}
+  .sheet{width:1040px;min-height:735px;background:#fff;margin:0 auto;padding:10px 14px 80px;box-shadow:0 2px 14px rgba(0,0,0,.25);display:flex;flex-direction:column;position:relative}
+  .hdr{display:flex;align-items:center;justify-content:space-between;border-bottom:1.5px solid #2F5F59;padding-bottom:6px}
+  .hdr img.logo{height:86px} .hdr img.min{height:80px}
+  .hdr .ttl{text-align:center;flex:1}
+  .hdr .ttl h1{font-size:18px;color:#1c3f3a} .hdr .ttl .dt{font-size:11px;color:#555;margin-top:2px}
+  .plant{display:flex;gap:18px;flex-wrap:wrap;font-size:11px;margin:9px 2px 6px;padding:7px 10px;background:#f3f6f5;border-radius:5px}
+  .plant b{color:#1c3f3a}
+  .clause{font-size:10px;margin:6px 2px;line-height:1.5}
+  table{width:100%;border-collapse:collapse;margin:13px 0;table-layout:fixed}
+  th,td{border:0.7px solid #555;padding:2px 2px;font-size:6.7px;line-height:1.1;text-align:center;vertical-align:middle;word-wrap:break-word;overflow-wrap:break-word}
+  th{background:#e8efed;color:#16352f;font-weight:600}
+  tbody td{height:30px;font-size:7px}
+  .prod{font-size:11px;margin:14px 2px 2px}
+  .prod h2{font-size:12px;color:#1c3f3a;margin-bottom:7px}
+  .prow{display:flex;gap:6px;margin:4px 0}
+  .prow .l{flex:0 0 240px;color:#444}.prow .v{flex:1;border-bottom:1px dotted #999;font-weight:500}
+  .sigwrap{text-align:left;padding-top:10px}
+  .sigbox{display:inline-block;text-align:center;width:300px}
+  .sigspace{height:64px}
+  .sigline{border-top:1px solid #000;margin-top:2px;padding-top:3px;font-size:10px}
+  .sigcap{font-size:9.5px;color:#444}
+  .ftr{position:absolute;left:0;right:0;bottom:10px;text-align:center}.ftr img{width:773px;height:60px;display:inline-block}
+  @media print{ body{background:#fff;padding:0} .toolbar,.msg{display:none !important} .sheet{box-shadow:none;width:auto;margin:0} }
+</style>
+{% endraw %}
+</head><body>
+
+<div class="toolbar"><button onclick="window.print()">🖨️ הדפסה / שמירה כ-PDF</button></div>
+<div class="msg" id="msg"></div>
+
+<div class="sheet" id="sheet" style="visibility:hidden">
+  <div class="hdr">
+    <img class="logo" src="{{ url_for('static', filename='decl_logo.png') }}" alt="אקו-אויל">
+    <div class="ttl"><h1>נספח 3 — טופס הצהרת יצרן</h1><div class="dt">תאריך: <span id="d_date"></span></div></div>
+    <img class="min" src="{{ url_for('static', filename='decl_ministry.png') }}" alt="המשרד להגנת הסביבה">
+  </div>
+
+  <div class="plant">
+    <span><b>בעל ההיתר במפעל המטפל:</b> יואב טואג – מנכ"ל</span>
+    <span><b>שם המפעל המטפל:</b> אקו-אויל חץ וירומטל בע"מ</span>
+    <span><b>מספר היתר הרעלים:</b> 620203</span>
+  </div>
+
+  <div class="clause"><b>1.</b> הריני מצהיר על הרכב הפסולת המסוכנת הנוצרת בעסק ומיועדת לטיפול במפעלך:</div>
+
+  <table>
+    <thead><tr>
+      <th>יצרן הפסולת</th><th>שם זרם הפסולת</th><th>מספר הפסולת</th>
+      <th>מתקן הייצור ממנו נוצרה הפסולת</th>
+      <th>קוד Y (נספחים I ו-II לאמנת באזל) – קוד ותיאור הקוד</th>
+      <th>סוג הפסולת (נספח VIII לאמנת באזל) – סיווג ותיאור הסיווג</th>
+      <th>קוד סיכון (H) לאמנת באזל</th><th>קבוצת סיכון ע"פ האו"ם</th>
+      <th>סיווג ע"פ קטלוג הפסולות האירופאי (סיווג ופירוט)</th><th>מתקן / סוג טיפול</th>
+      <th>קוד פעולות השבה (R) לאמנת באזל</th><th>קוד טיפול בפסולת (D) לאמנת באזל</th>
+      <th>כמות שנתית (טון)</th><th>סוג האריזה</th><th>מאפיין עיקרי של הפסולות</th>
+      <th>סוג מזהם</th><th>טווח הריכוזים בפסולת (מינימום - מקסימום)</th>
+    </tr></thead>
+    <tbody id="tbody"></tbody>
+  </table>
+
+  <div class="clause"><b>2.</b> אני מתחייב כי בדקתי את עמידתה של הפסולת בערכי הסף ומגבלות הקליטה של מפעל הטיפול, בהתבסס על תהליכי הייצור והאנליזה ממעבדה מוסמכת שהועברה לפסולת זו.</div>
+  <div class="clause"><b>3.</b> במידה ויחול שינוי בהרכב הפסולת המסוכנת, הנני מתחייב לשנות את ההצהרה ולהודיע על כך.</div>
+  <div class="clause"><b>4.</b> במידה ויחול שינוי בפעילות אשר תביא לשינוי בכמות הפסולת המוצהרת, הנני מתחייב לשנות את ההצהרה ולהודיע על כך. (רלוונטי עבור יצרן המייצר מתחת ל-10 טון לשנה פסולת כוללת מפעילותו).</div>
+
+  <div class="prod">
+    <h2>פרטי יצרן הפסולת:</h2>
+    <div class="prow"><span class="l">שם העסק / המפעל</span><span class="v" id="d_biz"></span></div>
+    <div class="prow"><span class="l">מספר היתר רעלים של העסק / ח.פ. מפעל</span><span class="v" id="d_ids"></span></div>
+    <div class="prow"><span class="l">כתובת העסק / מפעל</span><span class="v" id="d_addr"></span></div>
+    <div class="prow"><span class="l">שם מנכ"ל / בעל ההיתר / אחראי היתר</span><span class="v" id="d_ceo"></span></div>
+  </div>
+
+  <div class="sigwrap">
+    <div class="sigbox">
+      <div class="sigspace"></div>
+      <div class="sigline">בעל היתר הרעלים / בעל העסק יצרן הפסולת</div>
+      <div class="sigcap">(חתימה וחותמת העסק - יצרן הפסולת המסוכנת)</div>
+    </div>
+  </div>
+
+  <div class="ftr"><img src="{{ url_for('static', filename='decl_footer.png') }}"></div>
+</div>
+
+{% raw %}
+<script>
+function esc(s){ return (s==null||s===''?'—':String(s)); }
+function show(m){ var e=document.getElementById('msg'); e.textContent=m; e.style.display='block'; }
+async function api(url){
+  var opts={headers:{'Authorization':'Bearer '+localStorage.getItem('eco_access_token')}};
+  var r=await fetch(url,opts);
+  if(r.status===401){
+    var rt=localStorage.getItem('eco_refresh_token');
+    if(rt){
+      var rr=await fetch('/auth/refresh',{method:'POST',headers:{'Authorization':'Bearer '+rt}});
+      if(rr.ok){
+        localStorage.setItem('eco_access_token',(await rr.json()).access_token||'');
+        opts.headers['Authorization']='Bearer '+localStorage.getItem('eco_access_token');
+        r=await fetch(url,opts);
+      }
+    }
+  }
+  return r;
+}
+(async function(){
+  var id=parseInt(new URLSearchParams(location.search).get('id')||'0');
+  if(!id){ show('חסר מזהה הצהרה בכתובת.'); return; }
+  var r=await api('/eco-oil/admin/producer-declarations');
+  if(!r||!r.ok){ show('אין הרשאה — היכנסי קודם למסך הניהול ואז פתחי שוב את המסמך.'); return; }
+  var d=((await r.json()).declarations||[]).find(function(x){ return x.id===id; });
+  if(!d){ show('ההצהרה לא נמצאה.'); return; }
+  var day=(d.submitted_at||'').slice(0,10).split('-');
+  document.getElementById('d_date').textContent=day.length===3?day[2]+'/'+day[1]+'/'+day[0]:'';
+  var cells=[d.producer_name,d.material_name,d.waste_stream_number,d.production_facility,
+             d.y_code,d.annex8,d.h_code,d.un_group,d.catalog,d.treatment_type,
+             d.r_code,d.d_code,d.quantity,d.packaging,d.characteristic,
+             d.pollutant_type,d.concentration_range];
+  document.getElementById('tbody').innerHTML='<tr>'+cells.map(function(c){
+    var t=document.createElement('td'); t.textContent=esc(c); return t.outerHTML;
+  }).join('')+'</tr>';
+  var ids=[];
+  if(d.permit_number) ids.push('היתר '+d.permit_number);
+  if(d.business_id) ids.push('ח.פ. '+d.business_id);
+  document.getElementById('d_biz').textContent=esc(d.producer_name);
+  document.getElementById('d_ids').textContent=ids.join(' · ')||'—';
+  document.getElementById('d_addr').textContent=esc(d.address);
+  document.getElementById('d_ceo').textContent=esc(d.ceo_name);
+  document.title='הצהרת יצרן — '+esc(d.producer_name);
+  document.getElementById('sheet').style.visibility='visible';
+})();
+</script>
+{% endraw %}
+</body></html>
