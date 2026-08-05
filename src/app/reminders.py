@@ -93,8 +93,16 @@ def declaration_reminders():
     for item in via:
         status, emails = _portal_status(idx, item["transporter"])
         mail_txt = "<br>".join(emails) if emails else ""
-        cust_txt = "<br>".join(
-            f'{c["customer"]} — {_streams_txt(c["expiring"])}' for c in item["customers"])
+        # מדרגת 05/08: ליצרן עקיף יכול להיות משתמש "הצהרות בלבד" משלו — מציגים
+        # את מצב הפורטל של הלקוח עצמו, לעוררות ישירה במקביל לאחריות המוביל.
+        cust_lines = []
+        for c in item["customers"]:
+            c_status, c_emails = _portal_status(idx, c["customer"])
+            tail = f'מחובר — {", ".join(c_emails)}' if c_emails else c_status
+            cust_lines.append(
+                f'{c["customer"]} — {_streams_txt(c["expiring"])}'
+                f'<br><span style="color:#777;font-size:12.5px;">פורטל הלקוח: {tail}</span>')
+        cust_txt = "<br>".join(cust_lines)
         rows_b += (f'<tr><td style="{TD}">{item["transporter"]}</td>'
                    f'<td style="{TD}">{cust_txt}</td>'
                    f'<td style="{TD}">{status}</td>'
@@ -153,6 +161,10 @@ def declaration_reminders():
 שלום, ללקוחות הבאים שלך תפוג הצהרת היצרן ב-[חודש]: [רשימה]. באחריותך
 להסדיר הצהרות חתומות עבורם לפני תום החודש — ללא הצהרה בתוקף לא נוכל לקבל
 את הפסולת שלהם. תודה, לימור</p>
+<p><b>ללקוח עקיף המחובר לפורטל (משתמש הצהרות בלבד):</b><br>
+שלום, תוקף הצהרת היצרן שלכם לזרם [זרם] יפוג ב-[חודש]. אפשר לחדש אותה בקלות
+ישירות בפורטל הלקוחות: {PORTAL_URL} — נכנסים ולוחצים "מילוי הצהרת יצרן".
+ללא הצהרה בתוקף לא נוכל לקבל את הפסולת שלכם. תודה, לימור</p>
 
 <p style="color:#777;">נשלח אוטומטית על ידי פורטל אקו-אויל — מנגנון תזכורות ההצהרות (פיילוט; רץ ב-15 לכל חודש).</p></div>"""
 
