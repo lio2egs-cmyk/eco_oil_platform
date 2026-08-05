@@ -65,6 +65,8 @@
 </div>
 <script>
 if(!localStorage.getItem('eco_access_token')){ location.href='/login'; }
+/* משתמש "הצהרות בלבד" (לקוח עקיף, לימור 05/08) — אין לו אזור מסמכים; ה-API חוסם ממילא */
+try{ if(JSON.parse(localStorage.getItem('eco_user')||'{}').role==='eco_oil_declaration_only'){ location.href='/portal'; } }catch(e){}
 var MODE='billed';
 
 async function apiGet(url){

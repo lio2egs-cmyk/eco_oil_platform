@@ -2749,6 +2749,9 @@ def get_disposal_certificate_pdf(cert_id):
 @main.route("/eco-oil/clients/<int:client_id>/portal", methods=["GET"])
 @jwt_required()
 def eco_oil_client_portal(client_id):
+    # תפקיד "הצהרות בלבד" (לימור 05/08) רואה רק הצהרה+הסכמה — לא אירועי פריקה
+    if get_jwt().get("role") == "eco_oil_declaration_only":
+        return {"error": "Forbidden"}, 403
     allowed = get_allowed_client_ids()
     if allowed is not None and client_id not in allowed:
         return {"error": "Forbidden"}, 403

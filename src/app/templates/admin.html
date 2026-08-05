@@ -310,14 +310,17 @@ function render(){
     var aliases=(c.billing_aliases||'').split('\n').map(function(a){return a.trim();}).filter(Boolean);
     var rows=users.map(function(u){
       var rem=u.weekly_reminder;
+      var declOnly=(u.role==='eco_oil_declaration_only');
       var extras=(u.extra_client_ids||[]).map(clientName).join(' · ');
       return '<tr><td>'+esc(u.email)+
+        (declOnly?' <span class="pill" title="לקוח עקיף — רואה רק הצהרת יצרן+הסכמה">הצהרות בלבד</span>':'')+
         (extras?'<div class="muted" style="font-size:12px">רואה גם: '+esc(extras)+'</div>':'')+
         '</td><td>'+fmtDate(u.last_login_at)+'</td>'+
-        '<td><button class="btn '+(rem?'':'btn-soft')+'" title="מייל תזכורת קצר בכל יום חמישי — רק מספרים וקישור לפורטל, בלי מסמכים. נשלח רק אם היו פעולות באותו שבוע." '+
-        'onclick="toggleRem('+u.id+','+(rem?1:0)+',\''+esc(u.email)+'\')">'+(rem?'🔔 פועלת':'🔕 כבויה')+'</button></td>'+
+        '<td>'+(declOnly?'<span class="muted">—</span>'
+          :'<button class="btn '+(rem?'':'btn-soft')+'" title="מייל תזכורת קצר בכל יום חמישי — רק מספרים וקישור לפורטל, בלי מסמכים. נשלח רק אם היו פעולות באותו שבוע." '+
+          'onclick="toggleRem('+u.id+','+(rem?1:0)+',\''+esc(u.email)+'\')">'+(rem?'🔔 פועלת':'🔕 כבויה')+'</button>')+'</td>'+
         '<td><button class="btn btn-soft" onclick="sendLink(\''+esc(u.email)+'\')">שלחי קישור כניסה</button> '+
-        '<button class="btn btn-soft" title="משתמש שרואה כמה חברות בפורטל (מתג מעבר) — למשל לאורה עם שתי חברות גדות" onclick="editExtras('+u.id+',\''+esc(u.email)+'\')">חברות נוספות</button> '+
+        (declOnly?'':'<button class="btn btn-soft" title="משתמש שרואה כמה חברות בפורטל (מתג מעבר) — למשל לאורה עם שתי חברות גדות" onclick="editExtras('+u.id+',\''+esc(u.email)+'\')">חברות נוספות</button> ')+
         '<button class="btn btn-danger" onclick="delUser('+u.id+',\''+esc(u.email)+'\')">הסירי</button></td></tr>';
     }).join('');
     h+='<div class="client" data-cid="'+c.id+'">'+
@@ -330,6 +333,8 @@ function render(){
          '<div class="muted">אין עדיין משתמשים לחברה זו.</div>')+
        '<div class="row" style="margin-top:8px">'+
          '<button class="btn" onclick="addUser('+c.id+',\''+esc(c.name)+'\')">הוסיפי משתמש</button>'+
+         '<button class="btn btn-soft" title="לקוח עקיף של מוביל — כניסה שרואה רק את אזור הצהרת היצרן וההסכמה, בלי אישורי פריקה ובלי טופסי מלווה" '+
+           'onclick="addUser('+c.id+',\''+esc(c.name)+'\',1)">משתמש הצהרות בלבד</button>'+
          '<a class="btn btn-soft" target="_blank" href="/documents?client_id='+c.id+'">מה הלקוח רואה</a>'+
          '<button class="btn btn-soft" onclick="editAliases('+c.id+')">עריכת צורות כתיב</button>'+
        '</div></div>';
@@ -379,13 +384,15 @@ async function createClient(){
   await reload();
 }
 
-async function addUser(cid,cname){
-  var email=prompt('המייל של איש הקשר בחברת "'+cname+'":');
+async function addUser(cid,cname,declOnly){
+  var email=prompt(declOnly
+    ?'משתמש "הצהרות בלבד" (לקוח עקיף של מוביל, החלטת 05/08) — רואה רק הצהרת יצרן+הסכמה, בלי אישורי פריקה.\n\nהמייל של איש הקשר במפעל "'+cname+'":'
+    :'המייל של איש הקשר בחברת "'+cname+'":');
   if(!email) return;
   email=email.trim().toLowerCase();
   if(email.indexOf('@')<1){ toast('כתובת מייל לא תקינה'); return; }
   var r=await api('/auth/portal-users',{method:'POST',
-    body:JSON.stringify({email:email,role:'eco_oil_client',client_id:cid})});
+    body:JSON.stringify({email:email,role:declOnly?'eco_oil_declaration_only':'eco_oil_client',client_id:cid})});
   if(r&&r.status===409){ toast('המייל הזה כבר רשום במערכת'); return; }
   if(!r||!r.ok){ toast('שגיאה בהוספת המשתמש'); return; }
   toast(email+' נוסף ✓ אפשר לשלוח הזמנה');

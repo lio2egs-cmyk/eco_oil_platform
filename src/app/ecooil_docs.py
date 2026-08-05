@@ -24,6 +24,10 @@ PRESIGN_SECONDS = 300
 # unpublished → nothing shown, no explanation.
 WITHHELD_STATUSES = {"awaiting_declaration", "unpublished"}
 
+# תפקיד "הצהרות בלבד" (לימור 05/08) — לקוח עקיף שרואה רק הצהרה+הסכמה,
+# לעולם לא את אזור המסמכים (אישורי פריקה / טופסי מלווה).
+DECLARATION_ONLY_ROLE = "eco_oil_declaration_only"
+
 
 def _client_for_request():
     """The client whose documents this request may see.
@@ -292,6 +296,8 @@ def my_declaration_docs():
 @ecooil_docs.route("/my-documents", methods=["GET"])
 @jwt_required()
 def my_documents():
+    if get_jwt().get("role") == DECLARATION_ONLY_ROLE:
+        return jsonify({"error": "declarations only"}), 403
     client = _client_for_request()
     if client is None:
         return jsonify({"error": "no client"}), 403
@@ -343,6 +349,8 @@ def my_documents():
 @ecooil_docs.route("/my-documents/<int:event_id>/download", methods=["GET"])
 @jwt_required()
 def download(event_id):
+    if get_jwt().get("role") == DECLARATION_ONLY_ROLE:
+        return jsonify({"error": "declarations only"}), 403
     client = _client_for_request()
     if client is None:
         return jsonify({"error": "no client"}), 403

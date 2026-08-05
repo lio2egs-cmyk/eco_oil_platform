@@ -37,7 +37,7 @@
       <div style="font-size:13px;color:#7a3b35;margin-bottom:10px">אקו-אויל החזירה את ההצהרה עם הערות — לחיצה פותחת את הטופס ממולא, לתיקון ושליחה מחדש.</div>
       <div id="fixDocsList"></div>
     </div>
-    <a class="btn-main" href="/documents">📂 המסמכים שלי</a><br>
+    <a class="btn-main" id="docsBtn" href="/documents">📂 המסמכים שלי</a><br id="docsBtnBr">
     <a class="btn-main" href="/declaration">📄 מילוי הצהרת יצרן</a><br>
     {% endif %}
     <a class="btn" href="#" onclick="logout();return false;">יציאה</a>
@@ -47,6 +47,12 @@
   try{
     var u=JSON.parse(localStorage.getItem('eco_user')||'{}');
     if(u && u.client_name){ document.getElementById('who').textContent='שלום, '+u.client_name; }
+    /* משתמש "הצהרות בלבד" (לקוח עקיף, לימור 05/08) — אין לו אזור מסמכים */
+    if(u && u.role==='eco_oil_declaration_only'){
+      var b=document.getElementById('docsBtn'), br=document.getElementById('docsBtnBr');
+      if(b) b.style.display='none';
+      if(br) br.style.display='none';
+    }
   }catch(e){}
   /* מסמכים שלימור שחררה לחתימה — מוצג רק כשיש */
   (async function(){

@@ -46,8 +46,12 @@ def _rate_limited(bucket, limit, window_seconds):
 
 auth = Blueprint("auth", __name__, url_prefix="/auth")
 
-VALID_ROLES = {"admin", "eco_oil_client", "eco_depot_client", "transport_company"}
-PORTAL_ROLES = {"eco_oil_client", "eco_depot_client", "transport_company"}
+# eco_oil_declaration_only (לימור 05/08): לקוח עקיף — יצרן של מוביל שמקבל
+# כניסה רק לאזור הצהרת יצרן+הסכמה. בלי אישורי פריקה ובלי טופסי מלווה.
+VALID_ROLES = {"admin", "eco_oil_client", "eco_depot_client", "transport_company",
+               "eco_oil_declaration_only"}
+PORTAL_ROLES = {"eco_oil_client", "eco_depot_client", "transport_company",
+                "eco_oil_declaration_only"}
 MAGIC_LINK_TTL_MINUTES = 60
 
 
