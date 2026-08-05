@@ -69,6 +69,15 @@
     <h3>הקמת חברה חדשה</h3>
     <div class="row"><input type="text" id="newName" placeholder="שם החברה — בדיוק כפי שמופיע בעמודת החיוב בריכוז"></div>
     <div class="row"><textarea id="newAliases" placeholder="צורות כתיב נוספות (שמות קודמים, אתרים, וריאציות) — שורה לכל צורה. אפשר להשאיר ריק."></textarea></div>
+    <!-- ישיר/עקיף נקבע ביצירה (לימור 05/08) — לפי עמודת "סוג לקוח" בגיליון ח.פ.-היתר במסד -->
+    <div class="row">
+      <label>סוג החברה:</label>
+      <select id="newType" onchange="typeHint()" style="padding:6px 10px;border:1px solid var(--line);border-radius:8px;font-size:13px">
+        <option value="direct">לקוח ישיר</option>
+        <option value="indirect">יצרן עקיף — לקוח של מוביל</option>
+      </select>
+      <span class="muted" id="newTypeHint"></span>
+    </div>
     <div class="row">
       <button class="btn btn-soft" onclick="checkNew()">בדקי כמה מסמכים נמצאו</button>
       <button class="btn" onclick="createClient()">צרי חברה</button>
@@ -325,6 +334,7 @@ function render(){
     }).join('');
     h+='<div class="client" data-cid="'+c.id+'">'+
        '<div class="name">'+esc(c.name)+
+         (c.client_type==='indirect'?'<span class="pill" title="לקוח של מוביל — לפי עמודת סוג לקוח במסד">יצרן עקיף</span>':'')+
          (aliases.length?'<span class="pill">'+aliases.length+' צורות כתיב נוספות</span>':'')+
          '<span class="pill" id="cnt-'+c.id+'">…</span></div>'+
        '<div class="meta">מס׳ חברה: '+c.id+(aliases.length?' · כתיבים: '+esc(aliases.join(' | ')):'')+'</div>'+
@@ -332,9 +342,12 @@ function render(){
          '<table><tr><th>מייל</th><th>כניסה אחרונה</th><th>תזכורת חמישי</th><th></th></tr>'+rows+'</table>':
          '<div class="muted">אין עדיין משתמשים לחברה זו.</div>')+
        '<div class="row" style="margin-top:8px">'+
-         '<button class="btn" onclick="addUser('+c.id+',\''+esc(c.name)+'\')">הוסיפי משתמש</button>'+
-         '<button class="btn btn-soft" title="לקוח עקיף של מוביל — כניסה שרואה רק את אזור הצהרת היצרן וההסכמה, בלי אישורי פריקה ובלי טופסי מלווה" '+
-           'onclick="addUser('+c.id+',\''+esc(c.name)+'\',1)">משתמש הצהרות בלבד</button>'+
+         (c.client_type==='indirect'
+           ?'<button class="btn" title="כניסה שרואה רק את אזור הצהרת היצרן וההסכמה, בלי אישורי פריקה ובלי טופסי מלווה" '+
+              'onclick="addUser('+c.id+',\''+esc(c.name)+'\',1)">משתמש הצהרות בלבד</button>'+
+            '<button class="btn btn-soft" title="כניסה מלאה — רק אם היצרן ביקש במפורש לראות גם את האישורים שבהם הוא רשום כמקור" '+
+              'onclick="addUser('+c.id+',\''+esc(c.name)+'\')">הוסיפי משתמש רגיל</button>'
+           :'<button class="btn" onclick="addUser('+c.id+',\''+esc(c.name)+'\')">הוסיפי משתמש</button>')+
          '<a class="btn btn-soft" target="_blank" href="/documents?client_id='+c.id+'">מה הלקוח רואה</a>'+
          '<button class="btn btn-soft" onclick="editAliases('+c.id+')">עריכת צורות כתיב</button>'+
        '</div></div>';
@@ -370,15 +383,22 @@ async function checkNew(){
   out.innerHTML=h;
 }
 
+function typeHint(){
+  var ind=document.getElementById('newType').value==='indirect';
+  document.getElementById('newTypeHint').textContent=ind
+    ?'לפי עמודת "סוג לקוח" במסד. צפוי 0 מסמכים — האישורים שלו רשומים אצל המוביל.':'';
+}
+
 async function createClient(){
   var name=document.getElementById('newName').value.trim();
   var aliases=document.getElementById('newAliases').value.split('\n').map(function(a){return a.trim();}).filter(Boolean);
+  var ctype=document.getElementById('newType').value;
   if(!name){ toast('מלאי את שם החברה'); return; }
   if(CLIENTS.some(function(c){ return c.name===name; })){ toast('חברה בשם הזה כבר קיימת'); return; }
   var r=await api('/clients',{method:'POST',body:JSON.stringify(
-    {name:name,division:'eco_oil',client_type:'direct',billing_aliases:aliases.join('\n')||null})});
+    {name:name,division:'eco_oil',client_type:ctype,billing_aliases:aliases.join('\n')||null})});
   if(!r||!r.ok){ toast('שגיאה ביצירת החברה'); return; }
-  toast('החברה נוצרה ✓ עכשיו הוסיפי לה משתמש');
+  toast(ctype==='indirect'?'החברה נוצרה ✓ עכשיו הוסיפי לה משתמש הצהרות בלבד':'החברה נוצרה ✓ עכשיו הוסיפי לה משתמש');
   document.getElementById('newName').value=''; document.getElementById('newAliases').value='';
   document.getElementById('newCheck').innerHTML='';
   await reload();
