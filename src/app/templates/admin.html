@@ -94,6 +94,15 @@
     <div id="declList" class="muted">טוען…</div>
   </div>
 
+  <!-- סתירות תיוק מול חיוב (לימור 06/08, אחרי מקרה עידן/מיקוש):
+       מיקום התיוק של האישור הוא הקובע למי הוא מוצג; הרשימה הזו חושפת כל
+       מקום שבו התיוק ועמודת החיוב לא מסכימים, כדי שטעות לא תישאר שקטה -->
+  <div class="card" id="discCard">
+    <h3>סתירות בין תיוק האישור לעמודת החיוב <span class="pill" id="discCount">…</span></h3>
+    <p class="muted" style="margin-bottom:8px">הכלל: האישור מוצג בפורטל לפי התיקייה שבה תייקת אותו. כשאין קובץ, או כשהתיקייה לא מזוהה כחברה רשומה — לפי עמודת החיוב.</p>
+    <div id="discList" class="muted">טוען…</div>
+  </div>
+
   <div class="card">
     <div class="row">
       <input type="text" id="q" placeholder="חיפוש חברה או מייל — הקלידי והרשימה תצטמצם מיד" style="max-width:360px" oninput="render()">
@@ -173,6 +182,40 @@ async function reload(){
   USERS=(await ru.json()).users;
   render();
   loadDeclarations();
+  loadDiscrepancies();
+}
+
+/* ── סתירות תיוק מול חיוב (לימור 06/08) ── */
+function discKind(k){
+  if(k==='conflict') return '<span class="warn">⚠ הקובץ מתויק אצל חברה אחרת מהחיוב</span>';
+  if(k==='pulled_by_folder') return '<span class="warn">הקובץ מתויק אצל חברה רשומה, החיוב על גורם לא רשום</span>';
+  return '<span class="muted">התיקייה לא מזוהה — ההגנה לפי תיוק לא פעילה לשורות אלה</span>';
+}
+async function loadDiscrepancies(){
+  var box=document.getElementById('discList'), cnt=document.getElementById('discCount');
+  var r=await api('/eco-oil/admin/filing-discrepancies');
+  if(!r||!r.ok){ box.textContent='שגיאה בטעינת הסתירות'; cnt.textContent=''; return; }
+  var d=await r.json();
+  var gs=d.groups||[];
+  var conflicts=(d.row_counts&&d.row_counts.conflict)||0;
+  var pulled=(d.row_counts&&d.row_counts.pulled_by_folder)||0;
+  var unrec=(d.row_counts&&d.row_counts.unrecognized_folder)||0;
+  cnt.textContent=(conflicts||pulled||unrec)?
+    ((conflicts?conflicts+' שורות בסתירה של ממש':'')+
+     (pulled?(conflicts?' · ':'')+pulled+' נמשכות לפי תיוק':'')+
+     (unrec?((conflicts||pulled)?' · ':'')+unrec+' בתיקייה לא מזוהה':'')):'אין סתירות';
+  if(!gs.length){ box.innerHTML='<span class="ok">אין סתירות — התיוק ועמודת החיוב מסכימים בכל השורות המשויכות לחברות רשומות.</span>'; return; }
+  var h='<table><tr><th>מה קורה</th><th>עמודת החיוב אומרת</th><th>הקובץ מתויק בתיקייה</th>'+
+        '<th>מי רואה בפורטל</th><th>שורות</th><th>הכי עדכני</th><th>דוגמה</th></tr>';
+  gs.forEach(function(g){
+    var sees=g.kind==='unrecognized_folder'?esc(g.billed_client)+' (לפי חיוב)':esc(g.folder_client)+' (לפי תיוק)';
+    var ex=g.sample?esc((g.sample.date||'')+' · '+(g.sample.customer||'')+(g.sample.code?' · '+g.sample.code:'')):'';
+    h+='<tr><td>'+discKind(g.kind)+'</td><td>'+esc(g.billed_to||'—')+'</td>'+
+       '<td>'+esc(g.filed_owner)+'</td><td>'+sees+'</td>'+
+       '<td>'+g.count+'</td><td>'+esc(g.latest_date||'')+'</td><td class="muted">'+ex+'</td></tr>';
+  });
+  box.innerHTML=h+'</table>'+
+    '<p class="muted" style="margin-top:8px">תיקון "תיקייה לא מזוהה": הוסיפי את שם התיקייה כצורת כתיב נוספת בכרטיס החברה. תיקון סתירה של ממש: ודאי שהתיוק נכון — ואם כן, עדכני את עמודת החיוב בריכוז.</p>';
 }
 
 /* ── הצהרות יצרן מהפורטל (צפייה בלבד בשלב זה) ── */

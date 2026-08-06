@@ -676,6 +676,12 @@ class EcoOilUnloadEvent(db.Model):
     # (set via the ריכוז column "הערות למערכת פורטל", which overrides the
     # note-based classification).
     doc_status = db.Column(db.String(30), index=True)
+    # filed_owner: the filing-folder chain of the matched certificate under
+    # Z:\Eco_General (e.g. 'מיקוש שאיבות' or 'גדות_כולל / גדות אחסון ושינוע'),
+    # derived server-side from pdf_path at sync. Limor's ruling 06/08/2026:
+    # WHERE THE CERTIFICATE IS FILED is the portal-visibility anchor; the
+    # billed column is only the fallback (no file / folder not recognized).
+    filed_owner = db.Column(db.String(200), index=True)
     pdf_path = db.Column(db.String(400))                    # matched filed PDF (filled by matcher)
     pdf_key = db.Column(db.String(500))                     # B2 object key (cloud copy of the PDF)
     manifest_path = db.Column(db.String(400))               # matched signed טופס מלווה scan (matcher)

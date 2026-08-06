@@ -8,6 +8,7 @@ and pushes the unload-event rows here. The cloud only mirrors — it never edits
 Auth: ECOOIL_BRIDGE_TOKEN env var (Bearer), same pattern as FIELD_BRIDGE_TOKEN.
 """
 import os
+import re
 import secrets as _secrets
 from datetime import datetime, date
 from functools import wraps
@@ -54,6 +55,33 @@ def ecooil_bridge_required(f):
     return wrapper
 
 
+# Filing-folder derivation (Limor's ruling 06/08/2026: the folder a certificate
+# is FILED in is the portal-visibility anchor). The chain keeps sub-entity
+# folders (e.g. 'גדות_כולל / גדות אחסון ושינוע') and drops year/month/
+# bookkeeping folders, mirroring the office matcher's owner logic.
+_FILING_ROOTS = {"מובילים", "לקוחות"}
+_FILING_SKIP = {"אישורים", "ישן"}
+
+
+def _filed_owner_from_path(path):
+    if not path:
+        return None
+    parts = [p.strip() for p in str(path).replace("\\", "/").split("/") if p.strip()]
+    for i, p in enumerate(parts[:-1]):
+        if p in _FILING_ROOTS:
+            segs = parts[i + 1:-1]
+            if not segs:
+                return None
+            keep = [segs[0]] + [
+                s for s in segs[1:]
+                if s not in _FILING_SKIP and "מלווה" not in s
+                and not re.fullmatch(r"\d{4}", s)
+                and not re.fullmatch(r"\d{1,2}([\./]\d{2,4})?", s)
+            ]
+            return " / ".join(keep)[:200] or None
+    return None
+
+
 def _coerce_event(item):
     """Validate + coerce one incoming event dict → kwargs for the model.
     Returns None for rows missing the essentials (year, month, event_date)."""
@@ -85,6 +113,10 @@ def _coerce_event(item):
         kwargs["event_date"] = None
     if not kwargs.get("year") or not kwargs.get("month") or kwargs["event_date"] is None:
         return None
+    # The certificate's filing folder is the anchor; a row with only a signed
+    # manifest follows the manifest's folder (same filing act by Limor).
+    kwargs["filed_owner"] = _filed_owner_from_path(
+        kwargs.get("pdf_path") or kwargs.get("manifest_path"))
     kwargs["synced_at"] = datetime.utcnow()
     return kwargs
 

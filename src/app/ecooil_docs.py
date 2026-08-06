@@ -8,9 +8,10 @@ view; otherwise source view. Downloads are served as short-lived presigned B2
 URLs — the bucket stays private.
 """
 import os
+import re
 from flask import Blueprint, current_app, jsonify, request
 from flask_jwt_extended import jwt_required, get_jwt, get_jwt_identity
-from sqlalchemy import func, or_
+from sqlalchemy import and_, func, or_
 
 from .db import db, Client, User, EcoOilUnloadEvent
 
@@ -63,18 +64,94 @@ def _companies_for_user(claims):
     return [{"id": i, "name": clients[i].name} for i in ids if i in clients]
 
 
+def _norm_name(s):
+    """Deterministic name normalization — the same recipe as the office
+    matcher's norm(): quotes/dashes/underscores out, בע"מ out, punctuation
+    out, spaces collapsed. Equality after this is exact, never fuzzy."""
+    if not s:
+        return ""
+    s = str(s)
+    s = s.replace('"', "").replace("'", "").replace("_", " ").replace("-", " ")
+    s = re.sub(r"בע\s*מ", " ", s)
+    s = re.sub(r"[^\w\s]", " ", s)
+    s = re.sub(r"\s+", " ", s).strip()
+    return s
+
+
+def _billed_core(billed):
+    """Billed name without a parenthetical customer suffix: 'X (customer)' → X."""
+    if not billed:
+        return ""
+    return re.sub(r"\s*\(.*\)\s*$", "", str(billed)).strip()
+
+
+def _client_name_map():
+    """norm(name) → client_id over every Eco-Oil client's name + aliases.
+    This is how a filing folder (or a billed spelling) is recognized as a
+    registered company — registration is what activates the folder anchor."""
+    m = {}
+    for c in Client.query.filter(Client.division == "eco_oil").all():
+        for n in c.billed_names():
+            key = _norm_name(n)
+            if key:
+                m.setdefault(key, c.id)
+    return m
+
+
+def _resolve_folder(chain, name_map):
+    """filed_owner chain ('top / sub / …') → client_id or None.
+    Deepest segment wins: umbrella folders (גדות_כולל, טמבור_אתרים) hold one
+    sub-folder per real entity, so the entity folder outranks its parent."""
+    for seg in reversed([p.strip() for p in (chain or "").split(" / ") if p.strip()]):
+        cid = name_map.get(_norm_name(seg))
+        if cid is not None:
+            return cid
+    return None
+
+
+def _folder_partition(client):
+    """Distinct filed_owner values split into (mine, other-client's).
+    Values resolving to NO registered company are neutral — the billed
+    fallback governs those rows (Limor's option-A ruling, 06/08/2026)."""
+    name_map = _client_name_map()
+    mine, other = [], []
+    vals = [v for (v,) in db.session.query(EcoOilUnloadEvent.filed_owner)
+            .filter(EcoOilUnloadEvent.filed_owner.isnot(None)).distinct().all()]
+    for v in vals:
+        cid = _resolve_folder(v, name_map)
+        if cid == client.id:
+            mine.append(v)
+        elif cid is not None:
+            other.append(v)
+    return mine, other
+
+
 def _scoped_query(client):
-    """All billed names the client owns: primary name + billing_aliases
-    (former names, absorbed companies, per-site names, spelling variants).
-    A parenthetical billed row like 'X (customer)' belongs to X (rule 21/07)."""
+    """Visibility ruling (Limor 06/08/2026, after the Idan/Mikush incident):
+    THE FILING FOLDER of the certificate is the anchor. A row whose file is
+    filed in a folder recognized as ANOTHER registered company is theirs —
+    never shown here, even if the billed column still says otherwise.
+    Fallback (option A): a row with no file, or with a folder no registered
+    company owns, is scoped by billed name + billing_aliases as before
+    (parenthetical billed 'X (customer)' belongs to X, rule 21/07)."""
     names = client.billed_names()
     billed_match = or_(
         EcoOilUnloadEvent.billed_to.in_(names),
         *[EcoOilUnloadEvent.billed_to.like(n + " (%") for n in names],
     )
-    billed = EcoOilUnloadEvent.query.filter(billed_match)
-    if db.session.query(billed.exists()).scalar():
-        return billed, "billed"
+    mine, other = _folder_partition(client)
+    # NOT IN evaluates to NULL for NULL filed_owner — the is_(None) arm keeps
+    # file-less rows inside the billed fallback.
+    folder_neutral = EcoOilUnloadEvent.filed_owner.is_(None)
+    if other:
+        folder_neutral = or_(folder_neutral,
+                             EcoOilUnloadEvent.filed_owner.notin_(other))
+    conds = [and_(billed_match, folder_neutral)]
+    if mine:
+        conds.append(EcoOilUnloadEvent.filed_owner.in_(mine))
+    scoped = EcoOilUnloadEvent.query.filter(or_(*conds))
+    if db.session.query(scoped.exists()).scalar():
+        return scoped, "billed"
     return (EcoOilUnloadEvent.query.filter(EcoOilUnloadEvent.customer.in_(names)),
             "source")
 
@@ -91,7 +168,17 @@ def billed_count():
         cnt = EcoOilUnloadEvent.query.filter(or_(
             EcoOilUnloadEvent.billed_to == name,
             EcoOilUnloadEvent.billed_to.like(name + " (%"))).count()
-        return jsonify({"name": name, "count": cnt})
+        # folder matches too — a spelling may exist only as a filing folder
+        nkey = _norm_name(name)
+        vals = [v for (v,) in db.session.query(EcoOilUnloadEvent.filed_owner)
+                .filter(EcoOilUnloadEvent.filed_owner.isnot(None)).distinct().all()]
+        owned = [v for v in vals if any(
+            _norm_name(seg) == nkey
+            for seg in v.split(" / ") if seg.strip())]
+        folder_cnt = (EcoOilUnloadEvent.query
+                      .filter(EcoOilUnloadEvent.filed_owner.in_(owned)).count()
+                      if owned else 0)
+        return jsonify({"name": name, "count": cnt, "folder_count": folder_cnt})
     cid = request.args.get("client_id")
     if cid:
         client = db.session.get(Client, int(cid))
@@ -100,6 +187,75 @@ def billed_count():
         q, mode = _scoped_query(client)
         return jsonify({"client_id": client.id, "count": q.count(), "mode": mode})
     return jsonify({"error": "name or client_id required"}), 400
+
+
+@ecooil_docs.route("/admin/filing-discrepancies", methods=["GET"])
+@jwt_required()
+def filing_discrepancies():
+    """Limor's safety net (approved 06/08/2026 with the folder-anchor ruling):
+    every row where the filing folder and the billed column DISAGREE about a
+    registered company, grouped so the list stays readable. Three kinds:
+      conflict            — folder belongs to company B, billed says company A
+                            (the Idan/Mikush case; the portal follows B).
+      pulled_by_folder    — folder belongs to a registered company, billed names
+                            someone unregistered; the folder pulls the row in.
+      unrecognized_folder — billed belongs to a registered company but the
+                            folder spelling is unknown → the folder shield is
+                            NOT active for these rows (fix: add the folder
+                            name as an alias on the company card)."""
+    if get_jwt().get("role") != "admin":
+        return jsonify({"error": "admin only"}), 403
+    name_map = _client_name_map()
+    client_names = {c.id: c.name for c in Client.query.all()}
+
+    rows = (EcoOilUnloadEvent.query
+            .filter(EcoOilUnloadEvent.filed_owner.isnot(None))
+            .order_by(EcoOilUnloadEvent.event_date.desc())
+            .all())
+
+    folder_cache, billed_cache = {}, {}
+    groups = {}
+    for r in rows:
+        fo = r.filed_owner
+        if fo not in folder_cache:
+            folder_cache[fo] = _resolve_folder(fo, name_map)
+        b = r.billed_to or ""
+        if b not in billed_cache:
+            billed_cache[b] = name_map.get(_norm_name(_billed_core(b)))
+        f_cid, b_cid = folder_cache[fo], billed_cache[b]
+
+        if f_cid is not None and b_cid is not None and f_cid != b_cid:
+            kind = "conflict"
+        elif f_cid is not None and b_cid is None and b.strip():
+            kind = "pulled_by_folder"
+        elif f_cid is None and b_cid is not None:
+            kind = "unrecognized_folder"
+        else:
+            continue
+
+        key = (kind, b, fo)
+        g = groups.get(key)
+        if g is None:
+            g = groups[key] = {
+                "kind": kind, "billed_to": b, "filed_owner": fo,
+                "folder_client": client_names.get(f_cid),
+                "billed_client": client_names.get(b_cid),
+                "count": 0, "latest_date": None, "sample": None,
+            }
+        g["count"] += 1
+        d = r.event_date.strftime("%d/%m/%Y") if r.event_date else ""
+        if g["latest_date"] is None:      # rows arrive newest-first
+            g["latest_date"] = d
+            g["sample"] = {"date": d, "code": r.code, "customer": r.customer,
+                           "transporter": r.transporter}
+
+    out = sorted(groups.values(),
+                 key=lambda g: ({"conflict": 0, "pulled_by_folder": 1,
+                                 "unrecognized_folder": 2}[g["kind"]], -g["count"]))
+    counts = {}
+    for g in out:
+        counts[g["kind"]] = counts.get(g["kind"], 0) + g["count"]
+    return jsonify({"groups": out, "row_counts": counts})
 
 
 def _decl_dict(d, clients, users):
