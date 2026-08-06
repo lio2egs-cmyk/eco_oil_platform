@@ -157,6 +157,10 @@ def scan_owner(base, owner):
         parts = [] if rel == "." else rel.split(os.sep)
         if any("מלווה" in p for p in parts):
             continue
+        # חוק לימור 06/08/2026: תיקיית "איציק" (אצל שמואל את שיטרית) חסומה
+        # לעולמים — לא נסרקת, לא מותאמת, לא עולה לענן.
+        if any(p.strip() == "איציק" for p in parts):
+            continue
         year_on_path = next((int(p) for p in parts if p in YEAR_NAMES), None)
         # sub-entity names = path parts that are not year/month/bookkeeping folders
         subs = [p for p in parts

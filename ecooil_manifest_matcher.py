@@ -121,6 +121,9 @@ def scan_owner(base, owner):
     for dirpath, dirnames, filenames in os.walk(base):
         rel = os.path.relpath(dirpath, base)
         parts = [] if rel == "." else rel.split(os.sep)
+        # חוק לימור 06/08/2026: תיקיית "איציק" חסומה לעולמים — לא נסרקת.
+        if any(p.strip() == "איציק" for p in parts):
+            continue
         year_on_path = next((int(p) for p in parts if p in YEAR_NAMES), None)
         subs = [p for p in parts
                 if p not in YEAR_NAMES and p not in SKIP_PARTS

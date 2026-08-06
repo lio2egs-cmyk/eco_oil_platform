@@ -62,6 +62,18 @@ def ecooil_bridge_required(f):
 _FILING_ROOTS = {"מובילים", "לקוחות"}
 _FILING_SKIP = {"אישורים", "ישן"}
 
+# חוק לימור 06/08/2026: תיקיות חסומות לעולמים — שורה שהקבצים שלה מתויקים שם
+# נקלטת בלי קבצים ובלי שיוך תיקייה, כך שהיא לא מוצגת ולא ניתנת להורדה לאף
+# חשבון (השכבה הענן־צדית; המַתְאִמים במשרד גם מפסיקים לסרוק את התיקייה).
+_BLOCKED_SEGMENTS = {"איציק"}
+
+
+def _path_blocked(path):
+    if not path:
+        return False
+    parts = [p.strip() for p in str(path).replace("\\", "/").split("/") if p.strip()]
+    return any(p in _BLOCKED_SEGMENTS for p in parts)
+
 
 def _filed_owner_from_path(path):
     if not path:
@@ -113,6 +125,12 @@ def _coerce_event(item):
         kwargs["event_date"] = None
     if not kwargs.get("year") or not kwargs.get("month") or kwargs["event_date"] is None:
         return None
+    # Blocked-folder enforcement BEFORE anything else: strip the files so the
+    # row carries no document and no folder identity.
+    if _path_blocked(kwargs.get("pdf_path")):
+        kwargs["pdf_path"] = kwargs["pdf_key"] = None
+    if _path_blocked(kwargs.get("manifest_path")):
+        kwargs["manifest_path"] = kwargs["manifest_key"] = None
     # The certificate's filing folder is the anchor; a row with only a signed
     # manifest follows the manifest's folder (same filing act by Limor).
     kwargs["filed_owner"] = _filed_owner_from_path(
