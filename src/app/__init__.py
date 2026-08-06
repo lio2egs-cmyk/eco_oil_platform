@@ -12,6 +12,7 @@ from .ecooil_docs import ecooil_docs
 from .digest import digest
 from .reminders import reminders
 from .depot_admin import depot_admin
+from .depot_portal import depot_portal
 from .db import db
 
 jwt = JWTManager()
@@ -169,6 +170,7 @@ def create_app():
     app.register_blueprint(digest)
     app.register_blueprint(reminders)
     app.register_blueprint(depot_admin)
+    app.register_blueprint(depot_portal)
 
     @app.route("/health")
     def health():

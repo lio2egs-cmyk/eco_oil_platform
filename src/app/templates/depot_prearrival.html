@@ -1,0 +1,318 @@
+<!doctype html>
+<html lang="he" dir="rtl"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>מידע מקדים — {{ brand }}</title>
+<link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@400;500;600;700&family=Rubik:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root{--bg:#EDE8DC;--teal:#5B9E96;--teal-dark:#4a8a82;--navy:#2F5F59;--fh:'Fredoka',sans-serif;--fb:'Rubik',sans-serif;}
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{font-family:var(--fb);background:var(--bg);direction:rtl;padding:26px 14px;line-height:1.7;color:#222}
+  .card{background:#fff;max-width:640px;margin:0 auto;border-radius:18px;box-shadow:0 10px 40px rgba(0,0,0,.10);padding:34px 30px}
+  h1{font-family:var(--fh);font-weight:600;font-size:22px;color:var(--navy)}
+  .sub{font-size:14px;color:#555;margin-top:6px}
+  .who{background:#EDF3F2;border-radius:10px;padding:10px 14px;margin-top:16px;font-size:14px}
+  .who b{color:var(--teal-dark)}
+  .fld{margin-top:22px;position:relative}
+  .num{position:absolute;inset-inline-start:-8px;top:0;transform:translateX(120%);background:var(--navy);color:#fff;font-size:11.5px;border-radius:50%;width:22px;height:22px;display:flex;align-items:center;justify-content:center;font-family:var(--fh)}
+  label{display:block;font-weight:600;font-size:15px;color:#333}
+  .must::after{content:" *";color:#B23B32;font-weight:700}
+  .hint{font-size:12.5px;color:#777;margin-top:2px}
+  input[type=text],input[type=date],input[type=tel],select,textarea{width:100%;margin-top:6px;padding:11px 12px;border:1.5px solid #cfd8d6;border-radius:10px;font-family:var(--fb);font-size:14px;background:#fff}
+  .radios,.checks{margin-top:8px;display:flex;flex-direction:column;gap:6px;font-size:14px}
+  .radios label,.checks label{font-weight:400;display:flex;gap:8px;align-items:center}
+  .reveal{display:none;margin:6px 26px 2px 0}
+  .reveal.show{display:block}
+  .err{color:#B23B32;font-size:13px;margin-top:4px;display:none}
+  .fld.bad input[type=text],.fld.bad select,.fld.bad input[type=date]{border-color:#B23B32}
+  .fld.bad .err{display:block}
+  .upload{margin-top:6px;border:1.5px dashed #cfd8d6;border-radius:10px;padding:16px;text-align:center;color:#777;font-size:13.5px;background:#fafcfb;cursor:pointer}
+  .upload.hasfile{color:var(--teal-dark);border-color:var(--teal)}
+  .btn{display:block;width:100%;margin-top:28px;background:var(--teal);color:#fff;border:none;border-radius:12px;padding:15px;font-family:var(--fh);font-size:17px;cursor:pointer}
+  .btn:disabled{opacity:.6;cursor:wait}
+  .btnnote{text-align:center;font-size:12.5px;color:#888;margin-top:8px}
+  .legend{font-size:13px;color:#666;margin-top:14px}
+  .legend .must-ex{color:#B23B32;font-weight:700}
+  .okmark{color:#2E7D32;font-size:13px;margin-top:4px;display:none}
+  #done{display:none;text-align:center}
+  #done h1{margin-bottom:10px}
+  #done .sum{background:#EDF3F2;border-radius:12px;padding:14px 16px;text-align:right;font-size:14px;margin-top:16px}
+  .btn2{display:inline-block;margin-top:22px;background:#fff;border:1.5px solid var(--teal);color:var(--teal-dark);border-radius:10px;padding:11px 24px;font-family:var(--fh);font-size:14px;cursor:pointer;text-decoration:none}
+  .prev{margin-top:26px;border-top:1px solid #e4e0d5;padding-top:16px}
+  .prev h2{font-family:var(--fh);font-size:15px;color:var(--navy);margin-bottom:8px}
+  .prev table{width:100%;border-collapse:collapse;font-size:13px}
+  .prev th{background:#EDF3F2;color:var(--navy);padding:5px 8px;text-align:right}
+  .prev td{padding:5px 8px;border-bottom:1px solid #eee}
+</style></head>
+<body>
+  <div class="card" id="formCard">
+    <h1>הודעה על נכס בדרך אלינו — מידע מקדים</h1>
+    <div class="sub">במקום המייל המקדים: ממלאים כאן פעם אחת, והמידע נקלט ישירות אצלנו. בלי טלפונים חוזרים.</div>
+    <div class="who">שלום, <b id="whoName">…</b> · החברה מזוהה אוטומטית מהכניסה שלכם לפורטל — אין צורך להקליד.</div>
+    <div class="legend"><span class="must-ex">*</span> = שדה חובה. הטופס לא יישלח כשחסר שדה חובה — המערכת תסמן בדיוק מה חסר.</div>
+
+    <div class="fld" id="f_tank"><span class="num">1</span>
+      <label class="must">מספר האיזוטנק</label>
+      <input type="text" id="tank" placeholder="לדוגמה: HOYU9651745" oninput="tankLive()">
+      <div class="hint">המערכת בודקת מיד את ספרת הביקורת — טעות הקלדה נתפסת עוד לפני השליחה.</div>
+      <div class="okmark" id="tankOk">✓ המספר תקין</div>
+      <div class="err" id="e_tank"></div>
+    </div>
+
+    <div class="fld" id="f_material"><span class="num">2</span>
+      <label class="must">החומר האחרון שהיה בנכס</label>
+      <input type="text" id="material" list="matList" placeholder="מתחילים להקליד — המערכת מציעה מרשימת החומרים המוכרים">
+      <datalist id="matList"></datalist>
+      <div class="hint">אם החומר לא נמצא ברשימה — כותבים אותו חופשי, ואנחנו נשלים את הסיווג.</div>
+      <div class="err" id="e_material"></div>
+    </div>
+
+    <div class="fld" id="f_un"><span class="num">3</span>
+      <label class="must">מספר או"ם (UN No.)</label>
+      <input type="text" id="un" placeholder="לדוגמה: 2821">
+      <div class="err" id="e_un"></div>
+    </div>
+
+    <div class="fld" id="f_class"><span class="num">4</span>
+      <label class="must">Class סכנה (CLASS ID)</label>
+      <input type="text" id="cls" placeholder="לדוגמה: 6.1">
+      <div class="err" id="e_class"></div>
+    </div>
+
+    <div class="fld"><span class="num">5</span>
+      <label>צירוף מסמך MSDS</label>
+      <div class="upload" id="msdsBox" onclick="document.getElementById('msds').click()">📎 גוררים לכאן קובץ או לוחצים לבחירה (PDF)</div>
+      <input type="file" id="msds" accept=".pdf,application/pdf" style="display:none" onchange="msdsPicked()">
+      <div class="hint">לא חובה בשלב זה — אך מומלץ מאוד; מזרז את הטיפול בנכס.</div>
+      <div class="err" id="e_msds"></div>
+    </div>
+
+    <div class="fld" id="f_carrier"><span class="num">6</span>
+      <label class="must">מוביל הכניסה</label>
+      <select id="carrier"><option value="">בוחרים מהרשימה…</option></select>
+      <div style="font-size:13.5px;color:#333;margin-top:10px">המוביל לא נמצא ברשימה? הקלידו את שמו כאן:</div>
+      <input type="text" id="carrierNew" placeholder="שם חברת ההובלה החדשה — כפי שמופיע אצלכם">
+      <div class="hint">מוביל חדש שיוקלד כאן ייבדק אצלנו ויתווסף לרשימה — בפעם הבאה הוא כבר יופיע בבחירה.</div>
+      <div class="err" id="e_carrier"></div>
+    </div>
+
+    <div class="fld" id="f_purpose"><span class="num">7</span>
+      <label class="must">מטרת הכניסה</label>
+      <div class="radios">
+        <label><input type="radio" name="p" value="שטיפה + אחסנה" onchange="pChange()"> שטיפה + אחסנה</label>
+        <label><input type="radio" name="p" value="אחסנה בלבד" onchange="pChange()"> אחסנה בלבד</label>
+        <label><input type="radio" name="p" value="שטיפה בלבד" onchange="pChange()"> שטיפה בלבד</label>
+        <label><input type="radio" name="p" value="אחר" id="rOther" onchange="pChange()"> אחר</label>
+        <input class="reveal" id="pOther" type="text" placeholder="נא לפרט את מטרת הכניסה">
+      </div>
+      <div class="err" id="e_purpose"></div>
+    </div>
+
+    <div class="fld" id="f_date"><span class="num">8</span>
+      <label>תאריך הגעה משוער</label>
+      <input type="date" id="expDate">
+      <div class="hint">לא חובה — עוזר לנו להיערך לקליטת הנכס.</div>
+      <div class="err" id="e_date"></div>
+    </div>
+
+    <div class="fld" id="f_services"><span class="num">9</span>
+      <label>שירותים שתרצו להזמין מראש</label>
+      <div class="checks">
+        <label><input type="checkbox" id="cbDry"> ייבוש</label>
+        <label><input type="checkbox" id="cbVac"> בדיקת ואקום</label>
+        <label><input type="checkbox" id="cbPhoto" onchange="svcChange()"> סט תמונות</label>
+        <select class="reveal" id="photoType" style="max-width:280px">
+          <option value="">בוחרים את סוג הסט…</option>
+          <option>2 פנים / 4 חוץ</option>
+          <option>סט מלא (הכל)</option>
+        </select>
+        <label><input type="checkbox" id="cbRepair" onchange="svcChange()"> תיקונים</label>
+        <input class="reveal" id="repairTxt" type="text" placeholder="מה תרצו שנתקן?">
+      </div>
+      <div class="err" id="e_services"></div>
+    </div>
+
+    <div class="fld"><span class="num">10</span>
+      <label>מספר אסמכתא פנימי שלכם</label>
+      <input type="text" id="iref" placeholder='"מספרנו" — למי שעובד עם מספרי הזמנה פנימיים'>
+      <div class="hint">לא חובה. נרשם אצלנו ומופיע בהמשך במסמכים — לנוחות ההתחשבנות שלכם.</div>
+    </div>
+
+    <div class="fld"><span class="num">11</span>
+      <label>טלפון חרום</label>
+      <input type="tel" id="ephone" placeholder="מספר זמין בזמן ההובלה">
+      <div class="hint">לא חובה.</div>
+    </div>
+
+    <div class="fld"><span class="num">12</span>
+      <label>הערות</label>
+      <textarea id="notes" rows="3" placeholder="כל דבר שחשוב שנדע ולא שאלנו עליו"></textarea>
+    </div>
+
+    <button class="btn" id="sendBtn" onclick="send()">שליחת המידע המקדים</button>
+    <div class="btnnote">אחרי השליחה מופיע אישור על המסך, והבקשה נקלטת אצלנו אוטומטית.</div>
+
+    <div class="prev" id="prevBox" style="display:none">
+      <h2>ההגשות האחרונות שלכם</h2>
+      <table id="prevTable"></table>
+    </div>
+  </div>
+
+  <div class="card" id="done">
+    <h1>✓ המידע נקלט</h1>
+    <div class="sub">תודה! הנכס נרשם אצלנו כ"בדרך להיכנס" — אין צורך במייל מקדים.</div>
+    <div class="sum" id="doneSum"></div>
+    <button class="btn2" onclick="resetForm()">הודעה על נכס נוסף</button>
+    <a class="btn2" href="/portal">חזרה לפורטל</a>
+  </div>
+
+<script>
+if(!localStorage.getItem('eco_access_token')){ location.href='/login'; }
+var ECO_USER={};
+try{ ECO_USER=JSON.parse(localStorage.getItem('eco_user')||'{}'); }catch(e){}
+if(ECO_USER.client_name){ document.getElementById('whoName').textContent=ECO_USER.client_name; }
+
+async function api(url, opts){
+  opts=opts||{}; opts.headers=opts.headers||{};
+  opts.headers['Authorization']='Bearer '+localStorage.getItem('eco_access_token');
+  var r=await fetch(url,opts);
+  if(r.status===401||r.status===422){
+    var rt=localStorage.getItem('eco_refresh_token');
+    if(rt){
+      var rr=await fetch('/auth/refresh',{method:'POST',headers:{'Authorization':'Bearer '+rt}});
+      if(rr.ok){
+        localStorage.setItem('eco_access_token',(await rr.json()).access_token||'');
+        opts.headers['Authorization']='Bearer '+localStorage.getItem('eco_access_token');
+        r=await fetch(url,opts);
+      } else { location.href='/login'; }
+    } else { location.href='/login'; }
+  }
+  return r;
+}
+
+/* ISO-6346 — אותו חישוב כמו בטופס המשרד ובמסופונים */
+var ISO_L={A:10,B:12,C:13,D:14,E:15,F:16,G:17,H:18,I:19,J:20,K:21,L:23,M:24,N:25,O:26,P:27,Q:28,R:29,S:30,T:31,U:32,V:34,W:35,X:36,Y:37,Z:38};
+function isoOk(t){
+  t=(t||'').toUpperCase().replace(/\s/g,'');
+  if(!/^[A-Z]{4}\d{7}$/.test(t)) return false;
+  var s=0;
+  for(var i=0;i<10;i++){ var ch=t[i]; s+=(i<4?ISO_L[ch]:parseInt(ch,10))*Math.pow(2,i); }
+  return (s%11)%10===parseInt(t[10],10);
+}
+function tankLive(){
+  var t=document.getElementById('tank').value.toUpperCase().replace(/\s/g,'');
+  var fld=document.getElementById('f_tank'), ok=document.getElementById('tankOk');
+  if(t.length<11){ fld.classList.remove('bad'); ok.style.display='none'; return; }
+  if(isoOk(t)){ fld.classList.remove('bad'); ok.style.display='block'; }
+  else{ ok.style.display='none'; setErr('tank','מספר האיזוטנק לא עובר את בדיקת ספרת הביקורת — בדקו את ההקלדה'); }
+}
+function pChange(){
+  document.getElementById('pOther').classList.toggle('show', document.getElementById('rOther').checked);
+}
+function svcChange(){
+  document.getElementById('photoType').classList.toggle('show', document.getElementById('cbPhoto').checked);
+  document.getElementById('repairTxt').classList.toggle('show', document.getElementById('cbRepair').checked);
+}
+function msdsPicked(){
+  var f=document.getElementById('msds').files[0];
+  var box=document.getElementById('msdsBox');
+  if(f){ box.textContent='📎 '+f.name; box.classList.add('hasfile'); }
+  else{ box.textContent='📎 גוררים לכאן קובץ או לוחצים לבחירה (PDF)'; box.classList.remove('hasfile'); }
+}
+function setErr(key,msg){
+  var map={tank:'f_tank',material:'f_material',un:'f_un','class':'f_class',carrier:'f_carrier',
+           purpose:'f_purpose',date:'f_date',services:'f_services',msds:'f_tank'};
+  var ids={tank:'e_tank',material:'e_material',un:'e_un','class':'e_class',carrier:'e_carrier',
+           purpose:'e_purpose',date:'e_date',services:'e_services',msds:'e_msds'};
+  var fld=document.getElementById(map[key]||''); var el=document.getElementById(ids[key]||'');
+  if(fld) fld.classList.add('bad');
+  if(el){ el.textContent=msg; el.style.display='block'; }
+}
+function clearErrs(){
+  document.querySelectorAll('.fld.bad').forEach(function(f){ f.classList.remove('bad'); });
+  document.querySelectorAll('.err').forEach(function(e){ e.style.display='none'; });
+}
+
+async function loadOptions(){
+  var r=await api('/depot/portal/form-options');
+  if(!r||!r.ok) return;
+  var d=await r.json();
+  var dl=document.getElementById('matList');
+  (d.materials||[]).forEach(function(m){ var o=document.createElement('option'); o.value=m; dl.appendChild(o); });
+  var sel=document.getElementById('carrier');
+  (d.carriers||[]).forEach(function(c){ var o=document.createElement('option'); o.value=c; o.textContent=c; sel.appendChild(o); });
+}
+async function loadPrev(){
+  var r=await api('/depot/portal/prearrivals');
+  if(!r||!r.ok) return;
+  var rows=(await r.json()).prearrivals||[];
+  if(!rows.length) return;
+  var h='<tr><th>הוגש</th><th>איזוטנק</th><th>חומר</th><th>מצב</th></tr>';
+  rows.slice(0,8).forEach(function(p){
+    var d=(p.created_at||'').slice(0,10).split('-');
+    h+='<tr><td>'+(d.length===3?d[2]+'/'+d[1]+'/'+d[0]:'')+'</td><td><b>'+p.tank_number+'</b></td>'+
+       '<td>'+(p.material||'')+'</td><td>'+(p.status||'')+'</td></tr>';
+  });
+  document.getElementById('prevTable').innerHTML=h;
+  document.getElementById('prevBox').style.display='block';
+}
+
+async function send(){
+  clearErrs();
+  var btn=document.getElementById('sendBtn');
+  var fd=new FormData();
+  fd.append('tank_number',document.getElementById('tank').value);
+  fd.append('material',document.getElementById('material').value);
+  fd.append('un_number',document.getElementById('un').value);
+  fd.append('hazard_class',document.getElementById('cls').value);
+  fd.append('carrier',document.getElementById('carrier').value);
+  fd.append('carrier_new',document.getElementById('carrierNew').value);
+  var p=document.querySelector('input[name=p]:checked');
+  fd.append('purpose',p?p.value:'');
+  fd.append('purpose_other',document.getElementById('pOther').value);
+  fd.append('expected_date',document.getElementById('expDate').value);
+  fd.append('svc_dry',document.getElementById('cbDry').checked?'1':'0');
+  fd.append('svc_vacuum',document.getElementById('cbVac').checked?'1':'0');
+  fd.append('svc_photos_on',document.getElementById('cbPhoto').checked?'1':'0');
+  fd.append('svc_photos',document.getElementById('cbPhoto').checked?document.getElementById('photoType').value:'');
+  fd.append('svc_repairs_on',document.getElementById('cbRepair').checked?'1':'0');
+  fd.append('svc_repairs',document.getElementById('cbRepair').checked?document.getElementById('repairTxt').value:'');
+  fd.append('internal_ref',document.getElementById('iref').value);
+  fd.append('emergency_phone',document.getElementById('ephone').value);
+  fd.append('notes',document.getElementById('notes').value);
+  var f=document.getElementById('msds').files[0];
+  if(f) fd.append('msds',f);
+
+  btn.disabled=true;
+  try{
+    var r=await api('/depot/portal/prearrivals',{method:'POST',body:fd});
+    if(r.status===201){
+      var d=await r.json();
+      var mat=document.getElementById('material').value;
+      document.getElementById('doneSum').innerHTML=
+        '<b>איזוטנק:</b> '+d.tank_number+'<br><b>חומר:</b> '+mat.replace(/</g,'&lt;')+
+        '<br><b>מספר קליטה:</b> '+d.id;
+      document.getElementById('formCard').style.display='none';
+      document.getElementById('done').style.display='block';
+      window.scrollTo(0,0);
+      return;
+    }
+    var e=(await r.json()).errors||{};
+    var order=['tank_number','material','un_number','hazard_class','carrier','purpose','expected_date','svc_photos','svc_repairs','msds'];
+    var keymap={tank_number:'tank',material:'material',un_number:'un',hazard_class:'class',carrier:'carrier',
+                purpose:'purpose',expected_date:'date',svc_photos:'services',svc_repairs:'services',msds:'msds'};
+    var first=null;
+    order.forEach(function(k){
+      if(e[k]){ setErr(keymap[k],e[k]); if(!first) first=keymap[k]; }
+    });
+    if(first){
+      var el=document.querySelector('.fld.bad');
+      if(el) el.scrollIntoView({behavior:'smooth',block:'center'});
+    }
+  } finally { btn.disabled=false; }
+}
+
+function resetForm(){ location.reload(); }
+
+loadOptions(); loadPrev();
+</script>
+</body></html>

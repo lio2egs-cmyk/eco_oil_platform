@@ -72,6 +72,15 @@ def admin_page():
     return render_template("admin.html", **_brand_for_host())
 
 
+@web.route("/depot/prearrival")
+def depot_prearrival_page():
+    """טופס המידע המקדים (פורטל הדיפו, שלב 1) — הנוסח הנעול מ-05/08, חי.
+    ההרשאה בצד ה-API (לקוחות דיפו בלבד)."""
+    return render_template(
+        "depot_prearrival.html",
+        division="eco_depot", brand="אקו-דיפו", logo="logo_eco_depot.png")
+
+
 @web.route("/depot-admin")
 def depot_admin_page():
     """מסך ניהול הדיפו (לימור 06/08/2026, אפשרות א) — מסך נפרד מהמסך של

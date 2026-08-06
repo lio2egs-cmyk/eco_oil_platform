@@ -40,6 +40,9 @@
     <a class="btn-main" id="docsBtn" href="/documents">📂 המסמכים שלי</a><br id="docsBtnBr">
     <a class="btn-main" href="/declaration">📄 מילוי הצהרת יצרן</a><br>
     {% endif %}
+    {% if division == 'eco_depot' %}
+    <a class="btn-main" href="/depot/prearrival">🚛 הודעה על נכס בדרך אלינו</a><br>
+    {% endif %}
     <a class="btn" href="#" onclick="logout();return false;">יציאה</a>
   </div>
 {% raw %}<script>

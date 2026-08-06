@@ -797,6 +797,59 @@ class FieldBoard(db.Model):
     updated_at = db.Column(db.DateTime, default=datetime.utcnow)
 
 
+class DepotPreArrival(db.Model):
+    """טופס מידע מקדים (פורטל הדיפו, שלב 1 — לימור 06/08/2026) — המחליף של
+    המייל המקדים. הלקוח מגיש בפורטל; הגשר של יעל מושך (אותה תבנית כמו אירועי
+    המסופונים: pending → fetched → posted), פותח שורת "בדרך להיכנס" מלאה
+    בקובץ החי (חוק 53) ומאשר קליטה. קובץ ה-MSDS נמחק מהענן אחרי הקליטה."""
+    __tablename__ = "depot_prearrivals"
+
+    id = db.Column(db.Integer, primary_key=True)
+    client_id = db.Column(db.Integer, db.ForeignKey("clients.id"), nullable=False, index=True)
+    submitted_by_user_id = db.Column(db.Integer, db.ForeignKey("users.id"))
+    created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False, index=True)
+
+    tank_number = db.Column(db.String(40), nullable=False)      # ISO-6346 validated
+    material = db.Column(db.String(200), nullable=False)        # החומר האחרון
+    un_number = db.Column(db.String(20), nullable=False)
+    hazard_class = db.Column(db.String(20), nullable=False)
+    carrier = db.Column(db.String(200))                         # מוביל מהרשימה
+    carrier_new = db.Column(db.String(200))                     # מוביל חדש (לבדיקת המשרד, חוק 47ג)
+    purpose = db.Column(db.String(60), nullable=False)          # שטיפה + אחסנה / אחסנה בלבד / שטיפה בלבד / אחר
+    purpose_other = db.Column(db.String(200))
+    expected_date = db.Column(db.Date)
+    svc_dry = db.Column(db.Boolean, default=False)
+    svc_vacuum = db.Column(db.Boolean, default=False)
+    svc_photos = db.Column(db.String(60))                       # סוג סט התמונות, ריק=לא הוזמן
+    svc_repairs = db.Column(db.String(400))                     # פירוט תיקונים, ריק=לא הוזמן
+    internal_ref = db.Column(db.String(100))                    # "מספרנו"
+    emergency_phone = db.Column(db.String(60))
+    notes = db.Column(db.String(400))
+
+    msds_filename = db.Column(db.String(200))
+    msds_mime = db.Column(db.String(60))
+    msds_size = db.Column(db.Integer)
+    msds_data = db.Column(db.LargeBinary)                       # purged on ack
+
+    status = db.Column(db.String(20), default="pending", nullable=False, index=True)
+    # pending → fetched (bridge downloaded) → posted (צפי row born) | error
+    bridge_note = db.Column(db.String(400))
+    posted_at = db.Column(db.DateTime)
+
+    client = db.relationship("Client")
+
+
+class DepotFormOptions(db.Model):
+    """רשימות הבחירה של טופס המידע המקדים — חומרים (מהמסד) + מובילים
+    (CARRIER_OPTIONS, חוק 47ג). שורה יחידה, JSON, נדחפת ע"י הגשר בכל סבב —
+    מקור האמת נשאר במשרד; הענן רק מציג."""
+    __tablename__ = "depot_form_options"
+
+    id = db.Column(db.Integer, primary_key=True)
+    data = db.Column(db.Text)                                   # JSON: {materials:[], carriers:[]}
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+
 class FieldInstructions(db.Model):
     """Phase-3 instructions engine (Yoav's rules 19/07): per-tank wash type,
     PPE level and material, keyed by tank number. Single row, JSON blob,
