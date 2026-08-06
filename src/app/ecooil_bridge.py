@@ -160,6 +160,8 @@ def status():
                 .filter(EcoOilUnloadEvent.pdf_key.isnot(None)).scalar() or 0)
     with_manifest = (db.session.query(func.count(EcoOilUnloadEvent.id))
                      .filter(EcoOilUnloadEvent.manifest_key.isnot(None)).scalar() or 0)
+    with_filed_owner = (db.session.query(func.count(EcoOilUnloadEvent.id))
+                        .filter(EcoOilUnloadEvent.filed_owner.isnot(None)).scalar() or 0)
     per_year = dict(
         db.session.query(EcoOilUnloadEvent.year, func.count(EcoOilUnloadEvent.id))
         .group_by(EcoOilUnloadEvent.year).all())
@@ -174,6 +176,7 @@ def status():
         "total": total,
         "with_pdf_key": with_pdf,
         "with_manifest_key": with_manifest,
+        "with_filed_owner": with_filed_owner,
         "per_year": {str(k): v for k, v in per_year.items()},
         "per_stream": {str(k): v for k, v in per_stream.items()},
         "per_doc_status": per_doc_status,
