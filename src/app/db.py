@@ -111,6 +111,24 @@ class LoginAuditLog(db.Model):
         return f"<LoginAuditLog event={self.event_type} success={self.success}>"
 
 
+class AdminActionLog(db.Model):
+    """יומן פעולות של מסכי הניהול (לימור 06/08/2026, מסך ניהול הדיפו):
+    כל פעולה נרשמת על שם מבצעה — 'לימור' / 'משרד דיפו' / 'יואב' (שם התפקיד,
+    לא שם האדם — כך המעקב שורד גם החלפת מאיישת), או 'מנהלת ראשית' בכניסת
+    סיסמת המאסטר."""
+    __tablename__ = "admin_action_log"
+
+    id = db.Column(db.Integer, primary_key=True)
+    at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False, index=True)
+    actor = db.Column(db.String(120), nullable=False)
+    division = db.Column(db.String(50), nullable=False, index=True)  # eco_depot / eco_oil
+    action = db.Column(db.String(80), nullable=False)
+    details = db.Column(db.String(400))
+
+    def __repr__(self):
+        return f"<AdminActionLog {self.actor} {self.action}>"
+
+
 class Asset(db.Model):
     __tablename__ = "assets"
 

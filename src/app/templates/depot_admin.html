@@ -1,0 +1,304 @@
+<!doctype html>
+<html lang="he" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ניהול פורטל הדיפו — {{ brand }}</title>
+<style>
+  :root { --green:#5B9E96; --dark:#2E5E58; --bg:#F5F8F7; --line:#D8E4E2; }
+  * { box-sizing:border-box; margin:0; }
+  body { font-family:Arial,"Segoe UI",sans-serif; background:var(--bg); color:#233; }
+  header { background:#fff; border-bottom:3px solid var(--green); padding:14px 22px;
+           display:flex; align-items:center; gap:14px; }
+  header img { height:44px; }
+  header .t { font-size:20px; font-weight:bold; color:var(--dark); }
+  header .who { margin-inline-start:auto; color:#567; font-size:14px; }
+  .wrap { max-width:1080px; margin:22px auto; padding:0 16px; }
+  .card { background:#fff; border-radius:10px; box-shadow:0 1px 4px rgba(0,0,0,.07);
+          padding:16px 18px; margin-bottom:14px; }
+  .card h3 { color:var(--dark); font-size:16px; margin-bottom:10px; }
+  input[type=text],input[type=password],textarea { padding:8px 10px; border:1px solid var(--line);
+          border-radius:8px; font-family:inherit; font-size:14px; background:#fff; width:100%; }
+  textarea { min-height:64px; resize:vertical; }
+  .btn { display:inline-block; background:var(--green); color:#fff; border:none; cursor:pointer;
+         padding:7px 16px; border-radius:8px; font-size:13.5px; font-family:inherit; }
+  .btn:hover { background:var(--dark); }
+  .btn-soft { background:#EDF3F2; color:var(--dark); }
+  .btn-soft:hover { background:#DCE8E6; color:var(--dark); }
+  .btn-danger { background:#C0564F; }
+  .btn-danger:hover { background:#9E423C; }
+  .row { display:flex; gap:10px; align-items:center; flex-wrap:wrap; margin-bottom:10px; }
+  .muted { color:#678; font-size:13px; }
+  .client { border:1px solid var(--line); border-radius:10px; padding:12px 14px; margin-bottom:10px; background:#fff; }
+  .client .name { font-weight:bold; color:var(--dark); font-size:15px; }
+  table { width:100%; border-collapse:collapse; margin-top:6px; }
+  th { background:#EDF3F2; color:var(--dark); padding:6px 10px; font-size:12.5px; text-align:right; }
+  td { padding:6px 10px; border-bottom:1px solid var(--line); font-size:13px; }
+  .pill { display:inline-block; background:#EDF3F2; color:var(--dark); border-radius:8px;
+          padding:2px 9px; font-size:12px; margin-inline-start:6px; }
+  .toast { position:fixed; bottom:18px; right:18px; background:var(--dark); color:#fff;
+           padding:10px 18px; border-radius:10px; font-size:14px; display:none; z-index:9; }
+  #login { max-width:460px; margin:60px auto; }
+  .hidden { display:none; }
+</style>
+</head>
+<body>
+<header>
+  <img src="{{ url_for('static', filename=logo) }}" alt="{{ brand }}">
+  <div class="t">ניהול פורטל הדיפו</div>
+  <div class="who" id="who"></div>
+</header>
+
+<!-- ── כניסה ── -->
+<div id="login" class="card hidden">
+  <h3>כניסת צוות — ניהול הדיפו</h3>
+  <p class="muted" style="margin-bottom:10px">הזינו את מייל הצוות שלכם — יישלח אליו קישור כניסה (בלי סיסמה).</p>
+  <div class="row"><input type="text" id="staffEmail" placeholder="המייל שלכם"></div>
+  <div class="row"><button class="btn" onclick="sendStaffLink()">שלחו לי קישור כניסה</button><span class="muted" id="linkMsg"></span></div>
+  <div class="row" style="margin-top:14px"><a href="#" class="muted" onclick="document.getElementById('masterBox').classList.toggle('hidden');return false;">כניסת מנהלת ראשית (סיסמה)</a></div>
+  <div id="masterBox" class="hidden">
+    <div class="row"><input type="password" id="pw" placeholder="סיסמת המנהלת"></div>
+    <div class="row"><button class="btn btn-soft" onclick="doMasterLogin()">כניסה</button><span class="muted" id="loginMsg"></span></div>
+  </div>
+</div>
+
+<!-- ── המסך ── -->
+<div class="wrap hidden" id="app">
+  <div class="card hidden" id="newCard">
+    <h3>הקמת חברת דיפו חדשה</h3>
+    <div class="row"><input type="text" id="newName" placeholder="שם החברה — כפי שמופיע בעמודת גורם מחוייב בקובץ"></div>
+    <div class="row"><textarea id="newAliases" placeholder="צורות כתיב נוספות — שורה לכל צורה. אפשר להשאיר ריק."></textarea></div>
+    <div class="row">
+      <button class="btn" onclick="createClient()">צרו חברה</button>
+      <button class="btn btn-soft" onclick="toggleNewCard()">סגרו בלי ליצור</button>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="row">
+      <input type="text" id="q" placeholder="חיפוש חברה או מייל" style="max-width:360px" oninput="render()">
+      <span class="muted" id="stats"></span>
+      <button class="btn btn-soft" style="margin-inline-start:auto" onclick="toggleNewCard()">+ הקמת חברה חדשה</button>
+    </div>
+    <div id="list">טוען…</div>
+  </div>
+
+  <div class="card hidden" id="staffCard">
+    <h3>צוות המסך <span class="muted" style="font-weight:normal">(ניהול הצוות — רק בכניסת המנהלת הראשית)</span></h3>
+    <div id="staffList"></div>
+    <div class="row" style="margin-top:8px">
+      <input type="text" id="staffName" placeholder="שם תפקיד (למשל: משרד דיפו)" style="max-width:220px">
+      <input type="text" id="staffMail" placeholder="מייל" style="max-width:260px">
+      <button class="btn" onclick="addStaff()">הוסיפו כניסת צוות</button>
+    </div>
+  </div>
+
+  <div class="card">
+    <h3>יומן פעולות <span class="pill" id="actCount"></span></h3>
+    <div id="actions" class="muted">טוען…</div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+var DATA=null;
+
+function esc(s){ return (s==null?'':String(s)).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+function toast(m){ var t=document.getElementById('toast'); t.textContent=m; t.style.display='block';
+  clearTimeout(t._h); t._h=setTimeout(function(){ t.style.display='none'; },3200); }
+function fmtDT(iso){
+  if(!iso) return '—';
+  var d=new Date(iso+(iso.indexOf('Z')<0&&iso.indexOf('+')<0?'Z':''));
+  return ('0'+d.getDate()).slice(-2)+'/'+('0'+(d.getMonth()+1)).slice(-2)+'/'+d.getFullYear()+
+         ' '+('0'+d.getHours()).slice(-2)+':'+('0'+d.getMinutes()).slice(-2);
+}
+
+async function api(url, opts){
+  opts=opts||{}; opts.headers=opts.headers||{};
+  opts.headers['Authorization']='Bearer '+localStorage.getItem('eco_access_token');
+  if(opts.body) opts.headers['Content-Type']='application/json';
+  var r=await fetch(url,opts);
+  if(r.status===401||r.status===422){
+    var rt=localStorage.getItem('eco_refresh_token');
+    if(rt){
+      var rr=await fetch('/auth/refresh',{method:'POST',headers:{'Authorization':'Bearer '+rt}});
+      if(rr.ok){
+        localStorage.setItem('eco_access_token',(await rr.json()).access_token||'');
+        opts.headers['Authorization']='Bearer '+localStorage.getItem('eco_access_token');
+        r=await fetch(url,opts);
+      }
+    }
+  }
+  return r;
+}
+
+function showLogin(){
+  document.getElementById('login').classList.remove('hidden');
+  document.getElementById('app').classList.add('hidden');
+}
+
+async function sendStaffLink(){
+  var em=document.getElementById('staffEmail').value.trim();
+  if(!em){ toast('הזינו מייל'); return; }
+  await fetch('/auth/request-magic-link',{method:'POST',
+    headers:{'Content-Type':'application/json'},body:JSON.stringify({email:em})});
+  document.getElementById('linkMsg').textContent='אם המייל רשום כצוות — קישור כניסה בדרך אליו. פתחו את המייל ולחצו על הכפתור.';
+}
+
+async function doMasterLogin(){
+  var pw=document.getElementById('pw').value;
+  var r=await fetch('/auth/login',{method:'POST',headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({username:'admin',password:pw})});
+  if(!r.ok){ document.getElementById('loginMsg').textContent='סיסמה שגויה'; return; }
+  var d=await r.json();
+  localStorage.setItem('eco_access_token',d.access_token);
+  localStorage.setItem('eco_refresh_token',d.refresh_token);
+  boot();
+}
+
+async function boot(){
+  var me=await api('/auth/me');
+  if(!me||!me.ok){ showLogin(); return; }
+  var mi=await me.json();
+  if(mi.role!=='admin'&&mi.role!=='depot_admin'){ showLogin(); return; }
+  document.getElementById('login').classList.add('hidden');
+  document.getElementById('app').classList.remove('hidden');
+  await reload();
+}
+
+async function reload(){
+  var r=await api('/depot/admin/overview');
+  if(!r||!r.ok){ document.getElementById('list').textContent='שגיאה בטעינה'; return; }
+  DATA=await r.json();
+  document.getElementById('who').textContent='מחוברים כ: '+DATA.me;
+  render(); renderStaff(); renderActions();
+}
+
+function toggleNewCard(){ document.getElementById('newCard').classList.toggle('hidden'); }
+
+function render(){
+  var q=(document.getElementById('q').value||'').trim();
+  var cs=DATA.clients.filter(function(c){
+    if(!q) return true;
+    if(c.name.indexOf(q)>=0) return true;
+    return c.users.some(function(u){ return u.email.indexOf(q)>=0; });
+  });
+  var totalUsers=DATA.clients.reduce(function(n,c){ return n+c.users.length; },0);
+  document.getElementById('stats').textContent=DATA.clients.length+' חברות · '+totalUsers+' משתמשים';
+  if(!cs.length){ document.getElementById('list').innerHTML='<span class="muted">אין עדיין חברות דיפו — פותחים עם הכפתור למעלה.</span>'; return; }
+  var h='';
+  cs.forEach(function(c){
+    h+='<div class="client"><div class="name">'+esc(c.name)+'<span class="pill">'+c.users.length+' משתמשים</span></div>';
+    if(c.users.length){
+      h+='<table><tr><th>מייל</th><th>כניסה אחרונה</th><th></th></tr>';
+      c.users.forEach(function(u){
+        h+='<tr><td>'+esc(u.email)+'</td><td>'+fmtDT(u.last_login_at)+'</td>'+
+           '<td><button class="btn btn-soft" onclick="sendLink(\''+esc(u.email)+'\')">שלחו קישור כניסה</button> '+
+           '<button class="btn btn-danger" onclick="delUser('+u.id+',\''+esc(u.email)+'\')">הסירו</button></td></tr>';
+      });
+      h+='</table>';
+    } else {
+      h+='<div class="muted">אין עדיין משתמשים לחברה זו.</div>';
+    }
+    h+='<div class="row" style="margin-top:8px">'+
+       '<button class="btn" onclick="addUser('+c.id+',\''+esc(c.name)+'\')">הוסיפו משתמש</button>'+
+       '<button class="btn btn-soft" onclick="editAliases('+c.id+')">צורות כתיב</button>'+
+       '</div></div>';
+  });
+  document.getElementById('list').innerHTML=h;
+}
+
+function renderStaff(){
+  var card=document.getElementById('staffCard');
+  var h='<table><tr><th>שם תפקיד</th><th>מייל</th><th>כניסה אחרונה</th><th></th></tr>';
+  DATA.staff.forEach(function(s){
+    h+='<tr><td><b>'+esc(s.display_name)+'</b></td><td>'+esc(s.email)+'</td>'+
+       '<td>'+fmtDT(s.last_login_at)+'</td>'+
+       '<td>'+(DATA.is_master?'<button class="btn btn-danger" onclick="delStaff('+s.id+',\''+esc(s.display_name)+'\')">הסירו</button>':'')+'</td></tr>';
+  });
+  h+='</table>';
+  document.getElementById('staffList').innerHTML=DATA.staff.length?h:'<span class="muted">אין עדיין כניסות צוות.</span>';
+  if(DATA.is_master){ card.classList.remove('hidden'); }
+  else if(DATA.staff.length){ card.classList.remove('hidden');
+    card.querySelectorAll('input,button.btn:not(.btn-danger)').forEach(function(el){ if(el.closest('.row')) el.closest('.row').style.display='none'; });
+  }
+}
+
+function renderActions(){
+  var h='<table><tr><th>מתי</th><th>מי</th><th>מה</th><th>פרטים</th></tr>';
+  (DATA.actions||[]).forEach(function(a){
+    h+='<tr><td>'+fmtDT(a.at)+'</td><td><b>'+esc(a.actor)+'</b></td><td>'+esc(a.action)+'</td><td class="muted">'+esc(a.details||'')+'</td></tr>';
+  });
+  h+='</table>';
+  document.getElementById('actCount').textContent=(DATA.actions||[]).length?('אחרונות: '+DATA.actions.length):'';
+  document.getElementById('actions').innerHTML=(DATA.actions||[]).length?h:'עוד לא נרשמו פעולות.';
+}
+
+async function createClient(){
+  var name=document.getElementById('newName').value.trim();
+  var aliases=document.getElementById('newAliases').value.trim();
+  if(!name){ toast('חסר שם חברה'); return; }
+  var r=await api('/depot/admin/clients',{method:'POST',body:JSON.stringify({name:name,billing_aliases:aliases||null})});
+  if(!r.ok){ toast((await r.json()).error||'שגיאה'); return; }
+  toast('החברה נוצרה ✓');
+  document.getElementById('newName').value=''; document.getElementById('newAliases').value='';
+  toggleNewCard(); await reload();
+}
+
+async function addUser(cid,name){
+  var em=prompt('מייל המשתמש החדש של "'+name+'":','');
+  if(em===null) return;
+  em=em.trim(); if(!em){ toast('לא הוזן מייל'); return; }
+  var r=await api('/depot/admin/users',{method:'POST',body:JSON.stringify({email:em,client_id:cid})});
+  if(!r.ok){ toast((await r.json()).error||'שגיאה'); return; }
+  toast('המשתמש נוסף ✓ (שליחת קישור — בכפתור שליד המייל)');
+  await reload();
+}
+
+async function delUser(uid,em){
+  if(!confirm('להסיר את המשתמש '+em+'?')) return;
+  var r=await api('/depot/admin/users/'+uid,{method:'DELETE'});
+  if(!r.ok){ toast('שגיאה בהסרה'); return; }
+  toast('הוסר'); await reload();
+}
+
+async function sendLink(em){
+  await fetch('/auth/request-magic-link',{method:'POST',
+    headers:{'Content-Type':'application/json'},body:JSON.stringify({email:em})});
+  toast('קישור כניסה נשלח אל '+em);
+}
+
+async function editAliases(cid){
+  var c=DATA.clients.find(function(x){ return x.id===cid; });
+  var cur=c.billing_aliases||'';
+  var v=prompt('צורות כתיב נוספות ל"'+c.name+'" — הפרידו בקו אנכי | בין צורות:',cur.split('\n').join(' | '));
+  if(v===null) return;
+  var aliases=v.split('|').map(function(s){ return s.trim(); }).filter(Boolean).join('\n');
+  var r=await api('/depot/admin/clients/'+cid,{method:'PUT',body:JSON.stringify({billing_aliases:aliases||null})});
+  if(!r.ok){ toast('שגיאה בעדכון'); return; }
+  toast('עודכן ✓'); await reload();
+}
+
+async function addStaff(){
+  var name=document.getElementById('staffName').value.trim();
+  var em=document.getElementById('staffMail').value.trim();
+  if(!name||!em){ toast('חסר שם תפקיד או מייל'); return; }
+  var r=await api('/auth/depot-staff',{method:'POST',body:JSON.stringify({display_name:name,email:em})});
+  if(!r.ok){ toast((await r.json()).error||'שגיאה'); return; }
+  toast('כניסת הצוות נוצרה ✓ — שלחו קישור מהמסך הראשי של הפורטל או בקשו מהם להזין את המייל בכניסה');
+  document.getElementById('staffName').value=''; document.getElementById('staffMail').value='';
+  await reload();
+}
+
+async function delStaff(uid,name){
+  if(!confirm('להסיר את כניסת הצוות "'+name+'"?')) return;
+  var r=await api('/auth/depot-staff/'+uid,{method:'DELETE'});
+  if(!r.ok){ toast('שגיאה בהסרה'); return; }
+  toast('הוסרה'); await reload();
+}
+
+boot();
+</script>
+</body>
+</html>

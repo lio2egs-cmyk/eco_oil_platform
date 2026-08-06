@@ -49,9 +49,13 @@ auth = Blueprint("auth", __name__, url_prefix="/auth")
 # eco_oil_declaration_only (לימור 05/08): לקוח עקיף — יצרן של מוביל שמקבל
 # כניסה רק לאזור הצהרת יצרן+הסכמה. בלי אישורי פריקה ובלי טופסי מלווה.
 VALID_ROLES = {"admin", "eco_oil_client", "eco_depot_client", "transport_company",
-               "eco_oil_declaration_only"}
+               "eco_oil_declaration_only", "depot_admin"}
 PORTAL_ROLES = {"eco_oil_client", "eco_depot_client", "transport_company",
                 "eco_oil_declaration_only"}
+# צוות מסך ניהול הדיפו (לימור 06/08/2026): כניסות אישיות בקסם-קישור —
+# username = שם התצוגה ("לימור" / "משרד דיפו" / "יואב"; שם תפקיד, לא אדם),
+# בלי שיוך לחברה. נכנסים ל-/depot-admin בלבד; לא מנוהלים כמשתמשי לקוח.
+STAFF_ROLES = {"depot_admin"}
 MAGIC_LINK_TTL_MINUTES = 60
 
 
@@ -238,6 +242,19 @@ def admin_required(fn):
         claims = get_jwt()
         if claims.get("role") != "admin":
             return jsonify(error="Admin access required"), 403
+        return fn(*args, **kwargs)
+    return wrapper
+
+
+def depot_admin_required(fn):
+    """מסך ניהול הדיפו: צוות depot_admin (לימור/משרד דיפו/יואב) או המנהלת
+    הראשית (סיסמת מאסטר). לקוחות ומשתמשי אויל — חסומים."""
+    @wraps(fn)
+    @jwt_required()
+    def wrapper(*args, **kwargs):
+        claims = get_jwt()
+        if claims.get("role") not in ("admin", "depot_admin"):
+            return jsonify(error="Depot admin access required"), 403
         return fn(*args, **kwargs)
     return wrapper
 
@@ -515,6 +532,64 @@ def delete_portal_user(user_id):
     return jsonify(deleted=True, email=email), 200
 
 
+@auth.route("/depot-staff", methods=["POST"])
+@admin_required
+def create_depot_staff():
+    """מאסטר בלבד: יצירת כניסת צוות למסך ניהול הדיפו.
+    display_name = שם התפקיד שמופיע ביומן הפעולות ("משרד דיפו" ולא שם האדם —
+    הכרעת לימור 06/08/2026: השם כולל, האיוש מתחלף, המעקב נשאר)."""
+    data = request.get_json(silent=True) or {}
+    display_name = (data.get("display_name") or "").strip()
+    email = (data.get("email") or "").strip().lower()
+    if not display_name:
+        return jsonify(error="display_name is required"), 400
+    if not email or "@" not in email:
+        return jsonify(error="Valid email is required"), 400
+    if User.query.filter_by(email=email).first():
+        return jsonify(error="A user with this email already exists"), 409
+    if User.query.filter_by(username=display_name).first():
+        return jsonify(error="A user with this display name already exists"), 409
+    user = User(
+        username=display_name,
+        email=email,
+        password_hash=generate_password_hash(secrets.token_hex(32)),  # passwordless
+        role="depot_admin",
+        client_id=None,
+    )
+    db.session.add(user)
+    db.session.commit()
+    return jsonify(id=user.id, display_name=user.username, email=user.email), 201
+
+
+@auth.route("/depot-staff", methods=["GET"])
+@depot_admin_required
+def list_depot_staff():
+    """צוות הדיפו — לתצוגת "מי בעל גישה" במסך. פתוח לצוות ולמאסטר."""
+    users = (User.query.filter_by(role="depot_admin")
+             .order_by(User.id).all())
+    return jsonify(staff=[{
+        "id": u.id, "display_name": u.username, "email": u.email,
+        "last_login_at": u.last_login_at.isoformat() if u.last_login_at else None,
+        "is_active": u.is_active,
+    } for u in users])
+
+
+@auth.route("/depot-staff/<int:user_id>", methods=["DELETE"])
+@admin_required
+def delete_depot_staff(user_id):
+    """מאסטר בלבד: הסרת כניסת צוות (החלפת איוש = מחיקה ויצירה מחדש עם אותו
+    שם תפקיד ומייל אחר). שורות היומן שנרשמו על שם התפקיד נשארות."""
+    user = db.session.get(User, user_id)
+    if user is None or user.role != "depot_admin":
+        return jsonify(error="Staff user not found"), 404
+    MagicLinkToken.query.filter_by(user_id=user.id).delete()
+    LoginAuditLog.query.filter_by(user_id=user.id).update({"user_id": None})
+    name = user.username
+    db.session.delete(user)
+    db.session.commit()
+    return jsonify(deleted=True, display_name=name), 200
+
+
 @auth.route("/request-magic-link", methods=["POST"])
 def request_magic_link():
     """Public: customer enters their email; if it matches a portal user, a magic link is sent."""
@@ -534,7 +609,8 @@ def request_magic_link():
         return neutral_response
 
     user = User.query.filter_by(email=email).first()
-    if not user or not user.is_active or user.role not in PORTAL_ROLES:
+    if (not user or not user.is_active
+            or (user.role not in PORTAL_ROLES and user.role not in STAFF_ROLES)):
         _log_event("magic_link_requested", success=False, email=email, notes="email not found / inactive")
         return neutral_response
 
@@ -605,6 +681,8 @@ def verify_magic_link():
             role=user.role,
             client_id=user.client_id,
             client_name=user.client.name if user.client else None,
+            # לצוות הדיפו — username = שם התצוגה ("משרד דיפו" וכו')
+            username=user.username,
         ),
     ), 200
 

@@ -46,6 +46,8 @@
   if(!localStorage.getItem('eco_access_token')){ location.href='/login'; }
   try{
     var u=JSON.parse(localStorage.getItem('eco_user')||'{}');
+    /* צוות מסך ניהול הדיפו (לימור 06/08) — נכנס בקסם-קישור ומגיע ישר למסך שלו */
+    if(u && u.role==='depot_admin'){ location.href='/depot-admin'; }
     if(u && u.client_name){ document.getElementById('who').textContent='שלום, '+u.client_name; }
     /* משתמש "הצהרות בלבד" (לקוח עקיף, לימור 05/08) — אין לו אזור מסמכים */
     if(u && u.role==='eco_oil_declaration_only'){

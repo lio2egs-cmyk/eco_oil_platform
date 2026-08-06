@@ -72,6 +72,16 @@ def admin_page():
     return render_template("admin.html", **_brand_for_host())
 
 
+@web.route("/depot-admin")
+def depot_admin_page():
+    """מסך ניהול הדיפו (לימור 06/08/2026, אפשרות א) — מסך נפרד מהמסך של
+    אקו-אויל; עובדים בו לימור, "משרד דיפו" ויואב בכניסות אישיות.
+    המיתוג תמיד דיפו, גם אם נפתח מכתובת אחרת; ההרשאה בצד ה-API."""
+    return render_template(
+        "depot_admin.html",
+        division="eco_depot", brand="אקו-דיפו", logo="logo_eco_depot.png")
+
+
 @web.route("/sw.js")
 def field_sw():
     """ה-service worker חייב להיות מוגש משורש האתר כדי לכסות את /terminal."""
