@@ -228,7 +228,9 @@ def _notify_office(row, client):
 @depot_portal.route("/bridge/prearrivals", methods=["GET"])
 @bridge_required
 def bridge_pending():
-    rows = (DepotPreArrival.query.filter_by(status="pending")
+    # כמו אירועי המסופונים: גם fetched מוגש שוב — טופס שנמשך אבל לא אושר
+    # (קובץ נעול / סבב שנפל) חוזר בסבב הבא במקום להיתקע לנצח
+    rows = (DepotPreArrival.query.filter(DepotPreArrival.status.in_(("pending", "fetched")))
             .order_by(DepotPreArrival.id).limit(50).all())
     for r in rows:
         r.status = "fetched"
