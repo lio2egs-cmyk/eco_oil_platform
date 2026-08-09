@@ -9,7 +9,8 @@ URLs — the bucket stays private.
 """
 import os
 import re
-from flask import Blueprint, current_app, jsonify, request
+from datetime import datetime
+from flask import Blueprint, Response, current_app, jsonify, request
 from flask_jwt_extended import jwt_required, get_jwt, get_jwt_identity
 from sqlalchemy import and_, func, or_
 
@@ -28,6 +29,53 @@ WITHHELD_STATUSES = {"awaiting_declaration", "unpublished"}
 # תפקיד "הצהרות בלבד" (לימור 05/08) — לקוח עקיף שרואה רק הצהרה+הסכמה,
 # לעולם לא את אזור המסמכים (אישורי פריקה / טופסי מלווה).
 DECLARATION_ONLY_ROLE = "eco_oil_declaration_only"
+
+# הסריקה החתומה (לימור 09/08): מתקבלת גם כצילום טלפון — הרבה יצרנים מצלמים
+# את הדף החתום במקום לסרוק. לימור שופטת קריאוּת ברגע האישור הסופי.
+MAX_SCAN_BYTES = 15 * 1024 * 1024
+ALLOWED_SCAN_EXT = {".pdf", ".jpg", ".jpeg", ".png", ".webp", ".heic", ".heif"}
+
+
+def _read_scan_upload():
+    """קובץ הסריקה מהבקשה → (bytes, name, mime) או (None, הודעת שגיאה בעברית, None)."""
+    f = request.files.get("scan")
+    if f is None or not f.filename:
+        return None, "לא צורף קובץ", None
+    ext = os.path.splitext(f.filename)[1].lower()
+    if ext not in ALLOWED_SCAN_EXT:
+        return None, "סוג הקובץ לא נתמך — אפשר PDF או תמונה (צילום)", None
+    data = f.read()
+    if len(data) > MAX_SCAN_BYTES:
+        return None, "הקובץ גדול מדי (עד 15MB)", None
+    if not data:
+        return None, "הקובץ ריק", None
+    return data, f.filename[:200], (f.mimetype or "application/octet-stream")[:60]
+
+
+def _scan_response(d):
+    """הסריקה השמורה כתשובת הורדה/צפייה."""
+    return Response(
+        d.signed_scan_data,
+        mimetype=d.signed_scan_mime or "application/octet-stream",
+        headers={"Content-Disposition":
+                 f"inline; filename=signed_declaration_{d.id}"
+                 + os.path.splitext(d.signed_scan_filename or "")[1].lower()})
+
+
+def _decl_in_user_scope(decl_id):
+    """הצהרת פורטל בהיקף החברות של המשתמש המחובר — או None.
+    זהה להיקף של my-declaration-docs (כולל תפקיד "הצהרות בלבד" ורב-חברות)."""
+    from .db import ProducerDeclaration
+    user = db.session.get(User, int(get_jwt_identity()))
+    if user is None:
+        return None
+    allowed = user.allowed_client_ids()
+    if not allowed:
+        return None
+    d = db.session.get(ProducerDeclaration, decl_id)
+    if d is None or d.submitted_by_user_id is None or d.client_id not in allowed:
+        return None
+    return d
 
 
 def _client_for_request():
@@ -299,6 +347,12 @@ def _decl_dict(d, clients, users):
         "valid_until": d.valid_until.strftime("%d/%m/%Y") if d.valid_until else None,
         "notes": d.notes,
         "fix_note": d.fix_note,
+        # הסריקה החתומה + האישור הסופי (09/08)
+        "has_signed_scan": bool(d.signed_scan_at),
+        "signed_scan_at": d.signed_scan_at.isoformat() if d.signed_scan_at else None,
+        "signed_scan_source": d.signed_scan_source,
+        "signed_scan_filename": d.signed_scan_filename,
+        "approved_at": d.approved_at.isoformat() if d.approved_at else None,
     }
 
 
@@ -383,8 +437,25 @@ def admin_release_declaration(decl_id):
         if d.status != "rejected":
             return jsonify({"error": f"אי אפשר להחזיר הצהרה במעמד '{d.status}'"}), 409
         d.status = "submitted"
+    elif action == "approve":
+        # אישור סופי (לימור 09/08) — השער: רק אחרי שהסריקה החתומה+חותמת
+        # צורפה ולימור בדקה אותה (כולל קריאוּת של צילום טלפון). מכאן ההצהרה
+        # פעילה; הרגע הזה הוא הטריגר העתידי להזנה האוטומטית למסד.
+        if d.status != "released":
+            return jsonify({"error": f"אי אפשר לאשר סופית במעמד '{d.status}'"}), 409
+        if not d.signed_scan_data:
+            return jsonify({"error": "אין עדיין סריקה חתומה — האישור הסופי מותנה בצירוף המסמך החתום"}), 409
+        d.status = "approved"
+        d.approved_at = datetime.utcnow()
+        d.is_active = True
+    elif action == "unapprove":
+        if d.status != "approved":
+            return jsonify({"error": f"אי אפשר לבטל אישור במעמד '{d.status}'"}), 409
+        d.status = "released"
+        d.approved_at = None
+        d.is_active = False
     else:
-        return jsonify({"error": "action must be release/unrelease/return_fix/cancel_fix/reject/unreject"}), 400
+        return jsonify({"error": "action must be release/unrelease/return_fix/cancel_fix/reject/unreject/approve/unapprove"}), 400
     db.session.commit()
     resp = {"id": d.id, "status": d.status}
     if email_sent is not None:
@@ -436,7 +507,7 @@ def my_declaration_docs():
 
     decls = (ProducerDeclaration.query
              .filter(ProducerDeclaration.client_id.in_(allowed),
-                     ProducerDeclaration.status.in_(("released", "needs_fix")),
+                     ProducerDeclaration.status.in_(("released", "needs_fix", "approved")),
                      ProducerDeclaration.submitted_by_user_id.isnot(None))
              .order_by(ProducerDeclaration.issued_at.desc(),
                        ProducerDeclaration.id.desc())
@@ -447,6 +518,110 @@ def my_declaration_docs():
     clients = {c.id: c.name for c in Client.query.filter(Client.id.in_(allowed)).all()}
 
     return jsonify({"declarations": [_decl_dict(d, clients, users) for d in decls]})
+
+
+@ecooil_docs.route("/portal/my-declaration-docs/<int:decl_id>/signed-scan",
+                   methods=["POST"])
+@jwt_required()
+def upload_signed_scan(decl_id):
+    """הלקוח מעלה את המסמך החתום — סריקה או צילום טלפון (לימור 09/08).
+
+    מותר רק במעמד "בתא הלקוח" (released); העלאה חוזרת מחליפה את הקודמת עד
+    האישור הסופי. אחרי האישור — נעול (לימור מבטלת אישור אם צריך להחליף)."""
+    if get_jwt().get("role") == "admin":
+        return jsonify({"error": "העלאת לקוח — מנהלת מצרפת דרך מסך הניהול"}), 403
+    d = _decl_in_user_scope(decl_id)
+    if d is None:
+        return jsonify({"error": "not found"}), 404
+    if d.status != "released":
+        return jsonify({"error": "אפשר לצרף מסמך חתום רק להצהרה שאושר נוסחה וממתינה לחתימה"}), 409
+    data, name_or_err, mime = _read_scan_upload()
+    if data is None:
+        return jsonify({"error": name_or_err}), 400
+    d.signed_scan_data = data
+    d.signed_scan_filename = name_or_err
+    d.signed_scan_mime = mime
+    d.signed_scan_at = datetime.utcnow()
+    d.signed_scan_source = "customer"
+    db.session.commit()
+    try:
+        _notify_office_scan_uploaded(d)
+    except Exception as exc:
+        current_app.logger.error("scan-upload office notification failed: %s", exc)
+    return jsonify({"id": d.id, "has_signed_scan": True})
+
+
+@ecooil_docs.route("/portal/my-declaration-docs/<int:decl_id>/signed-scan",
+                   methods=["GET"])
+@jwt_required()
+def view_own_signed_scan(decl_id):
+    """הלקוח צופה במסמך החתום שהעלה (גם אחרי האישור הסופי)."""
+    if get_jwt().get("role") == "admin":
+        return jsonify({"error": "admin uses the admin endpoint"}), 403
+    d = _decl_in_user_scope(decl_id)
+    if d is None or not d.signed_scan_data:
+        return jsonify({"error": "not found"}), 404
+    return _scan_response(d)
+
+
+@ecooil_docs.route("/admin/producer-declarations/<int:decl_id>/signed-scan",
+                   methods=["POST"])
+@jwt_required()
+def admin_upload_signed_scan(decl_id):
+    """לימור מצרפת סריקה/צילום שקיבלה מחוץ לפורטל (ווטסאפ/מייל) — תיוק,
+    לא מילוי בשם הלקוח; עיקרון "המילוי תמיד של הלקוח" נשמר."""
+    if get_jwt().get("role") != "admin":
+        return jsonify({"error": "admin only"}), 403
+    from .db import ProducerDeclaration
+    d = db.session.get(ProducerDeclaration, decl_id)
+    if d is None or d.submitted_by_user_id is None:
+        return jsonify({"error": "not found"}), 404
+    if d.status != "released":
+        return jsonify({"error": "אפשר לצרף מסמך חתום רק להצהרה במעמד 'בתא הלקוח'"}), 409
+    data, name_or_err, mime = _read_scan_upload()
+    if data is None:
+        return jsonify({"error": name_or_err}), 400
+    d.signed_scan_data = data
+    d.signed_scan_filename = name_or_err
+    d.signed_scan_mime = mime
+    d.signed_scan_at = datetime.utcnow()
+    d.signed_scan_source = "admin"
+    db.session.commit()
+    return jsonify({"id": d.id, "has_signed_scan": True})
+
+
+@ecooil_docs.route("/admin/producer-declarations/<int:decl_id>/signed-scan",
+                   methods=["GET"])
+@jwt_required()
+def admin_view_signed_scan(decl_id):
+    if get_jwt().get("role") != "admin":
+        return jsonify({"error": "admin only"}), 403
+    from .db import ProducerDeclaration
+    d = db.session.get(ProducerDeclaration, decl_id)
+    if d is None or not d.signed_scan_data:
+        return jsonify({"error": "not found"}), 404
+    return _scan_response(d)
+
+
+def _notify_office_scan_uploaded(d):
+    """מייל פנימי למשרד כשלקוח מעלה מסמך חתום — כדי שלימור תדע לבדוק ולאשר."""
+    from .mailer import send_office_email
+
+    biz = (d.producer_name or "").strip()
+    kind = "PDF" if (d.signed_scan_mime or "").endswith("pdf") else "צילום/תמונה"
+    html = f"""<div dir="rtl" style="font-family:Arial,sans-serif;color:#222;">
+<p>התקבל מסמך הצהרת יצרן חתום בפורטל.</p>
+<table dir="rtl" style="border-collapse:collapse;">
+<tr><td style="border:1px solid #999;padding:6px 12px;background:#eef3f2;"><b>העסק</b></td>
+<td style="border:1px solid #999;padding:6px 12px;">{biz}</td></tr>
+<tr><td style="border:1px solid #999;padding:6px 12px;background:#eef3f2;"><b>זרם</b></td>
+<td style="border:1px solid #999;padding:6px 12px;">{d.material_name or ""}</td></tr>
+<tr><td style="border:1px solid #999;padding:6px 12px;background:#eef3f2;"><b>סוג הקובץ</b></td>
+<td style="border:1px solid #999;padding:6px 12px;">{kind}</td></tr>
+</table>
+<p>לבדיקה ואישור סופי — מסך הניהול, כרטיס "הצהרות יצרן שהוגשו בפורטל".</p></div>"""
+    return send_office_email(
+        subject=f"מסמך חתום התקבל בפורטל — {biz}", html=html)
 
 
 @ecooil_docs.route("/my-documents", methods=["GET"])

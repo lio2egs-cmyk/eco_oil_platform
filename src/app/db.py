@@ -1,4 +1,5 @@
 from flask_sqlalchemy import SQLAlchemy
+from sqlalchemy.orm import deferred
 from datetime import datetime
 
 db = SQLAlchemy()
@@ -468,6 +469,16 @@ class ProducerDeclaration(db.Model):
     status = db.Column(db.String(30), default="approved")
     submitted_by_user_id = db.Column(db.Integer, db.ForeignKey("users.id"))
     fix_note = db.Column(db.Text)          # הערות לימור "מה דורש תיקון" (needs_fix)
+
+    # הסריקה החתומה (לימור 09/08) — גם צילום טלפון מתקבל, לא רק סריקה;
+    # לימור שופטת קריאוּת ברגע האישור הסופי. מוחלף בהעלאה חוזרת עד האישור.
+    # deferred — הקובץ עצמו לא נטען בשאילתות רשימה, רק בגישה מפורשת
+    signed_scan_data = deferred(db.Column(db.LargeBinary))
+    signed_scan_filename = db.Column(db.String(200))
+    signed_scan_mime = db.Column(db.String(60))
+    signed_scan_at = db.Column(db.DateTime)
+    signed_scan_source = db.Column(db.String(20))  # customer / admin (צירוף מווטסאפ)
+    approved_at = db.Column(db.DateTime)           # רגע האישור הסופי — הטריגר העתידי להזנת המסד
 
     issued_at = db.Column(db.DateTime, default=datetime.utcnow)
     notes = db.Column(db.Text)

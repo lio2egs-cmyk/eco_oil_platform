@@ -37,6 +37,12 @@
       <div style="font-size:13px;color:#7a3b35;margin-bottom:10px">אקו-אויל החזירה את ההצהרה עם הערות — לחיצה פותחת את הטופס ממולא, לתיקון ושליחה מחדש.</div>
       <div id="fixDocsList"></div>
     </div>
+    <!-- הצהרות שאושרו סופית (09/08) — אחרי סריקה חתומה + אישור אקו-אויל -->
+    <div id="doneDocs" style="display:none;margin-top:16px;text-align:right;background:#EDF7EE;border:1.5px solid #9CC9A1;border-radius:12px;padding:14px 16px">
+      <div style="font-family:var(--fh);color:#2F6B3A;font-size:15px;margin-bottom:6px">✅ הצהרות בתוקף</div>
+      <div style="font-size:13px;color:#3d5c43;margin-bottom:10px">הצהרות שנחתמו ואושרו סופית על ידי אקו-אויל.</div>
+      <div id="doneDocsList"></div>
+    </div>
     <a class="btn-main" id="docsBtn" href="/documents">📂 המסמכים שלי</a><br id="docsBtnBr">
     <a class="btn-main" href="/declaration">📄 מילוי הצהרת יצרן</a><br>
     {% endif %}
@@ -70,16 +76,37 @@
       var ds=(await r.json()).declarations||[];
       var rel=ds.filter(function(d){ return d.status==='released'; });
       var fix=ds.filter(function(d){ return d.status==='needs_fix'; });
+      var done=ds.filter(function(d){ return d.status==='approved'; });
       function dt(d){ var p=(d.submitted_at||'').slice(0,10).split('-'); return p.length===3?p[2]+'/'+p[1]+'/'+p[0]:''; }
       function esc(s){ return (s==null?'':String(s)).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
       if(rel.length){
         document.getElementById('signDocsList').innerHTML=rel.map(function(d){
-          return '<div style="margin:6px 0"><a target="_blank" href="/declaration-doc?id='+d.id+'" '+
+          return '<div style="margin:10px 0"><a target="_blank" href="/declaration-doc?id='+d.id+'" '+
             'style="color:#2F5F59;font-weight:600;text-decoration:underline">הצהרת יצרן — '+
             esc(d.producer_name)+' ('+esc(d.material_name)+')</a>'+
-            '<span style="color:#8a8a8a;font-size:12px"> · '+dt(d)+'</span></div>';
+            '<span style="color:#8a8a8a;font-size:12px"> · '+dt(d)+'</span>'+
+            (d.has_signed_scan
+              ?'<div style="font-size:12.5px;color:#2F6B3A;margin-top:3px">✓ המסמך החתום התקבל — ממתין לאישור אקו-אויל'+
+               ' <a href="#" onclick="viewMyScan('+d.id+');return false;" style="color:#2F5F59">(צפייה)</a>'+
+               ' · <a href="#" onclick="uploadScan('+d.id+');return false;" style="color:#8a5d00">החלפת הקובץ</a></div>'
+              :'<div style="margin-top:5px"><button onclick="uploadScan('+d.id+')" '+
+               'style="background:#5B9E96;color:#fff;border:none;border-radius:8px;padding:8px 14px;font-family:var(--fh);font-size:13px;cursor:pointer">'+
+               '📷 העלאת המסמך החתום</button>'+
+               '<span style="font-size:12px;color:#8a8a8a;margin-right:8px">סריקה או צילום ברור מהטלפון</span></div>')+
+            '</div>';
         }).join('');
         box.style.display='block';
+      }
+      if(done.length){
+        document.getElementById('doneDocsList').innerHTML=done.map(function(d){
+          return '<div style="margin:6px 0"><a target="_blank" href="/declaration-doc?id='+d.id+'" '+
+            'style="color:#2F6B3A;font-weight:600;text-decoration:underline">הצהרת יצרן — '+
+            esc(d.producer_name)+' ('+esc(d.material_name)+')</a>'+
+            '<span style="color:#8a8a8a;font-size:12px"> · בתוקף עד '+esc(d.valid_until||'')+'</span>'+
+            (d.has_signed_scan?' · <a href="#" onclick="viewMyScan('+d.id+');return false;" style="font-size:12.5px;color:#2F5F59">המסמך החתום</a>':'')+
+            '</div>';
+        }).join('');
+        document.getElementById('doneDocs').style.display='block';
       }
       if(fix.length){
         document.getElementById('fixDocsList').innerHTML=fix.map(function(d){
@@ -94,6 +121,36 @@
       }
     }catch(e){}
   })();
+  /* העלאת המסמך החתום (09/08) — קובץ סרוק או צילום; בטלפון נפתחת גם המצלמה */
+  function uploadScan(id){
+    var inp=document.createElement('input');
+    inp.type='file'; inp.accept='application/pdf,image/*';
+    inp.onchange=async function(){
+      if(!inp.files.length) return;
+      var fd=new FormData(); fd.append('scan',inp.files[0]);
+      try{
+        var r=await fetch('/eco-oil/portal/my-declaration-docs/'+id+'/signed-scan',
+          {method:'POST',body:fd,
+           headers:{'Authorization':'Bearer '+localStorage.getItem('eco_access_token')}});
+        if(!r.ok){
+          var e={}; try{ e=await r.json(); }catch(_){}
+          alert(e.error||'שגיאה בהעלאת הקובץ — נסו שוב');
+          return;
+        }
+        alert('המסמך החתום התקבל בהצלחה ✓\nאקו-אויל תבדוק ותאשר סופית.');
+        location.reload();
+      }catch(e){ alert('שגיאה בהעלאת הקובץ — נסו שוב'); }
+    };
+    inp.click();
+  }
+  async function viewMyScan(id){
+    try{
+      var r=await fetch('/eco-oil/portal/my-declaration-docs/'+id+'/signed-scan',
+        {headers:{'Authorization':'Bearer '+localStorage.getItem('eco_access_token')}});
+      if(!r.ok) return;
+      window.open(URL.createObjectURL(await r.blob()),'_blank');
+    }catch(e){}
+  }
   function logout(){
     try{ localStorage.removeItem('eco_access_token'); localStorage.removeItem('eco_refresh_token'); localStorage.removeItem('eco_user'); }catch(e){}
     location.href='/login';

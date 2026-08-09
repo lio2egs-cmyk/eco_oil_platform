@@ -110,6 +110,14 @@ def create_app():
             "ALTER TABLE producer_declarations ADD COLUMN status VARCHAR(30)",
             "ALTER TABLE producer_declarations ADD COLUMN submitted_by_user_id INTEGER REFERENCES users(id)",
             "ALTER TABLE producer_declarations ADD COLUMN fix_note TEXT",
+            # הסריקה החתומה + האישור הסופי (לימור 09/08). BYTEA תקין גם ב-SQLite
+            # (שם סוג חופשי) וגם ב-Postgres.
+            "ALTER TABLE producer_declarations ADD COLUMN signed_scan_data BYTEA",
+            "ALTER TABLE producer_declarations ADD COLUMN signed_scan_filename VARCHAR(200)",
+            "ALTER TABLE producer_declarations ADD COLUMN signed_scan_mime VARCHAR(60)",
+            "ALTER TABLE producer_declarations ADD COLUMN signed_scan_at TIMESTAMP",
+            "ALTER TABLE producer_declarations ADD COLUMN signed_scan_source VARCHAR(20)",
+            "ALTER TABLE producer_declarations ADD COLUMN approved_at TIMESTAMP",
         ):
             try:
                 db.session.execute(db.text(stmt))

@@ -125,7 +125,8 @@ function toast(m){ var t=document.getElementById('toast'); t.textContent=m; t.st
 async function api(url, opts){
   opts=opts||{}; opts.headers=opts.headers||{};
   opts.headers['Authorization']='Bearer '+localStorage.getItem('eco_access_token');
-  if(opts.body){ opts.headers['Content-Type']='application/json'; }
+  /* קובץ (FormData) נשלח בלי Content-Type — הדפדפן קובע אותו בעצמו */
+  if(opts.body && !(opts.body instanceof FormData)){ opts.headers['Content-Type']='application/json'; }
   var r=await fetch(url,opts);
   if(r.status===401){
     var rt=localStorage.getItem('eco_refresh_token');
@@ -226,7 +227,8 @@ function fmtDT(iso){
          ' '+('0'+d.getHours()).slice(-2)+':'+('0'+d.getMinutes()).slice(-2);
 }
 function declStatus(d){
-  if(d.status==='approved') return '<span class="ok">אושרה</span>';
+  if(d.status==='approved') return '<span class="ok">✔ אושרה סופית'+(d.approved_at?' '+fmtDT(d.approved_at).slice(0,10):'')+'</span>';
+  if(d.status==='released'&&d.has_signed_scan) return '<span class="warn">מסמך חתום התקבל — ממתין לאישור הסופי שלך</span>';
   if(d.status==='released') return '<span class="ok">בתא הלקוח — ממתינה לחתימת היצרן</span>';
   if(d.status==='needs_fix') return '<span class="warn">הוחזרה לתיקון אצל הלקוח</span>';
   if(d.status==='superseded') return '<span class="muted">הוגשה מחדש (גרסה ישנה)</span>';
@@ -285,9 +287,11 @@ async function loadDeclarations(){
   if(!r||!r.ok){ box.textContent='שגיאה בטעינת ההצהרות'; cnt.textContent=''; return; }
   var ds=(await r.json()).declarations;
   var pending=ds.filter(function(d){ return d.status==='submitted'; }).length;
-  var atClient=ds.filter(function(d){ return d.status==='released'; }).length;
+  var atClient=ds.filter(function(d){ return d.status==='released'&&!d.has_signed_scan; }).length;
+  var forFinal=ds.filter(function(d){ return d.status==='released'&&d.has_signed_scan; }).length;
   var inFix=ds.filter(function(d){ return d.status==='needs_fix'; }).length;
-  cnt.textContent=ds.length?(ds.length+' הצהרות'+(pending?' · '+pending+' ממתינות לטיפולך':'')+(atClient?' · '+atClient+' אצל הלקוח לחתימה':'')+(inFix?' · '+inFix+' בתיקון אצל הלקוח':'')):'';
+  var done=ds.filter(function(d){ return d.status==='approved'; }).length;
+  cnt.textContent=ds.length?(ds.length+' הצהרות'+(pending?' · '+pending+' ממתינות לטיפולך':'')+(atClient?' · '+atClient+' אצל הלקוח לחתימה':'')+(forFinal?' · '+forFinal+' ממתינות לאישור סופי':'')+(inFix?' · '+inFix+' בתיקון אצל הלקוח':'')+(done?' · '+done+' אושרו':'')):'';
   if(!ds.length){ box.textContent='אין עדיין הצהרות שהוגשו מהפורטל.'; return; }
   var h='<table><tr><th>הוגשה בתאריך</th><th>חשבון פורטל</th><th>שם העסק בהצהרה</th>'+
         '<th>שם הזרם</th><th>מספר פסולת</th><th>כמות שנתית</th><th>מעמד</th><th></th></tr>';
@@ -299,6 +303,10 @@ async function loadDeclarations(){
        '<td><button class="btn btn-soft" onclick="toggleDecl('+i+')">פרטים מלאים</button> '+
        '<a class="btn btn-soft" target="_blank" href="/declaration-doc?id='+d.id+'" title="המסמך הרשמי (נספח 3) ממולא מהנתונים שהוגשו — להדפסה ושליחה ליצרן לחתימה וחותמת">🖨 מסמך לחתימה</a> '+
        (d.status==='submitted'?'<button class="btn" title="אישור הנוסח: הלקוח יראה את המסמך בפורטל שלו ויוכל להוריד ולהדפיס לחתימה" onclick="releaseDecl('+d.id+',\''+esc(d.producer_name)+'\')">📤 שמרי לתא הלקוח</button> ':'')+
+       (d.has_signed_scan?'<button class="btn btn-soft" title="המסמך החתום שהתקבל — סריקה או צילום" onclick="viewScan('+d.id+')">📎 המסמך החתום</button> ':'')+
+       (d.status==='released'?'<button class="btn btn-soft" title="צירוף מסמך חתום שהגיע מחוץ לפורטל (ווטסאפ / מייל) — גם צילום טלפון מתקבל" onclick="attachScan('+d.id+',\''+esc(d.producer_name)+'\')">'+(d.has_signed_scan?'החליפי מסמך חתום':'📎 צרפי מסמך חתום')+'</button> ':'')+
+       (d.status==='released'&&d.has_signed_scan?'<button class="btn" title="האישור הסופי: ההצהרה נכנסת לתוקף. מותנה בבדיקה שלך — שם מלא, חתימה וחותמת, וצילום קריא" onclick="approveDecl('+d.id+',\''+esc(d.producer_name)+'\')">✔ אישור סופי</button> ':'')+
+       (d.status==='approved'?'<button class="btn btn-soft" onclick="unapproveDecl('+d.id+',\''+esc(d.producer_name)+'\')">בטלי אישור</button> ':'')+
        (d.status==='released'?'<button class="btn btn-soft" onclick="unreleaseDecl('+d.id+',\''+esc(d.producer_name)+'\')">בטלי שיתוף</button> ':'')+
        ((d.status==='submitted'||d.status==='released')?'<button class="btn btn-soft" title="הכלי המרכזי להגשה עם פגם: ההערות שלך מוצגות ללקוח והטופס נפתח לו ממולא לתיקון" onclick="returnFixDecl('+d.id+',\''+esc(d.producer_name)+'\')">🛠 החזירי לתיקון</button> ':'')+
        (d.status==='needs_fix'?'<button class="btn btn-soft" onclick="cancelFixDecl('+d.id+',\''+esc(d.producer_name)+'\')">בטלי החזרה</button> ':'')+
@@ -340,8 +348,43 @@ function declDetails(d){
     row('בתוקף מ־',d.valid_from)+
     row('בתוקף עד',d.valid_until)+
     (d.fix_note?row('הערות התיקון שלך',d.fix_note):'')+
+    (d.has_signed_scan?row('מסמך חתום',(d.signed_scan_filename||'')+' · הועלה '+fmtDT(d.signed_scan_at)+(d.signed_scan_source==='admin'?' (צורף על ידך)':' (הועלה ע"י הלקוח)')):'')+
+    (d.approved_at?row('אושרה סופית בתאריך',fmtDT(d.approved_at)):'')+
     (d.notes?row('הערות',d.notes):'')+
     '</table>';
+}
+async function viewScan(id){
+  var r=await api('/eco-oil/admin/producer-declarations/'+id+'/signed-scan');
+  if(!r||!r.ok){ toast('שגיאה בפתיחת המסמך החתום'); return; }
+  var blob=await r.blob();
+  window.open(URL.createObjectURL(blob),'_blank');
+}
+function attachScan(id,name){
+  var inp=document.createElement('input');
+  inp.type='file'; inp.accept='application/pdf,image/*';
+  inp.onchange=async function(){
+    if(!inp.files.length) return;
+    var fd=new FormData(); fd.append('scan',inp.files[0]);
+    var r=await api('/eco-oil/admin/producer-declarations/'+id+'/signed-scan',{method:'POST',body:fd,upload:true});
+    if(!r||!r.ok){ var e=r?(await r.json()).error:''; toast(e||'שגיאה בצירוף המסמך'); return; }
+    toast('המסמך החתום של "'+name+'" צורף ✓ אפשר לבדוק ולאשר סופית');
+    await loadDeclarations();
+  };
+  inp.click();
+}
+async function approveDecl(id,name){
+  if(!confirm('אישור סופי להצהרה של "'+name+'"?\nבדקת: שם מלא של האחראי, חתימה + חותמת של יצרן הפסולת, והמסמך קריא?\nמרגע האישור ההצהרה בתוקף.')) return;
+  var r=await api('/eco-oil/admin/producer-declarations/'+id,{method:'PATCH',body:JSON.stringify({action:'approve'})});
+  if(!r||!r.ok){ var e=r?(await r.json()).error:''; toast(e||'שגיאה באישור'); return; }
+  toast('ההצהרה של "'+name+'" אושרה סופית ✔ (בשלב הבא: ההזנה למסד — כרגע ידנית)');
+  await loadDeclarations();
+}
+async function unapproveDecl(id,name){
+  if(!confirm('לבטל את האישור הסופי של "'+name+'"? ההצהרה תחזור למעמד "בתא הלקוח" והמסמך החתום יישמר.')) return;
+  var r=await api('/eco-oil/admin/producer-declarations/'+id,{method:'PATCH',body:JSON.stringify({action:'unapprove'})});
+  if(!r||!r.ok){ toast('שגיאה בביטול האישור'); return; }
+  toast('האישור בוטל — ההצהרה חזרה למעמד "בתא הלקוח"');
+  await loadDeclarations();
 }
 
 function fmtDate(iso){
