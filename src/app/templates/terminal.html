@@ -410,16 +410,30 @@ function filterTanks() {
     return;
   }
   const norm = t => (t || "").replace(/[^0-9A-Za-z]/g, "").toUpperCase();
-  const matches = pool.filter(a => {
+  const matchQ = a => {
     const t = norm(a.tank_number);
     return t.includes(q) || t.replace(/[^0-9]/g, "").includes(q);
-  });
+  };
+  const matches = pool.filter(matchQ);
   const ends = a => norm(a.tank_number).replace(/[^0-9]/g, "").endsWith(q) ? 1 : 0;
-  const top = matches.sort((a, b) => ends(b) - ends(a)).slice(0, 10);
-  res.innerHTML = top.map(a =>
+  const mkBtn = a =>
     `<button type="button" style="font-size:22px; padding:14px; border-radius:10px; border:2px solid var(--brand); background:#fff; color:#222; text-align:right;"
-      onclick='chooseTank(${JSON.stringify(a.tank_number)}, ${JSON.stringify(a.customer || "")})'>${a.tank_number}${a.customer ? " — " + a.customer : ""}</button>`
-  ).join("") || '<div class="note">אין התאמה ברשימה. אם המספר נכון — לא נורא: מדווחים בכפתור למטה, והדיווח יישמר בצד וייקלט אוטומטית כשהמשרד יפתח את השורה.</div>' + UNLISTED_BTN;
+      onclick='chooseTank(${JSON.stringify(a.tank_number)}, ${JSON.stringify(a.customer || "")})'>${a.tank_number}${a.customer ? " — " + a.customer : ""}</button>`;
+  if (!matches.length && flowType === "entry") {
+    // המספר לא בצפויים — אולי המכל כבר במגרש (המשרד כבר רשם את הכניסה)?
+    // הצילום מהשטח עדיין חובה: מציגים את המכל בירוק וממשיכים רגיל לצילום ושליחה.
+    // הגשר מזהה שהכניסה כבר רשומה (מאותו יום) ומתייק את הצילום בלי שורה כפולה.
+    const onsite = onsiteAssets.filter(a => (a.status || "").trim() !== "בדרך להיכנס").filter(matchQ);
+    if (onsite.length) {
+      const top2 = onsite.sort((a, b) => ends(b) - ends(a)).slice(0, 10);
+      res.innerHTML = `<div class="note" style="background:#e6f4ea; border-radius:10px; padding:10px; color:#1d5c33;">✓ המכל הזה כבר רשום במגרש — הכניסה נקלטה במשרד. ממשיכים רגיל: בוחרים אותו, מצלמים ושולחים — הצילום יתויק לתיעוד הכניסה (לא תיפתח שורה כפולה).</div>` +
+        top2.map(mkBtn).join("");
+      return;
+    }
+  }
+  const top = matches.sort((a, b) => ends(b) - ends(a)).slice(0, 10);
+  res.innerHTML = top.map(mkBtn).join("") ||
+    '<div class="note">אין התאמה ברשימה. אם המספר נכון — לא נורא: מדווחים בכפתור למטה, והדיווח יישמר בצד וייקלט אוטומטית כשהמשרד יפתח את השורה.</div>' + UNLISTED_BTN;
   if (matches.length > 10) res.innerHTML += `<div class="note">מוצגות 10 מתוך ${matches.length} התאמות — הוסיפו עוד ספרה</div>`;
 }
 
