@@ -71,6 +71,18 @@
   <div id="listWrap"></div>
 </div>
 
+<!-- דיווחים ממתינים -->
+<div id="pendingCard" class="card hidden">
+  <b style="font-size:18px;">דיווחים ממתינים לקליטה</b>
+  <div class="warn" style="margin-top:10px;">
+    דיווח ממתין = דיווח מהשטח שעדיין לא נקלט בקובץ החי (למשל מכל בלי שורת צפי, או יציאה בלי ביקור פתוח).
+    ברירת המחדל: המשרד משלים את החסר בטופס — והדיווח נקלט לבד. <b>סגירה ידנית</b> נועדה רק לדיווח שהוזן בטעות,
+    והיא מחייבת לרשום סיבה (נשמרת לתיעוד).
+  </div>
+  <button class="btn copy" style="margin-top:10px;" onclick="refreshPending()">🔄 רענון הרשימה</button>
+  <div id="pendingWrap" style="margin-top:8px;"></div>
+</div>
+
 </main>
 <script>
 let TOK = sessionStorage.getItem("fieldAdminTok") || "";
@@ -107,13 +119,14 @@ async function doLogin() {
 
 function logout() {
   TOK = ""; sessionStorage.removeItem("fieldAdminTok");
-  show("loginCard", true); show("createCard", false); show("listCard", false);
+  show("loginCard", true); show("createCard", false); show("listCard", false); show("pendingCard", false);
 }
 
 function enter() {
-  show("loginCard", false); show("createCard", true); show("listCard", true);
+  show("loginCard", false); show("createCard", true); show("listCard", true); show("pendingCard", true);
   document.getElementById("who").textContent = sessionStorage.getItem("fieldAdminName") || "";
   refreshList();
+  refreshPending();
 }
 
 function fmtSeen(iso) {
@@ -163,6 +176,48 @@ async function deactivate(id, name) {
   if (!confirm("לכבות את המסופון \"" + name + "\"? הטאבלט שלו יפסיק לעבוד עד שיוזן מפתח חדש.")) return;
   try { await api("/field/api/devices/" + id, "DELETE"); refreshList(); }
   catch (e) { alert(e.message); }
+}
+
+const EV_HE = {entry:"כניסה", wash:"שטיפה", exit:"יציאה", ready:"סימון מוכן", repairs:"תיקון"};
+const ASSET_HE = {iso:"איזוטנק", rt:"מכלית"};
+const ST_HE = {pending:"טרם נמשך מהענן", fetched:"ממתין לפעולת משרד"};
+
+function fmtAt(iso) {
+  if (!iso) return "";
+  const d = new Date(iso);
+  return d.toLocaleString("he-IL", {day:"2-digit", month:"2-digit", hour:"2-digit", minute:"2-digit"});
+}
+
+async function refreshPending() {
+  const w = document.getElementById("pendingWrap");
+  try {
+    const d = await api("/field/api/admin/pending-events");
+    if (!d.events.length) {
+      w.innerHTML = "<div class='ok'>✓ אין דיווחים ממתינים — הכל נקלט.</div>";
+      return;
+    }
+    const rows = d.events.map(x =>
+      "<tr><td>" + fmtAt(x.event_at) + "</td>" +
+      "<td>" + (x.worker_name || "") + "</td>" +
+      "<td>" + (EV_HE[x.event_type] || x.event_type) + " — " + (ASSET_HE[x.asset_type] || x.asset_type) + "</td>" +
+      "<td>" + (x.tank_number || "<span class='muted'>ללא מספר</span>") + "</td>" +
+      "<td>" + (ST_HE[x.status] || x.status) + "</td>" +
+      "<td><button class='btn small' onclick='dismissEvent(" + x.id + ",\"" +
+      (x.tank_number || "ללא מספר") + "\",\"" + (EV_HE[x.event_type] || x.event_type) + "\")'>סגירה ידנית</button></td></tr>").join("");
+    w.innerHTML = "<table><tr><th>מתי</th><th>מסופון</th><th>פעולה</th><th>מכל</th><th>מצב</th><th></th></tr>" + rows + "</table>";
+  } catch (e) { w.innerHTML = "<div class='err'>" + e.message + "</div>"; }
+}
+
+async function dismissEvent(id, tank, etype) {
+  const note = prompt("סגירה ידנית של דיווח " + etype + " עבור " + tank +
+    ".\n\nחובה לרשום סיבה (למשל: הוזן בטעות — הנחיית יואב). הסיבה נשמרת לתיעוד:");
+  if (note === null) return;
+  if (!note.trim()) { alert("לא נרשמה סיבה — הדיווח לא נסגר."); return; }
+  if (!confirm("לסגור סופית את הדיווח (" + etype + " — " + tank + ")?\nהגשר יפסיק לנסות לקלוט אותו וההתראות עליו ייפסקו.")) return;
+  try {
+    await api("/field/api/admin/dismiss-event", "POST", {id: id, note: note.trim()});
+    refreshPending();
+  } catch (e) { alert(e.message); }
 }
 
 if (TOK) { enter(); } else { show("loginCard", true); }

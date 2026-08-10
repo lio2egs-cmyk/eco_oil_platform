@@ -111,6 +111,48 @@ def deactivate_device(device_id):
     return jsonify({"ok": True})
 
 
+# ------------------------------------------- pending-reports management (admin)
+@field.route("/admin/pending-events", methods=["GET"])
+@jwt_required()
+def admin_pending_events():
+    """Read-only view of reports still waiting for office action.
+    Unlike /bridge/pending this NEVER flips status — the bridge flow is untouched."""
+    if not _admin_only():
+        return jsonify({"error": "forbidden"}), 403
+    rows = (FieldEvent.query.filter(FieldEvent.status.in_(("pending", "fetched")))
+            .order_by(FieldEvent.id).all())
+    return jsonify({"events": [
+        {"id": r.id, "worker_name": r.worker_name, "event_type": r.event_type,
+         "asset_type": r.asset_type, "tank_number": r.tank_number,
+         "event_at": r.event_at.isoformat() if r.event_at else None,
+         "status": r.status, "photos": len(r.photos), "note": r.bridge_note}
+        for r in rows]})
+
+
+@field.route("/admin/dismiss-event", methods=["POST"])
+@jwt_required()
+def admin_dismiss_event():
+    """Close a mistaken report so the bridge stops retrying it.
+    Body: {"id": ..., "note": "..."} — the note (reason) is mandatory and kept
+    on the event record as the audit trail. Photo bytes are intentionally KEPT
+    (a dismissed event may never have been fetched — its photos exist nowhere else)."""
+    if not _admin_only():
+        return jsonify({"error": "forbidden"}), 403
+    data = request.get_json(silent=True) or {}
+    ev = db.session.get(FieldEvent, data.get("id"))
+    if ev is None:
+        return jsonify({"error": "not found"}), 404
+    if ev.status not in ("pending", "fetched"):
+        return jsonify({"error": "already handled"}), 409
+    note = (data.get("note") or "").strip()
+    if not note:
+        return jsonify({"error": "note required"}), 400
+    ev.status = "error"
+    ev.bridge_note = ("נסגר ידנית במסך הניהול: " + note)[:400]
+    db.session.commit()
+    return jsonify({"ok": True, "id": ev.id})
+
+
 # ------------------------------------------------------------- terminal side
 @field.route("/events", methods=["POST"])
 @device_required
