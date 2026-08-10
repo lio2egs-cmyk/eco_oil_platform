@@ -478,7 +478,14 @@ class ProducerDeclaration(db.Model):
     signed_scan_mime = db.Column(db.String(60))
     signed_scan_at = db.Column(db.DateTime)
     signed_scan_source = db.Column(db.String(20))  # customer / admin (צירוף מווטסאפ)
-    approved_at = db.Column(db.DateTime)           # רגע האישור הסופי — הטריגר העתידי להזנת המסד
+    approved_at = db.Column(db.DateTime)           # רגע האישור הסופי — הטריגר להזנת המסד
+
+    # הזנה אוטומטית למסד (לימור 10/08, עקרונות 03/08): הגשר המשרדי מושך
+    # הצהרות מאושרות וכותב למסד; שני חצאים נפרדים כדי שכשל חלקי מושלם
+    # בסיבוב הבא בלי שכפול. masad_note = מה שדורש השלמה ידנית (מתריעים).
+    masad_log_at = db.Column(db.DateTime)      # שורה נוספה בגיליון "הצהרות"
+    masad_summary_at = db.Column(db.DateTime)  # עודכן/נוסף בגיליון ח.פ.-היתר-תוקף
+    masad_note = db.Column(db.Text)
 
     issued_at = db.Column(db.DateTime, default=datetime.utcnow)
     notes = db.Column(db.Text)

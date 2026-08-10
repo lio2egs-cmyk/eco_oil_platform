@@ -118,6 +118,10 @@ def create_app():
             "ALTER TABLE producer_declarations ADD COLUMN signed_scan_at TIMESTAMP",
             "ALTER TABLE producer_declarations ADD COLUMN signed_scan_source VARCHAR(20)",
             "ALTER TABLE producer_declarations ADD COLUMN approved_at TIMESTAMP",
+            # הזנה אוטומטית למסד (10/08)
+            "ALTER TABLE producer_declarations ADD COLUMN masad_log_at TIMESTAMP",
+            "ALTER TABLE producer_declarations ADD COLUMN masad_summary_at TIMESTAMP",
+            "ALTER TABLE producer_declarations ADD COLUMN masad_note TEXT",
         ):
             try:
                 db.session.execute(db.text(stmt))

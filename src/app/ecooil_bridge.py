@@ -13,7 +13,7 @@ import secrets as _secrets
 from datetime import datetime, date
 from functools import wraps
 
-from flask import Blueprint, request, jsonify
+from flask import Blueprint, current_app, request, jsonify
 from sqlalchemy import func
 
 from .db import db, EcoOilUnloadEvent
@@ -200,3 +200,123 @@ def status():
         "per_doc_status": per_doc_status,
         "last_synced_at": last.isoformat() if last else None,
     })
+
+
+# ---------------------------------------------------------------------------
+# הזנה אוטומטית למסד (לימור 10/08, עקרונות אושרו 03/08):
+# הגשר המשרדי מושך הצהרות שאושרו סופית וכותב אותן למסד על Z: —
+# שורה חדשה תמיד בגיליון "הצהרות"; עדכון-במקום לפי ח.פ. בגיליון
+# ח.פ.-היתר-תוקף (לקוח חדש = שורה חדשה עם שם/ח.פ./היתר); אי-ודאות
+# (כפילות ח.פ., אין ח.פ.) לא נכתבת — מתריעים ולא מנחשים.
+# ---------------------------------------------------------------------------
+
+@ecooil_bridge.route("/masad-feed", methods=["GET"])
+@ecooil_bridge_required
+def masad_feed_pending():
+    """ההצהרות שממתינות להזנה — approved שאחד משני החצאים שלהן חסר."""
+    from .db import Client, ProducerDeclaration
+
+    decls = (ProducerDeclaration.query
+             .filter(ProducerDeclaration.status == "approved",
+                     ProducerDeclaration.submitted_by_user_id.isnot(None),
+                     db.or_(ProducerDeclaration.masad_log_at.is_(None),
+                            ProducerDeclaration.masad_summary_at.is_(None)))
+             .order_by(ProducerDeclaration.approved_at.asc())
+             .limit(50).all())
+    clients = {c.id: c for c in Client.query.filter(
+        Client.id.in_({d.client_id for d in decls})).all()} if decls else {}
+
+    def row(d):
+        c = clients.get(d.client_id)
+        return {
+            "id": d.id,
+            "log_pending": d.masad_log_at is None,
+            "summary_pending": d.masad_summary_at is None,
+            "approved_at": d.approved_at.isoformat() if d.approved_at else None,
+            "account_name": c.name if c else None,
+            "account_type": (c.client_type if c else None) or "direct",
+            "producer_name": d.producer_name,
+            "address": d.client_address,
+            "business_id": d.business_id,
+            "permit_number": d.permit_number,
+            "producer_size": d.producer_size,
+            "material_name": d.material_name,
+            "material_classification": d.material_classification,
+            "waste_stream_number": d.waste_stream_number,
+            "production_facility": d.production_facility,
+            "y_code": d.basel_y_code,
+            "annex8": d.basel_annexviii_code,
+            "h_code": d.basel_h_code,
+            "un_group": d.un_risk_group,
+            "catalog": d.european_catalog_code,
+            "treatment_type": d.treatment_facility_type,
+            "r_code": d.basel_r_code,
+            "d_code": d.basel_d_code,
+            "quantity": d.annual_quantity_text,
+            "packaging": d.packaging_type,
+            "characteristic": d.waste_main_characteristic,
+            "pollutant_type": d.pollutant_type,
+            "concentration_range": d.concentration_range,
+            "addressed_to": d.addressed_to,
+            "producer_email": d.client_email,
+            "valid_from": d.valid_from.isoformat() if d.valid_from else None,
+            "valid_until": d.valid_until.isoformat() if d.valid_until else None,
+        }
+
+    return jsonify({"declarations": [row(d) for d in decls]})
+
+
+@ecooil_bridge.route("/masad-feed/ack", methods=["POST"])
+@ecooil_bridge_required
+def masad_feed_ack():
+    """הגשר מדווח מה בוצע. body: {"results":[{id, log_done, summary_done, note}]}.
+    note חדש (שלא דווח כבר) → מייל התראה למשרד — פעם אחת, לא נדנוד שעתי."""
+    from .db import ProducerDeclaration
+    from .mailer import send_office_email
+
+    data = request.get_json(silent=True) or {}
+    results = data.get("results")
+    if not isinstance(results, list):
+        return jsonify({"error": "results list required"}), 400
+
+    now = datetime.utcnow()
+    alerts, updated = [], 0
+    for item in results:
+        if not isinstance(item, dict) or not item.get("id"):
+            continue
+        d = db.session.get(ProducerDeclaration, int(item["id"]))
+        if d is None or d.status != "approved":
+            continue
+        if item.get("log_done") and d.masad_log_at is None:
+            d.masad_log_at = now
+        if item.get("summary_done") and d.masad_summary_at is None:
+            d.masad_summary_at = now
+        note = (item.get("note") or "").strip() or None
+        if note and note != d.masad_note:
+            alerts.append((d, note))
+        d.masad_note = note
+        updated += 1
+    db.session.commit()
+
+    emailed = False
+    if alerts:
+        rows = "".join(
+            f"<tr><td style='border:1px solid #999;padding:6px 12px;'>{d.producer_name or ''}</td>"
+            f"<td style='border:1px solid #999;padding:6px 12px;'>{d.material_name or ''}</td>"
+            f"<td style='border:1px solid #999;padding:6px 12px;'>{note}</td></tr>"
+            for d, note in alerts)
+        html = f"""<div dir="rtl" style="font-family:Arial,sans-serif;color:#222;">
+<p>ההזנה האוטומטית למסד דורשת השלמה ידנית עבור ההצהרות הבאות:</p>
+<table dir="rtl" style="border-collapse:collapse;">
+<tr><td style="border:1px solid #999;padding:6px 12px;background:#eef3f2;"><b>העסק</b></td>
+<td style="border:1px solid #999;padding:6px 12px;background:#eef3f2;"><b>זרם</b></td>
+<td style="border:1px solid #999;padding:6px 12px;background:#eef3f2;"><b>מה דרוש</b></td></tr>
+{rows}</table>
+<p>אחרי התיקון במסד — ההזנה תושלם אוטומטית בסיבוב השעתי הבא.</p></div>"""
+        try:
+            emailed = send_office_email(
+                subject="הזנת הצהרות למסד — נדרשת השלמה ידנית", html=html)
+        except Exception as exc:
+            current_app.logger.error("masad-feed alert email failed: %s", exc)
+
+    return jsonify({"ok": True, "updated": updated, "alert_emailed": emailed})

@@ -27,6 +27,8 @@ STEPS = [
     ("matcher", "ecooil_pdf_matcher.py", []),
     ("manifest-matcher", "ecooil_manifest_matcher.py", []),
     ("push", "ecooil_bridge_push.py", []),
+    # הזנת הצהרות מאושרות למסד (לימור 10/08) — מדלג בשקט כשהמסד פתוח
+    ("masad-feed", "ecooil_masad_feed.py", []),
 ]
 
 
