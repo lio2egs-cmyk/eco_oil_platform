@@ -12,10 +12,12 @@ import secrets as _secrets
 
 from flask import Blueprint, jsonify, request
 from flask_jwt_extended import get_jwt, get_jwt_identity
+from sqlalchemy.orm import defer
 from werkzeug.security import generate_password_hash
 
 from .auth import depot_admin_required
-from .db import db, AdminActionLog, Client, LoginAuditLog, MagicLinkToken, User
+from .db import (db, AdminActionLog, Client, DepotPreArrival, LoginAuditLog,
+                 MagicLinkToken, User)
 
 depot_admin = Blueprint("depot_admin", __name__, url_prefix="/depot/admin")
 
@@ -77,6 +79,57 @@ def overview():
             "action": a.action, "details": a.details,
         } for a in actions],
     })
+
+
+# מצבי הטופס במילים של המשרד (הלקוח רואה נוסח אחר בעמוד הטופס שלו)
+PREARRIVAL_STATUS_HEB = {
+    "pending": "ממתין לקליטה במשרד",
+    "fetched": "בקליטה במשרד",
+    "posted": "נקלט — נפתחה שורת צפי בקובץ",
+    "error": "תקלה בקליטה — ראו הערת גשר",
+}
+
+
+@depot_admin.route("/prearrivals", methods=["GET"])
+@depot_admin_required
+def prearrivals():
+    """הגשות המידע המקדים מהפורטל — תצוגה למשרד (קריאה בלבד).
+    קובץ ה-MSDS עצמו לא נטען לרשימה (defer) — רק סימון צורף/לא."""
+    rows = (DepotPreArrival.query
+            .options(defer(DepotPreArrival.msds_data))
+            .order_by(DepotPreArrival.created_at.desc())
+            .limit(100).all())
+    submitters = {u.id: u.email for u in User.query.filter(
+        User.id.in_({r.submitted_by_user_id for r in rows if r.submitted_by_user_id})).all()} if rows else {}
+    out = []
+    for r in rows:
+        services = " · ".join(filter(None, [
+            "ייבוש" if r.svc_dry else None,
+            "בדיקת ואקום" if r.svc_vacuum else None,
+            f"סט תמונות ({r.svc_photos})" if r.svc_photos else None,
+            f"תיקונים: {r.svc_repairs}" if r.svc_repairs else None]))
+        out.append({
+            "id": r.id,
+            "created_at": r.created_at.isoformat(),
+            "client_name": r.client.name if r.client else "?",
+            "submitted_by": submitters.get(r.submitted_by_user_id, ""),
+            "tank_number": r.tank_number,
+            "material": r.material,
+            "un_class": f"{r.un_number} / {r.hazard_class}",
+            "carrier": r.carrier or (f"חדש: {r.carrier_new}" if r.carrier_new else ""),
+            "purpose": r.purpose if r.purpose != "אחר" else (r.purpose_other or "אחר"),
+            "expected_date": r.expected_date.strftime("%d/%m/%Y") if r.expected_date else "",
+            "services": services,
+            "has_msds": bool(r.msds_size),
+            "status": r.status,
+            "status_heb": PREARRIVAL_STATUS_HEB.get(r.status, r.status),
+            "bridge_note": r.bridge_note or "",
+            "posted_at": r.posted_at.isoformat() if r.posted_at else None,
+        })
+    counts = {s: 0 for s in PREARRIVAL_STATUS_HEB}
+    for r in out:
+        counts[r["status"]] = counts.get(r["status"], 0) + 1
+    return jsonify(prearrivals=out, counts=counts)
 
 
 @depot_admin.route("/clients", methods=["POST"])

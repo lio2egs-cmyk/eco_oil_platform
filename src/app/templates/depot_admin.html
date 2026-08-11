@@ -83,6 +83,11 @@
     <div id="list">טוען…</div>
   </div>
 
+  <div class="card">
+    <h3>🚛 הגשות מידע מקדים מהפורטל <span class="pill" id="paCount"></span></h3>
+    <div id="paList" class="muted" style="overflow-x:auto">טוען…</div>
+  </div>
+
   <div class="card hidden" id="staffCard">
     <h3>צוות המסך <span class="muted" style="font-weight:normal">(ניהול הצוות — רק בכניסת המנהלת הראשית)</span></h3>
     <div id="staffList"></div>
@@ -173,6 +178,38 @@ async function reload(){
   DATA=await r.json();
   document.getElementById('who').textContent='מחוברים כ: '+DATA.me;
   render(); renderStaff(); renderActions();
+  loadPrearrivals();
+}
+
+async function loadPrearrivals(){
+  var r=await api('/depot/admin/prearrivals');
+  if(!r||!r.ok){ document.getElementById('paList').textContent='שגיאה בטעינת ההגשות'; return; }
+  var d=await r.json(); renderPrearrivals(d);
+}
+
+function renderPrearrivals(d){
+  var rows=d.prearrivals||[];
+  var c=d.counts||{};
+  var open=(c.pending||0)+(c.fetched||0);
+  document.getElementById('paCount').textContent=rows.length?
+    (rows.length+' הגשות'+(open?' · '+open+' בקליטה':'')+((c.error||0)?' · '+c.error+' בתקלה':'')):'';
+  if(!rows.length){
+    document.getElementById('paList').innerHTML='<span class="muted">עוד לא הוגשו טפסי מידע מקדים דרך הפורטל. ברגע שלקוח יגיש — ההגשה תופיע כאן.</span>';
+    return;
+  }
+  var h='<table><tr><th>מתי הוגש</th><th>חברה</th><th>מכל</th><th>חומר אחרון</th><th>או"ם / Class</th><th>מוביל</th><th>מטרה</th><th>הגעה משוערת</th><th>שירותים</th><th>MSDS</th><th>מצב</th></tr>';
+  rows.forEach(function(p){
+    var st=esc(p.status_heb);
+    if(p.status==='posted') st='<span style="color:#2E7D32">✓ '+st+'</span>';
+    else if(p.status==='error') st='<span style="color:#C0564F">⚠ '+st+(p.bridge_note?' — '+esc(p.bridge_note):'')+'</span>';
+    h+='<tr><td>'+fmtDT(p.created_at)+'</td><td><b>'+esc(p.client_name)+'</b>'+
+       (p.submitted_by?'<div class="muted" style="font-size:11.5px">'+esc(p.submitted_by)+'</div>':'')+'</td>'+
+       '<td><b>'+esc(p.tank_number)+'</b></td><td>'+esc(p.material)+'</td><td>'+esc(p.un_class)+'</td>'+
+       '<td>'+esc(p.carrier||'—')+'</td><td>'+esc(p.purpose)+'</td><td>'+esc(p.expected_date||'—')+'</td>'+
+       '<td>'+esc(p.services||'—')+'</td><td>'+(p.has_msds?'📎 צורף':'—')+'</td><td>'+st+'</td></tr>';
+  });
+  h+='</table>';
+  document.getElementById('paList').innerHTML=h;
 }
 
 function toggleNewCard(){ document.getElementById('newCard').classList.toggle('hidden'); }
