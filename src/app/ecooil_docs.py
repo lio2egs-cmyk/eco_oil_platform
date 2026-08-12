@@ -354,6 +354,11 @@ def _decl_dict(d, clients, users):
         "signed_scan_source": d.signed_scan_source,
         "signed_scan_filename": d.signed_scan_filename,
         "approved_at": d.approved_at.isoformat() if d.approved_at else None,
+        # מסמך ההסכמה שהופק מהפורטל (לימור 12/08) — רק מסמכים ממוספרים
+        "agreement": next(({"id": a.id, "number": a.number}
+                           for a in sorted(d.agreement_documents,
+                                           key=lambda a: a.id, reverse=True)
+                           if a.number), None),
     }
 
 
@@ -494,6 +499,127 @@ padding:12px 28px;border-radius:8px;font-weight:bold;">כניסה לפורטל</
 <p>בברכה,<br>פורטל הלקוחות של אקו-אויל</p></div>"""
     return send_office_email(
         subject=f"מסמך הצהרת יצרן ממתין לחתימתכם — {biz}",
+        html=html, to=submitter.email)
+
+
+@ecooil_docs.route("/admin/producer-declarations/<int:decl_id>/agreement",
+                   methods=["POST"])
+@jwt_required()
+def admin_issue_agreement(decl_id):
+    """הפקת מסמך הסכמה (לימור 12/08, מנגנון ב'): רק להצהרה שאושרה סופית,
+    ורק בלחיצה שלה מדף הטיוטה. המספר נולד כאן — סדרה קבועה שמתחילה
+    ב-1001, לא תלויה בגיליון המסד ולא משתנה לעולם."""
+    if get_jwt().get("role") != "admin":
+        return jsonify({"error": "admin only"}), 403
+    from .db import ProducerDeclaration, AgreementDocument
+
+    d = db.session.get(ProducerDeclaration, decl_id)
+    if d is None or d.submitted_by_user_id is None:
+        return jsonify({"error": "not found"}), 404
+    if d.status != "approved":
+        return jsonify({"error": "אפשר להפיק מסמך הסכמה רק להצהרה שאושרה סופית"}), 409
+    existing = next((a for a in d.agreement_documents if a.number), None)
+    if existing:
+        return jsonify({"id": existing.id, "number": existing.number,
+                        "existing": True}), 200
+
+    max_num = db.session.query(db.func.max(AgreementDocument.number)).scalar()
+    agreement = AgreementDocument(
+        declaration_id=d.id,
+        number=max(1000, max_num or 0) + 1,
+        issued_by_name="אקו-אויל (פורטל)",
+        valid_from=d.valid_from,
+        valid_until=d.valid_until,
+    )
+    db.session.add(agreement)
+    db.session.commit()
+
+    email_sent = False
+    try:
+        email_sent = _notify_customer_agreement_issued(d, agreement)
+    except Exception as exc:
+        current_app.logger.error("agreement notification failed: %s", exc)
+    return jsonify({"id": agreement.id, "number": agreement.number,
+                    "email_sent": email_sent}), 201
+
+
+# משפחות הזרמים לכותרת המסמך — אותה חלוקה כמו שתי תבניות הוורד הישנות
+_AGREEMENT_FAMILY = {
+    "mineral": "מינרלי/ אמולסיה/ מזוט",
+    "emulsion": "מינרלי/ אמולסיה/ מזוט",
+    "gasoil": "מינרלי/ אמולסיה/ מזוט",
+    "acid": "חומצות/ בסיסים/ מי שטיפה",
+    "base": "חומצות/ בסיסים/ מי שטיפה",
+    "washwater": "חומצות/ בסיסים/ מי שטיפה",
+}
+
+
+@ecooil_docs.route("/portal/agreement-doc-data", methods=["GET"])
+@jwt_required()
+def agreement_doc_data():
+    """נתונים לדף מסמך ההסכמה: ?agreement_id= — מסמך שהופק (מנהלת, או לקוח
+    בהיקף החברות שלו); ?declaration_id= — תצוגת טיוטה לפני הפקה (מנהלת בלבד)."""
+    from .db import ProducerDeclaration, AgreementDocument
+
+    is_admin = get_jwt().get("role") == "admin"
+    ag_id = request.args.get("agreement_id", type=int)
+    decl_id = request.args.get("declaration_id", type=int)
+    agreement = None
+    if ag_id:
+        agreement = db.session.get(AgreementDocument, ag_id)
+        if agreement is None or not agreement.number:
+            return jsonify({"error": "not found"}), 404
+        d = agreement.declaration
+        if d is None or d.submitted_by_user_id is None:
+            return jsonify({"error": "not found"}), 404
+        if not is_admin and _decl_in_user_scope(d.id) is None:
+            return jsonify({"error": "not found"}), 404
+    elif decl_id:
+        if not is_admin:
+            return jsonify({"error": "admin only"}), 403
+        d = db.session.get(ProducerDeclaration, decl_id)
+        if d is None or d.submitted_by_user_id is None:
+            return jsonify({"error": "not found"}), 404
+    else:
+        return jsonify({"error": "agreement_id or declaration_id required"}), 400
+
+    clients = {d.client_id: d.client.name if d.client else f"חברה #{d.client_id}"}
+    users = {}
+    if d.submitted_by_user_id:
+        u = db.session.get(User, d.submitted_by_user_id)
+        if u:
+            users[u.id] = u.email
+    return jsonify({
+        "declaration": _decl_dict(d, clients, users),
+        "family_title": _AGREEMENT_FAMILY.get(d.material_classification,
+                                              "חומצות/ בסיסים/ מי שטיפה"),
+        "agreement": ({"id": agreement.id, "number": agreement.number,
+                       "issued_at": agreement.issued_at.isoformat()}
+                      if agreement else None),
+    })
+
+
+def _notify_customer_agreement_issued(d, agreement):
+    """מייל למגיש כשמסמך ההסכמה הופק — סוף התהליך. נוסח: לימור 12/08."""
+    from .mailer import send_office_email
+
+    submitter = db.session.get(User, d.submitted_by_user_id) if d.submitted_by_user_id else None
+    if submitter is None or not submitter.email:
+        return False
+    portal_url = "https://portal.eco-oil.co.il"
+    biz = (d.producer_name or "").strip()
+    html = f"""<div dir="rtl" style="font-family:Arial,sans-serif;color:#222;">
+<p>שלום,</p>
+<p>הצהרת היצרן של <b>{biz}</b> אושרה סופית, ומסמך ההסכמה לקליטת הפסולת
+(מסמך מס' {agreement.number}) מוכן וזמין בפורטל הלקוחות — לצפייה, להורדה ולהדפסה.</p>
+<p><b>בכך הושלם התהליך במלואו.</b> ההצהרה בתוקף, ואפשר לשנע את הפסולת לטיפול
+בליווי המסמכים הנדרשים.</p>
+<p style="margin:22px 0;">
+<a href="{portal_url}" style="background:#5B9E96;color:#fff;text-decoration:none;
+padding:12px 28px;border-radius:8px;font-weight:bold;">כניסה לפורטל</a></p>
+<p>בברכה,<br>פורטל הלקוחות של אקו-אויל</p></div>"""
+    return send_office_email(
+        subject=f"מסמך ההסכמה לקליטת הפסולת מוכן — {biz}",
         html=html, to=submitter.email)
 
 

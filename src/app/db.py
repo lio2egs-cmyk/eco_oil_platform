@@ -501,6 +501,11 @@ class AgreementDocument(db.Model):
     declaration_id = db.Column(db.Integer, db.ForeignKey("producer_declarations.id"), nullable=False)
     declaration = db.relationship("ProducerDeclaration", backref="agreement_documents")
 
+    # מספר הסכמה קבוע (לימור 12/08): סדרה חדשה שמתחילה ב-1001, נולד ברגע
+    # ההפקה ולא משתנה לעולם — בניגוד למספרי השורות בגיליון המסד שנגזרים
+    # ממיקום. מודפס על המסמך; מסמך ביטול עתידי מפנה אליו.
+    number = db.Column(db.Integer, unique=True, index=True)
+
     issued_at = db.Column(db.DateTime, default=datetime.utcnow)
     issued_by_name = db.Column(db.String(100), nullable=False)
     valid_from = db.Column(db.DateTime, nullable=False)

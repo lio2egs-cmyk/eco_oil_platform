@@ -57,6 +57,13 @@ def declaration_page():
     )
 
 
+@web.route("/agreement-doc")
+def agreement_doc_page():
+    # מסמך ההסכמה לקליטת הפסולת (לימור 12/08) — ?id= מסמך שהופק,
+    # ?declaration= טיוטה למנהלת לפני הפקה
+    return render_template("agreement_doc.html")
+
+
 @web.route("/declaration-doc")
 def declaration_doc_page():
     """מסמך הצהרת יצרן לחתימה (?id=N) — העיצוב המאושר של נספח 3, ממולא

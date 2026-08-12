@@ -322,6 +322,8 @@ async function loadDeclarations(){
        (d.has_signed_scan?'<button class="btn btn-soft" title="המסמך החתום שהתקבל — סריקה או צילום" onclick="viewScan('+d.id+')">📎 המסמך החתום</button> ':'')+
        (d.status==='released'?'<button class="btn btn-soft" title="צירוף מסמך חתום שהגיע מחוץ לפורטל (ווטסאפ / מייל) — גם צילום טלפון מתקבל" onclick="attachScan('+d.id+',\''+esc(d.producer_name)+'\')">'+(d.has_signed_scan?'החליפי מסמך חתום':'📎 צרפי מסמך חתום')+'</button> ':'')+
        (d.status==='released'&&d.has_signed_scan?'<button class="btn" title="האישור הסופי: ההצהרה נכנסת לתוקף. מותנה בבדיקה שלך — שם מלא, חתימה וחותמת, וצילום קריא" onclick="approveDecl('+d.id+',\''+esc(d.producer_name)+'\')">✔ אישור סופי</button> ':'')+
+       (d.status==='approved'&&!d.agreement?'<button class="btn" title="פותח תצוגת טיוטה של מסמך ההסכמה — ההפקה, המספור והמייל ללקוח רק אחרי אישור נוסף שלך שם" onclick="window.open(\'/agreement-doc?declaration='+d.id+'\',\'_blank\')">📜 הפיקי מסמך הסכמה</button> ':'')+
+       (d.agreement?'<a class="btn btn-soft" target="_blank" href="/agreement-doc?id='+d.agreement.id+'" title="מסמך ההסכמה שהופק — גם הלקוח רואה אותו בפורטל">📜 הסכמה מס\' '+d.agreement.number+'</a> ':'')+
        (d.status==='approved'?'<button class="btn btn-soft" onclick="unapproveDecl('+d.id+',\''+esc(d.producer_name)+'\')">בטלי אישור</button> ':'')+
        (d.status==='released'?'<button class="btn btn-soft" onclick="unreleaseDecl('+d.id+',\''+esc(d.producer_name)+'\')">בטלי שיתוף</button> ':'')+
        ((d.status==='submitted'||d.status==='released')?'<button class="btn btn-soft" title="הכלי המרכזי להגשה עם פגם: ההערות שלך מוצגות ללקוח והטופס נפתח לו ממולא לתיקון" onclick="returnFixDecl('+d.id+',\''+esc(d.producer_name)+'\')">🛠 החזירי לתיקון</button> ':'')+

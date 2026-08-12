@@ -124,6 +124,9 @@ def create_app():
             "ALTER TABLE producer_declarations ADD COLUMN masad_note TEXT",
             # "כבר X ימים ממתינה לחתימה" (12/08)
             "ALTER TABLE producer_declarations ADD COLUMN released_at TIMESTAMP",
+            # מספר הסכמה קבוע — סדרה מ-1001 (לימור 12/08)
+            "ALTER TABLE agreement_documents ADD COLUMN number INTEGER",
+            "CREATE UNIQUE INDEX IF NOT EXISTS ix_agreement_documents_number ON agreement_documents(number)",
         ):
             try:
                 db.session.execute(db.text(stmt))

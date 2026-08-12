@@ -1,0 +1,196 @@
+<!doctype html><html lang="he" dir="rtl"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>מסמך הסכמה לקליטת הפסולת</title>
+<link href="https://fonts.googleapis.com/css2?family=Rubik:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+{% raw %}
+<style>
+  /* נאמן לנראות מסמך ההצהרה (declaration_doc.html) ולתבניות הוורד של מסמך
+     ההסכמה מ-Z: (לימור 12/08). ההבדלים המכוונים: פרטי יצרן הפסולת בראש
+     המסמך (לא של אקו-אויל), חתימת יואב + החותמת החדשה מוטבעות, ומספר
+     ההסכמה הקבוע מודפס בכותרת. */
+  @page { size: A4 landscape; margin: 7mm; }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{background:#d9d9d9;font-family:'Rubik',Arial,sans-serif;color:#111;padding:14px}
+  .toolbar{max-width:1040px;margin:0 auto 12px;text-align:center}
+  .toolbar button{background:#5B9E96;color:#fff;border:none;border-radius:8px;padding:9px 18px;font-size:14px;cursor:pointer;font-family:inherit}
+  .toolbar button.issue{background:#2F6B3A}
+  .msg{max-width:1040px;margin:0 auto 12px;background:#fff3cd;border:1px solid #f0d98a;border-radius:8px;padding:8px 14px;font-size:12.5px;color:#7a5d1a;text-align:center;display:none}
+  .sheet{width:1040px;min-height:735px;background:#fff;margin:0 auto;padding:10px 14px 80px;box-shadow:0 2px 14px rgba(0,0,0,.25);display:flex;flex-direction:column;position:relative}
+  .hdr{display:flex;align-items:center;justify-content:space-between;border-bottom:1.5px solid #2F5F59;padding-bottom:6px}
+  .hdr img.logo{height:86px} .hdr img.min{height:80px}
+  .hdr .ttl{text-align:center;flex:1}
+  .hdr .ttl h1{font-size:18px;color:#1c3f3a}
+  .hdr .ttl .num{font-size:12px;color:#1c3f3a;font-weight:600;margin-top:2px}
+  .hdr .ttl .dt{font-size:11px;color:#555;margin-top:2px}
+  .hdr .ttl .fam{font-size:10.5px;color:#555;margin-top:1px}
+  .addr{font-size:11px;margin:9px 2px 6px;padding:7px 10px;background:#f3f6f5;border-radius:5px;line-height:1.7}
+  .addr b{color:#1c3f3a}
+  .addr .row{display:flex;gap:24px;flex-wrap:wrap}
+  .clause{font-size:10px;margin:6px 2px;line-height:1.5}
+  table{width:100%;border-collapse:collapse;margin:13px 0;table-layout:fixed}
+  th,td{border:0.7px solid #555;padding:2px 2px;font-size:6.7px;line-height:1.1;text-align:center;vertical-align:middle;word-wrap:break-word;overflow-wrap:break-word}
+  th{background:#e8efed;color:#16352f;font-weight:600}
+  tbody td{height:30px;font-size:7px}
+  .sigwrap{display:flex;justify-content:space-between;align-items:flex-end;margin-top:auto;padding:14px 6px 0}
+  .sigright{font-size:10.5px;line-height:1.6}
+  .sigright .cap{color:#444;font-size:9.5px}
+  .sigimgs{display:flex;align-items:flex-end;gap:26px;padding-left:30px}
+  .sigimgs .box{text-align:center}
+  .sigimgs img.sig{height:58px}
+  .sigimgs img.stamp{height:52px}
+  .sigimgs .lbl{font-size:9px;color:#444;border-top:1px solid #000;margin-top:3px;padding-top:2px}
+  .draft{position:absolute;top:40%;left:0;right:0;text-align:center;font-size:84px;color:rgba(158,66,60,.13);font-weight:700;transform:rotate(-18deg);pointer-events:none}
+  .ftr{position:absolute;left:0;right:0;bottom:10px;text-align:center}.ftr img{width:773px;height:60px;display:inline-block}
+  @media print{ body{background:#fff;padding:0} .toolbar,.msg{display:none !important} .sheet{box-shadow:none;width:auto;margin:0} }
+</style>
+{% endraw %}
+</head><body>
+
+<div class="toolbar" id="toolbar"><button onclick="window.print()">🖨️ הדפסה / שמירה כ-PDF</button></div>
+<div class="msg" id="msg"></div>
+
+<div class="sheet" id="sheet" style="visibility:hidden">
+  <div class="draft" id="draftmark" style="display:none">טיוטה</div>
+  <div class="hdr">
+    <img class="logo" src="{{ url_for('static', filename='decl_logo.png') }}" alt="אקו-אויל">
+    <div class="ttl">
+      <h1>מסמך הסכמה לקליטת הפסולת</h1>
+      <div class="num" id="d_num"></div>
+      <div class="dt">תאריך: <span id="d_date"></span></div>
+      <div class="fam" id="d_fam"></div>
+    </div>
+    <img class="min" src="{{ url_for('static', filename='decl_ministry.png') }}" alt="המשרד להגנת הסביבה">
+  </div>
+
+  <div class="addr">
+    <div><b>לכבוד:</b> <span id="a_client"></span></div>
+    <div><b>בעל היתר הרעלים של יצרן הפסולת המסוכנת:</b> <span id="a_ceo"></span></div>
+    <div class="row">
+      <span><b>מספר ח.פ. של יצרן הפסולת / ת.ז.:</b> <span id="a_biz"></span></span>
+      <span><b>מספר היתר הרעלים:</b> <span id="a_permit"></span></span>
+    </div>
+    <div><b>כתובת העסק / מפעל:</b> <span id="a_addr"></span></div>
+  </div>
+
+  <div class="clause">הריני לאשר כי הפסולת המסוכנת המתוארת בבקשתך, כמפורט להלן, ניתנת לטיפול במתקן אקו אויל חץ וירומטל בע"מ, בהתאם לתנאים שנקבעו למתקן:</div>
+
+  <table>
+    <thead><tr>
+      <th>יצרן הפסולת</th><th>שם זרם הפסולת</th><th>מספר הפסולת</th>
+      <th>מתקן הייצור ממנו נוצרה הפסולת</th>
+      <th>קוד Y (נספחים I ו-II לאמנת באזל) – קוד ותיאור הקוד</th>
+      <th>סוג הפסולת (נספח VIII לאמנת באזל) – סיווג ותיאור הסיווג</th>
+      <th>קוד סיכון (H) לאמנת באזל</th><th>קבוצת סיכון ע"פ האו"ם</th>
+      <th>סיווג ע"פ קטלוג הפסולות האירופאי (סיווג ופירוט)</th><th>מתקן / סוג טיפול</th>
+      <th>קוד פעולות השבה (R) לאמנת באזל</th><th>קוד טיפול בפסולת (D) לאמנת באזל</th>
+      <th>כמות שנתית (טון)</th><th>סוג האריזה</th><th>מאפיין עיקרי של הפסולות</th>
+      <th>סוג מזהם</th><th>טווח הריכוזים בפסולת (מינימום - מקסימום)</th>
+    </tr></thead>
+    <tbody id="tbody"></tbody>
+  </table>
+
+  <div class="clause">הפסולת המסוכנת תתקבל לטיפול רק בליווי אישור מנהל וטופס מלווה לפסולת מסוכנת.</div>
+  <div class="clause">במידה ויחול שינוי במאפייני הפסולת המסוכנת, לרבות בהרכב הפסולת המסוכנת, על יצרן הפסולת המסוכנת לשנות את טופס הצהרת יצרן בהתאם לשינוי.</div>
+  <div class="clause">במידה ויחול שינוי ביכולת הטיפול בפסולת המסוכנת, המסמך ישונה בהתאם לרבות סוג הטיפול ומתקן הטיפול.</div>
+
+  <div class="sigwrap">
+    <div class="sigright">
+      בכבוד רב,<br>
+      <b>יואב טואג — מנכ"ל</b><br>
+      <span class="cap">מתקן הקליטה: אקו אויל חץ וירומטל בע"מ · ח.פ. 513216556</span>
+    </div>
+    <div class="sigimgs">
+      <div class="box">
+        <img class="sig" src="{{ url_for('static', filename='decl_sig_yoav.png') }}" alt="">
+        <div class="lbl">חתימת מנכ"ל</div>
+      </div>
+      <div class="box">
+        <img class="stamp" src="{{ url_for('static', filename='decl_stamp.png') }}" alt="">
+        <div class="lbl">חותמת החברה</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="ftr"><img src="{{ url_for('static', filename='decl_footer.png') }}"></div>
+</div>
+
+{% raw %}
+<script>
+function esc(s){ return (s==null||s===''?'—':String(s)); }
+function show(m){ var e=document.getElementById('msg'); e.textContent=m; e.style.display='block'; }
+async function api(url,opts){
+  opts=opts||{};
+  opts.headers=Object.assign({},opts.headers,{'Authorization':'Bearer '+localStorage.getItem('eco_access_token')});
+  var r=await fetch(url,opts);
+  if(r.status===401){
+    var rt=localStorage.getItem('eco_refresh_token');
+    if(rt){
+      var rr=await fetch('/auth/refresh',{method:'POST',headers:{'Authorization':'Bearer '+rt}});
+      if(rr.ok){
+        localStorage.setItem('eco_access_token',(await rr.json()).access_token||'');
+        opts.headers['Authorization']='Bearer '+localStorage.getItem('eco_access_token');
+        r=await fetch(url,opts);
+      }
+    }
+  }
+  return r;
+}
+var DECL_ID=0;
+async function issueAgreement(){
+  if(!confirm('להפיק את מסמך ההסכמה?\nהמסמך יקבל מספר קבוע, ייכנס לתא הלקוח בפורטל, ויישלח לו מייל.')) return;
+  var r=await api('/eco-oil/admin/producer-declarations/'+DECL_ID+'/agreement',{method:'POST'});
+  if(!r||!r.ok){
+    var e={}; try{ e=await r.json(); }catch(_){}
+    alert(e.error||'שגיאה בהפקת המסמך'); return;
+  }
+  var d=await r.json();
+  alert('מסמך הסכמה מס\' '+d.number+' הופק ✓'+(d.email_sent===false?'\n(המייל ללקוח לא נשלח — עדכני אותו ידנית)':'\nמייל נשלח ללקוח.'));
+  location.href='/agreement-doc?id='+d.id;
+}
+(async function(){
+  var q=new URLSearchParams(location.search);
+  var agId=parseInt(q.get('id')||'0'), declId=parseInt(q.get('declaration')||'0');
+  var url;
+  if(agId) url='/eco-oil/portal/agreement-doc-data?agreement_id='+agId;
+  else if(declId) url='/eco-oil/portal/agreement-doc-data?declaration_id='+declId;
+  else { show('חסר מזהה מסמך בכתובת.'); return; }
+  var r=await api(url);
+  if(!r||!r.ok){ show('אין הרשאה או שהמסמך לא נמצא — יש להתחבר לפורטל ואז לפתוח שוב.'); return; }
+  var data=await r.json();
+  var d=data.declaration, ag=data.agreement;
+  DECL_ID=d.id;
+  if(ag){
+    document.getElementById('d_num').textContent='מסמך מס\' '+ag.number;
+    var day=(ag.issued_at||'').slice(0,10).split('-');
+    document.getElementById('d_date').textContent=day.length===3?day[2]+'/'+day[1]+'/'+day[0]:'';
+  }else{
+    /* טיוטה — לפני הפקה; המספר ייוולד רק בלחיצת ההפקה */
+    document.getElementById('draftmark').style.display='block';
+    document.getElementById('d_num').textContent='טיוטה — טרם הופק מספר';
+    var now=new Date();
+    document.getElementById('d_date').textContent=('0'+now.getDate()).slice(-2)+'/'+('0'+(now.getMonth()+1)).slice(-2)+'/'+now.getFullYear();
+    var b=document.createElement('button');
+    b.className='issue'; b.textContent='✔ אשרי והפיקי — המסמך יישלח ללקוח';
+    b.onclick=issueAgreement;
+    document.getElementById('toolbar').appendChild(document.createTextNode(' '));
+    document.getElementById('toolbar').appendChild(b);
+  }
+  document.getElementById('d_fam').textContent=esc(data.family_title);
+  document.getElementById('a_client').textContent=esc(d.producer_name);
+  document.getElementById('a_ceo').textContent=esc(d.ceo_name);
+  document.getElementById('a_biz').textContent=esc(d.business_id);
+  document.getElementById('a_permit').textContent=esc(d.permit_number);
+  document.getElementById('a_addr').textContent=esc(d.address);
+  var cells=[d.producer_name,d.material_name,d.waste_stream_number,d.production_facility,
+             d.y_code,d.annex8,d.h_code,d.un_group,d.catalog,d.treatment_type,
+             d.r_code,d.d_code,d.quantity,d.packaging,d.characteristic,
+             d.pollutant_type,d.concentration_range];
+  document.getElementById('tbody').innerHTML='<tr>'+cells.map(function(c){
+    var t=document.createElement('td'); t.textContent=esc(c); return t.outerHTML;
+  }).join('')+'</tr>';
+  document.title='מסמך הסכמה — '+esc(d.producer_name);
+  document.getElementById('sheet').style.visibility='visible';
+})();
+</script>
+{% endraw %}
+</body></html>
