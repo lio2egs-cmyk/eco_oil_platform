@@ -347,6 +347,7 @@ def _decl_dict(d, clients, users):
         "valid_until": d.valid_until.strftime("%d/%m/%Y") if d.valid_until else None,
         "notes": d.notes,
         "fix_note": d.fix_note,
+        "released_at": d.released_at.isoformat() if d.released_at else None,
         # הסריקה החתומה + האישור הסופי (09/08)
         "has_signed_scan": bool(d.signed_scan_at),
         "signed_scan_at": d.signed_scan_at.isoformat() if d.signed_scan_at else None,
@@ -399,6 +400,7 @@ def admin_release_declaration(decl_id):
         if d.status != "submitted":
             return jsonify({"error": f"אי אפשר לשחרר הצהרה במעמד '{d.status}'"}), 409
         d.status = "released"
+        d.released_at = datetime.utcnow()
         # מייל אוטומטי למגיש (נוסח אושר ע"י לימור 03/08) — כשל בשליחה לא מפיל
         email_sent = False
         try:
@@ -409,6 +411,7 @@ def admin_release_declaration(decl_id):
         if d.status != "released":
             return jsonify({"error": f"אי אפשר לבטל שיתוף במעמד '{d.status}'"}), 409
         d.status = "submitted"
+        d.released_at = None
     elif action == "return_fix":
         # החזרה לתיקון (לימור 03/08) — הכלי המרכזי: הערות מה לתקן, הטופס
         # נפתח ללקוח ממולא מראש, והגשה מחודשת מחליפה את הישנה.
@@ -465,7 +468,8 @@ def admin_release_declaration(decl_id):
 
 def _notify_customer_declaration_released(d):
     """מייל למגיש ההצהרה כשלימור מאשרת נוסח ושומרת לתא הלקוח.
-    הנוסח אושר על ידה 03/08/2026 — אין לשנות בלי אישורה."""
+    הנוסח אושר על ידה 12/08/2026 (החליף את נוסח 03/08 — חיזוק "זה לא סוף
+    התהליך" אחרי מקרה גלבוע) — אין לשנות בלי אישורה."""
     from .mailer import send_office_email
 
     submitter = db.session.get(User, d.submitted_by_user_id) if d.submitted_by_user_id else None
@@ -475,9 +479,15 @@ def _notify_customer_declaration_released(d):
     biz = (d.producer_name or "").strip()
     html = f"""<div dir="rtl" style="font-family:Arial,sans-serif;color:#222;">
 <p>שלום,</p>
-<p>הצהרת היצרן של <b>{biz}</b> נבדקה ואושרה על ידי אקו-אויל.<br>
-המסמך ממתין לכם בפורטל הלקוחות — יש להוריד או להדפיס אותו, להחתים בחתימה
-ובחותמת של יצרן הפסולת, ולהחזיר לאקו-אויל.</p>
+<p>הצהרת היצרן של <b>{biz}</b> נבדקה, והנוסח שלה אושר על ידי אקו-אויל.</p>
+<p><b>שימו לב — זה עדיין לא סוף התהליך: ההצהרה תיכנס לתוקף רק לאחר
+החתימה והאישור הסופי.</b> כדי להשלים, נותרו שלושה צעדים:</p>
+<ol style="line-height:1.8;">
+<li>היכנסו לפורטל והורידו או הדפיסו את המסמך.</li>
+<li>חתמו עליו בחתימה ובחותמת של יצרן הפסולת.</li>
+<li>העלו את המסמך החתום בפורטל — אפשר גם צילום ברור מהטלפון.</li>
+</ol>
+<p>לאחר מכן אקו-אויל תבדוק את המסמך החתום ותאשר סופית — ובכך יושלם התהליך.</p>
 <p style="margin:22px 0;">
 <a href="{portal_url}" style="background:#5B9E96;color:#fff;text-decoration:none;
 padding:12px 28px;border-radius:8px;font-weight:bold;">כניסה לפורטל</a></p>
@@ -490,9 +500,11 @@ padding:12px 28px;border-radius:8px;font-weight:bold;">כניסה לפורטל</
 @ecooil_docs.route("/portal/my-declaration-docs", methods=["GET"])
 @jwt_required()
 def my_declaration_docs():
-    """תא הלקוח — מסמכים ששוחררו לחתימה (released) + הצהרות שהוחזרו לתיקון
-    (needs_fix, עם הערות לימור). ההיקף: החברות המותרות למשתמש (כולל
-    רב-חברות). מנהלת משתמשת בנקודת הקצה הניהולית — כאן רשימה ריקה."""
+    """תא הלקוח — כל ההצהרות שבמסלול, לתצוגת פס-השלבים (לימור 12/08):
+    submitted (בבדיקת הנוסח) / released (לחתימה) / needs_fix (הוחזרה לתיקון,
+    עם הערות לימור) / approved (בתוקף). פסולות וגרסאות ישנות לא מוצגות.
+    ההיקף: החברות המותרות למשתמש (כולל רב-חברות). מנהלת משתמשת בנקודת
+    הקצה הניהולית — כאן רשימה ריקה."""
     from .db import ProducerDeclaration
 
     claims = get_jwt()
@@ -507,7 +519,7 @@ def my_declaration_docs():
 
     decls = (ProducerDeclaration.query
              .filter(ProducerDeclaration.client_id.in_(allowed),
-                     ProducerDeclaration.status.in_(("released", "needs_fix", "approved")),
+                     ProducerDeclaration.status.in_(("submitted", "released", "needs_fix", "approved")),
                      ProducerDeclaration.submitted_by_user_id.isnot(None))
              .order_by(ProducerDeclaration.issued_at.desc(),
                        ProducerDeclaration.id.desc())

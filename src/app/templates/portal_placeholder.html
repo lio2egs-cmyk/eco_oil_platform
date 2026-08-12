@@ -27,9 +27,16 @@
     {% if division == 'eco_oil' %}
     <!-- מסמכים שלימור שחררה לחתימה (03/08) — מוצג רק כשיש כאלה -->
     <div id="signDocs" style="display:none;margin-top:22px;text-align:right;background:#FFF7E8;border:1.5px solid #E8C97A;border-radius:12px;padding:14px 16px">
-      <div style="font-family:var(--fh);color:#8a5d00;font-size:15px;margin-bottom:6px">📄 מסמכים מוכנים לחתימה</div>
-      <div style="font-size:13px;color:#6b5a2e;margin-bottom:10px">יש להוריד או להדפיס, לחתום ולהחתים בחותמת העסק, ולהחזיר לאקו-אויל.</div>
+      <div style="font-family:var(--fh);color:#8a5d00;font-size:15px;margin-bottom:6px">📄 מסמכים מוכנים לחתימה — נדרשת פעולה שלכם</div>
+      <div style="font-size:13px;color:#6b5a2e;margin-bottom:10px">יש להוריד או להדפיס, לחתום ולהחתים בחותמת העסק, ולהעלות כאן את המסמך החתום.<br>
+      <b>שימו לב: אישור הנוסח אינו סוף התהליך</b> — ההצהרה תיכנס לתוקף רק לאחר החזרת המסמך החתום והאישור הסופי של אקו-אויל.</div>
       <div id="signDocsList"></div>
+    </div>
+    <!-- הצהרות שהוגשו וממתינות לבדיקת הנוסח (12/08) — פס-השלבים מוצג מהרגע הראשון -->
+    <div id="subDocs" style="display:none;margin-top:16px;text-align:right;background:#EFF4F8;border:1.5px solid #A9C2D8;border-radius:12px;padding:14px 16px">
+      <div style="font-family:var(--fh);color:#2F5170;font-size:15px;margin-bottom:6px">⏳ הצהרות שהוגשו — בבדיקת אקו-אויל</div>
+      <div style="font-size:13px;color:#41586e;margin-bottom:10px">הנוסח נבדק על ידי אקו-אויל. כשיאושר — תקבלו מייל, והמסמך יופיע כאן להורדה ולחתימה.</div>
+      <div id="subDocsList"></div>
     </div>
     <!-- הצהרות שהוחזרו לתיקון (לימור 03/08) — עם ההערות שלה -->
     <div id="fixDocs" style="display:none;margin-top:16px;text-align:right;background:#FDECEA;border:1.5px solid #E5A29B;border-radius:12px;padding:14px 16px">
@@ -77,14 +84,41 @@
       var rel=ds.filter(function(d){ return d.status==='released'; });
       var fix=ds.filter(function(d){ return d.status==='needs_fix'; });
       var done=ds.filter(function(d){ return d.status==='approved'; });
+      var sub=ds.filter(function(d){ return d.status==='submitted'; });
       function dt(d){ var p=(d.submitted_at||'').slice(0,10).split('-'); return p.length===3?p[2]+'/'+p[1]+'/'+p[0]:''; }
       function esc(s){ return (s==null?'':String(s)).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+      /* פס-השלבים (לימור 12/08): 4 שלבים קבועים, סימון "איפה אנחנו" על כל הצהרה,
+         כדי שאישור נוסח לא ייקרא בטעות כסוף התהליך */
+      function stepBar(d){
+        var steps=['מילוי הטופס','בדיקת הנוסח','חתימה והחזרה','אישור סופי'];
+        var cur, nowTxt, nowCol='#8a5d00', nowBg='#FFF3D6';
+        if(d.status==='approved'){ cur=4; }
+        else if(d.status==='needs_fix'){ cur=1; nowTxt='הוחזר לתיקון'; nowCol='#9E423C'; nowBg='#FDECEA'; }
+        else if(d.status==='released'&&d.has_signed_scan){ cur=3; nowTxt='בבדיקת אקו-אויל'; nowCol='#2F5170'; nowBg='#E4EDF5'; }
+        else if(d.status==='released'){ cur=2; nowTxt='◄ אתם כאן'; }
+        else { cur=1; nowTxt='בבדיקת אקו-אויל'; nowCol='#2F5170'; nowBg='#E4EDF5'; }
+        var h='<div style="display:flex;gap:4px;margin:8px 0 2px">';
+        for(var i=0;i<4;i++){
+          var isDone=i<cur, isNow=i===cur;
+          var col=isDone?'#2F6B3A':(isNow?nowCol:'#9a9a9a');
+          var h2='<div style="flex:1;text-align:center;min-width:0">'+
+            '<div style="width:24px;height:24px;line-height:21px;border-radius:50%;margin:0 auto;'+
+            'background:'+(isDone?'#EDF7EE':(isNow?nowBg:'#f1f1f1'))+';'+
+            'border:1.5px solid '+(isDone?'#9CC9A1':(isNow?col:'#ddd'))+';'+
+            'color:'+col+';font-weight:bold;font-size:12px">'+(isDone?'✓':(i+1))+'</div>'+
+            '<div style="font-size:10.5px;line-height:1.35;color:'+col+';margin-top:3px'+(isNow?';font-weight:bold':'')+'">'+
+            steps[i]+(isNow?'<br>'+nowTxt:'')+'</div></div>';
+          h+=h2;
+        }
+        return h+'</div>';
+      }
       if(rel.length){
         document.getElementById('signDocsList').innerHTML=rel.map(function(d){
-          return '<div style="margin:10px 0"><a target="_blank" href="/declaration-doc?id='+d.id+'" '+
+          return '<div style="margin:14px 0"><a target="_blank" href="/declaration-doc?id='+d.id+'" '+
             'style="color:#2F5F59;font-weight:600;text-decoration:underline">הצהרת יצרן — '+
             esc(d.producer_name)+' ('+esc(d.material_name)+')</a>'+
             '<span style="color:#8a8a8a;font-size:12px"> · '+dt(d)+'</span>'+
+            stepBar(d)+
             (d.has_signed_scan
               ?'<div style="font-size:12.5px;color:#2F6B3A;margin-top:3px">✓ המסמך החתום התקבל — ממתין לאישור אקו-אויל'+
                ' <a href="#" onclick="viewMyScan('+d.id+');return false;" style="color:#2F5F59">(צפייה)</a>'+
@@ -97,23 +131,34 @@
         }).join('');
         box.style.display='block';
       }
+      if(sub.length){
+        document.getElementById('subDocsList').innerHTML=sub.map(function(d){
+          return '<div style="margin:10px 0"><span style="color:#2F5170;font-weight:600">הצהרת יצרן — '+
+            esc(d.producer_name)+' ('+esc(d.material_name)+')</span>'+
+            '<span style="color:#8a8a8a;font-size:12px"> · הוגשה '+dt(d)+'</span>'+
+            stepBar(d)+'</div>';
+        }).join('');
+        document.getElementById('subDocs').style.display='block';
+      }
       if(done.length){
         document.getElementById('doneDocsList').innerHTML=done.map(function(d){
-          return '<div style="margin:6px 0"><a target="_blank" href="/declaration-doc?id='+d.id+'" '+
+          return '<div style="margin:10px 0"><a target="_blank" href="/declaration-doc?id='+d.id+'" '+
             'style="color:#2F6B3A;font-weight:600;text-decoration:underline">הצהרת יצרן — '+
             esc(d.producer_name)+' ('+esc(d.material_name)+')</a>'+
             '<span style="color:#8a8a8a;font-size:12px"> · בתוקף עד '+esc(d.valid_until||'')+'</span>'+
             (d.has_signed_scan?' · <a href="#" onclick="viewMyScan('+d.id+');return false;" style="font-size:12.5px;color:#2F5F59">המסמך החתום</a>':'')+
+            stepBar(d)+
             '</div>';
         }).join('');
         document.getElementById('doneDocs').style.display='block';
       }
       if(fix.length){
         document.getElementById('fixDocsList').innerHTML=fix.map(function(d){
-          return '<div style="margin:8px 0"><a href="/declaration?fix='+d.id+'" '+
+          return '<div style="margin:12px 0"><a href="/declaration?fix='+d.id+'" '+
             'style="color:#9E423C;font-weight:600;text-decoration:underline">הצהרת יצרן — '+
             esc(d.producer_name)+' ('+esc(d.material_name)+')</a>'+
             '<span style="color:#8a8a8a;font-size:12px"> · '+dt(d)+'</span>'+
+            stepBar(d)+
             (d.fix_note?'<div style="font-size:12.5px;color:#7a3b35;margin-top:2px">ההערות: '+esc(d.fix_note)+'</div>':'')+
             '</div>';
         }).join('');

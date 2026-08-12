@@ -226,10 +226,26 @@ function fmtDT(iso){
   return ('0'+d.getDate()).slice(-2)+'/'+('0'+(d.getMonth()+1)).slice(-2)+'/'+d.getFullYear()+
          ' '+('0'+d.getHours()).slice(-2)+':'+('0'+d.getMinutes()).slice(-2);
 }
+function daysSince(iso){
+  if(!iso) return null;
+  var d=new Date(iso+(iso.indexOf('Z')<0&&iso.indexOf('+')<0?'Z':''));  // הזמן נשמר ב-UTC
+  return Math.floor((Date.now()-d.getTime())/86400000);
+}
+function daysTxt(n){ return n===1?'יום':n+' ימים'; }
 function declStatus(d){
   if(d.status==='approved') return '<span class="ok">✔ אושרה סופית'+(d.approved_at?' '+fmtDT(d.approved_at).slice(0,10):'')+'</span>';
-  if(d.status==='released'&&d.has_signed_scan) return '<span class="warn">מסמך חתום התקבל — ממתין לאישור הסופי שלך</span>';
-  if(d.status==='released') return '<span class="ok">בתא הלקוח — ממתינה לחתימת היצרן</span>';
+  if(d.status==='released'&&d.has_signed_scan){
+    var ns=daysSince(d.signed_scan_at);
+    return '<span class="warn">מסמך חתום התקבל — ממתין לאישור הסופי שלך'+(ns>=1?' · לפני '+daysTxt(ns):'')+'</span>';
+  }
+  if(d.status==='released'){
+    // "כבר X ימים" — מהשחרור לתא הלקוח; להצהרות שלפני 12/08 אין תאריך שחרור, נופלים לתאריך ההגשה
+    var n=daysSince(d.released_at||d.submitted_at);
+    var since=d.released_at?'אצל הלקוח':'מאז ההגשה';
+    var tail=(n>=1?' · כבר '+daysTxt(n)+' '+since:'');
+    if(n>=7) return '<span class="warn">⚠ בתא הלקוח — ממתינה לחתימת היצרן'+tail+' — כדאי להזכיר ללקוח</span>';
+    return '<span class="ok">בתא הלקוח — ממתינה לחתימת היצרן'+tail+'</span>';
+  }
   if(d.status==='needs_fix') return '<span class="warn">הוחזרה לתיקון אצל הלקוח</span>';
   if(d.status==='superseded') return '<span class="muted">הוגשה מחדש (גרסה ישנה)</span>';
   if(d.status==='rejected') return '<span class="muted">נפסלה</span>';

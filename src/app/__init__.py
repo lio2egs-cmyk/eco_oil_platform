@@ -122,6 +122,8 @@ def create_app():
             "ALTER TABLE producer_declarations ADD COLUMN masad_log_at TIMESTAMP",
             "ALTER TABLE producer_declarations ADD COLUMN masad_summary_at TIMESTAMP",
             "ALTER TABLE producer_declarations ADD COLUMN masad_note TEXT",
+            # "כבר X ימים ממתינה לחתימה" (12/08)
+            "ALTER TABLE producer_declarations ADD COLUMN released_at TIMESTAMP",
         ):
             try:
                 db.session.execute(db.text(stmt))

@@ -469,6 +469,7 @@ class ProducerDeclaration(db.Model):
     status = db.Column(db.String(30), default="approved")
     submitted_by_user_id = db.Column(db.Integer, db.ForeignKey("users.id"))
     fix_note = db.Column(db.Text)          # הערות לימור "מה דורש תיקון" (needs_fix)
+    released_at = db.Column(db.DateTime)   # מתי שוחרר לתא הלקוח — בסיס ל"כבר X ימים ממתינה לחתימה" (לימור 12/08)
 
     # הסריקה החתומה (לימור 09/08) — גם צילום טלפון מתקבל, לא רק סריקה;
     # לימור שופטת קריאוּת ברגע האישור הסופי. מוחלף בהעלאה חוזרת עד האישור.
