@@ -488,6 +488,11 @@ class ProducerDeclaration(db.Model):
     masad_summary_at = db.Column(db.DateTime)  # עודכן/נוסף בגיליון ח.פ.-היתר-תוקף
     masad_note = db.Column(db.Text)
 
+    # תיוק אוטומטי (לימור 12/08): הגשר מתייק את הסריקה החתומה בתיקיית
+    # הלקוח על Z: אחרי האישור הסופי; כשל נרשם כהערה ומתריעים במייל.
+    scan_filed_at = db.Column(db.DateTime)
+    scan_file_note = db.Column(db.Text)
+
     issued_at = db.Column(db.DateTime, default=datetime.utcnow)
     notes = db.Column(db.Text)
 
@@ -505,6 +510,11 @@ class AgreementDocument(db.Model):
     # ההפקה ולא משתנה לעולם — בניגוד למספרי השורות בגיליון המסד שנגזרים
     # ממיקום. מודפס על המסמך; מסמך ביטול עתידי מפנה אליו.
     number = db.Column(db.Integer, unique=True, index=True)
+
+    # תיוק אוטומטי (לימור 12/08): הגשר מוריד את המסמך כ-PDF ומתייק
+    # בתיקיית הלקוח על Z:; כשל נרשם כהערה ומתריעים במייל.
+    filed_at = db.Column(db.DateTime)
+    file_note = db.Column(db.Text)
 
     issued_at = db.Column(db.DateTime, default=datetime.utcnow)
     issued_by_name = db.Column(db.String(100), nullable=False)

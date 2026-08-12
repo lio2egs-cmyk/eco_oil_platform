@@ -29,6 +29,8 @@ STEPS = [
     ("push", "ecooil_bridge_push.py", []),
     # הזנת הצהרות מאושרות למסד (לימור 10/08) — מדלג בשקט כשהמסד פתוח
     ("masad-feed", "ecooil_masad_feed.py", []),
+    # תיוק הסכמות + סריקות חתומות לתיקיות הלקוחות (לימור 12/08)
+    ("filing", "ecooil_filing_feed.py", []),
 ]
 
 

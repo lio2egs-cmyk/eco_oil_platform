@@ -266,6 +266,172 @@ def masad_feed_pending():
     return jsonify({"declarations": [row(d) for d in decls]})
 
 
+# ---------------------------------------------------------------------------
+# תיוק אוטומטי לתיקיות הלקוחות (לימור 12/08): הגשר המשרדי מושך מסמכי
+# הסכמה שהופקו וסריקות חתומות של הצהרות שאושרו, מייצר/מוריד קבצים
+# ומתייק ב-Z:\Eco_General\לקוחות\<לקוח>\<מסמכים|הצהרת יצרן+הסכמה>.
+# כשל איתור תיקייה לא מנוחש — מדווח כהערה ומתריעים במייל פעם אחת.
+# ---------------------------------------------------------------------------
+
+def _filing_decl_fields(d, clients):
+    c = clients.get(d.client_id)
+    aliases = [a.strip() for a in (c.billing_aliases or "").splitlines() if a.strip()] if c else []
+    return {
+        "producer_name": d.producer_name,
+        "account_name": c.name if c else None,
+        "folder_candidates": [x for x in ([d.producer_name, c.name if c else None] + aliases) if x],
+        "material_name": d.material_name,
+        "material_classification": d.material_classification,
+        "producer_size": d.producer_size,
+        "production_facility": d.production_facility,
+        "waste_stream_number": d.waste_stream_number,
+        "business_id": d.business_id,
+        "permit_number": d.permit_number,
+        "ceo_name": d.ceo_name,
+        "address": d.client_address,
+        "y_code": d.basel_y_code,
+        "annex8": d.basel_annexviii_code,
+        "h_code": d.basel_h_code,
+        "un_group": d.un_risk_group,
+        "catalog": d.european_catalog_code,
+        "treatment_type": d.treatment_facility_type,
+        "r_code": d.basel_r_code,
+        "d_code": d.basel_d_code,
+        "quantity": d.annual_quantity_text,
+        "packaging": d.packaging_type,
+        "characteristic": d.waste_main_characteristic,
+        "pollutant_type": d.pollutant_type,
+        "concentration_range": d.concentration_range,
+    }
+
+
+@ecooil_bridge.route("/filing-feed", methods=["GET"])
+@ecooil_bridge_required
+def filing_feed_pending():
+    """מה שממתין לתיוק: מסמכי הסכמה שהופקו (filed_at ריק) + סריקות חתומות
+    של הצהרות שאושרו סופית (scan_filed_at ריק)."""
+    from .db import AgreementDocument, Client, ProducerDeclaration
+
+    agreements = (AgreementDocument.query
+                  .filter(AgreementDocument.number.isnot(None),
+                          AgreementDocument.filed_at.is_(None))
+                  .order_by(AgreementDocument.number.asc())
+                  .limit(30).all())
+    scans = (ProducerDeclaration.query
+             .filter(ProducerDeclaration.status == "approved",
+                     ProducerDeclaration.submitted_by_user_id.isnot(None),
+                     ProducerDeclaration.signed_scan_at.isnot(None),
+                     ProducerDeclaration.scan_filed_at.is_(None))
+             .order_by(ProducerDeclaration.approved_at.asc())
+             .limit(30).all())
+
+    client_ids = ({a.declaration.client_id for a in agreements if a.declaration}
+                  | {d.client_id for d in scans})
+    clients = {c.id: c for c in Client.query.filter(
+        Client.id.in_(client_ids)).all()} if client_ids else {}
+
+    ag_rows = []
+    for a in agreements:
+        d = a.declaration
+        if d is None:
+            continue
+        row = _filing_decl_fields(d, clients)
+        row.update({"agreement_id": a.id, "number": a.number,
+                    "issued_at": a.issued_at.isoformat() if a.issued_at else None})
+        ag_rows.append(row)
+    scan_rows = []
+    for d in scans:
+        row = _filing_decl_fields(d, clients)
+        row.update({"declaration_id": d.id,
+                    "approved_at": d.approved_at.isoformat() if d.approved_at else None,
+                    "scan_filename": d.signed_scan_filename,
+                    "scan_mime": d.signed_scan_mime})
+        scan_rows.append(row)
+    return jsonify({"agreements": ag_rows, "scans": scan_rows})
+
+
+@ecooil_bridge.route("/filing-feed/scan/<int:decl_id>", methods=["GET"])
+@ecooil_bridge_required
+def filing_feed_scan(decl_id):
+    """הקובץ החתום עצמו — להורדת הגשר לצורך התיוק."""
+    from flask import Response
+    from .db import ProducerDeclaration
+
+    d = db.session.get(ProducerDeclaration, decl_id)
+    if d is None or not d.signed_scan_data:
+        return jsonify({"error": "not found"}), 404
+    return Response(d.signed_scan_data,
+                    mimetype=d.signed_scan_mime or "application/octet-stream")
+
+
+@ecooil_bridge.route("/filing-feed/ack", methods=["POST"])
+@ecooil_bridge_required
+def filing_feed_ack():
+    """הגשר מדווח מה תויק. body: {"agreements":[{id,done,note}],"scans":[{id,done,note}]}.
+    הערה חדשה (שטרם דווחה) → מייל התראה אחד למשרד — לא נדנוד שעתי."""
+    from .db import AgreementDocument, ProducerDeclaration
+    from .mailer import send_office_email
+
+    data = request.get_json(silent=True) or {}
+    now = datetime.utcnow()
+    alerts, updated = [], 0
+
+    for item in (data.get("agreements") or []):
+        if not isinstance(item, dict) or not item.get("id"):
+            continue
+        a = db.session.get(AgreementDocument, int(item["id"]))
+        if a is None or not a.number:
+            continue
+        if item.get("done") and a.filed_at is None:
+            a.filed_at = now
+        note = (item.get("note") or "").strip() or None
+        if note and note != a.file_note:
+            d = a.declaration
+            alerts.append((f"מסמך הסכמה מס' {a.number}",
+                           d.producer_name if d else "", note))
+        a.file_note = note
+        updated += 1
+
+    for item in (data.get("scans") or []):
+        if not isinstance(item, dict) or not item.get("id"):
+            continue
+        d = db.session.get(ProducerDeclaration, int(item["id"]))
+        if d is None:
+            continue
+        if item.get("done") and d.scan_filed_at is None:
+            d.scan_filed_at = now
+        note = (item.get("note") or "").strip() or None
+        if note and note != d.scan_file_note:
+            alerts.append((f"הצהרה חתומה ({d.material_name or ''})",
+                           d.producer_name or "", note))
+        d.scan_file_note = note
+        updated += 1
+    db.session.commit()
+
+    emailed = False
+    if alerts:
+        rows = "".join(
+            f"<tr><td style='border:1px solid #999;padding:6px 12px;'>{what}</td>"
+            f"<td style='border:1px solid #999;padding:6px 12px;'>{who}</td>"
+            f"<td style='border:1px solid #999;padding:6px 12px;'>{note}</td></tr>"
+            for what, who, note in alerts)
+        html = f"""<div dir="rtl" style="font-family:Arial,sans-serif;color:#222;">
+<p>התיוק האוטומטי לתיקיות הלקוחות לא הצליח עבור המסמכים הבאים:</p>
+<table dir="rtl" style="border-collapse:collapse;">
+<tr><td style="border:1px solid #999;padding:6px 12px;background:#eef3f2;"><b>מסמך</b></td>
+<td style="border:1px solid #999;padding:6px 12px;background:#eef3f2;"><b>העסק</b></td>
+<td style="border:1px solid #999;padding:6px 12px;background:#eef3f2;"><b>מה חסר</b></td></tr>
+{rows}</table>
+<p>אחרי שתסדרי את התיקייה — התיוק יושלם אוטומטית בסיבוב השעתי הבא.</p></div>"""
+        try:
+            emailed = send_office_email(
+                subject="תיוק מסמכים אוטומטי — נדרשת השלמה ידנית", html=html)
+        except Exception as exc:
+            current_app.logger.error("filing-feed alert email failed: %s", exc)
+
+    return jsonify({"ok": True, "updated": updated, "alert_emailed": emailed})
+
+
 @ecooil_bridge.route("/masad-feed/ack", methods=["POST"])
 @ecooil_bridge_required
 def masad_feed_ack():

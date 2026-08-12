@@ -127,6 +127,11 @@ def create_app():
             # מספר הסכמה קבוע — סדרה מ-1001 (לימור 12/08)
             "ALTER TABLE agreement_documents ADD COLUMN number INTEGER",
             "CREATE UNIQUE INDEX IF NOT EXISTS ix_agreement_documents_number ON agreement_documents(number)",
+            # תיוק אוטומטי לתיקיות הלקוחות (12/08)
+            "ALTER TABLE producer_declarations ADD COLUMN scan_filed_at TIMESTAMP",
+            "ALTER TABLE producer_declarations ADD COLUMN scan_file_note TEXT",
+            "ALTER TABLE agreement_documents ADD COLUMN filed_at TIMESTAMP",
+            "ALTER TABLE agreement_documents ADD COLUMN file_note TEXT",
         ):
             try:
                 db.session.execute(db.text(stmt))
