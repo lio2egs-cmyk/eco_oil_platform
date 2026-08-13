@@ -317,7 +317,7 @@ async function loadDeclarations(){
        '<td>'+esc(d.waste_stream_number)+'</td><td>'+esc(d.quantity)+'</td>'+
        '<td>'+declStatus(d)+'</td>'+
        '<td><button class="btn btn-soft" onclick="toggleDecl('+i+')">פרטים מלאים</button> '+
-       '<a class="btn btn-soft" target="_blank" href="/declaration-doc?id='+d.id+'" title="המסמך הרשמי (נספח 3) ממולא מהנתונים שהוגשו — להדפסה ושליחה ליצרן לחתימה וחותמת">🖨 מסמך לחתימה</a> '+
+       '<a class="btn btn-soft" target="_blank" href="/declaration-doc?id='+d.id+'" title="תצוגה בלבד: המסמך הרשמי (נספח 3) ממולא מהנתונים שהוגשו — לא שולח דבר ללקוח">👁 צפייה במסמך</a> '+
        (d.status==='submitted'?'<button class="btn" title="אישור הנוסח: הלקוח יראה את המסמך בפורטל שלו ויוכל להוריד ולהדפיס לחתימה" onclick="releaseDecl('+d.id+',\''+esc(d.producer_name)+'\')">📤 שמרי לתא הלקוח</button> ':'')+
        (d.has_signed_scan?'<button class="btn btn-soft" title="המסמך החתום שהתקבל — סריקה או צילום" onclick="viewScan('+d.id+')">📎 המסמך החתום</button> ':'')+
        (d.status==='released'?'<button class="btn btn-soft" title="צירוף מסמך חתום שהגיע מחוץ לפורטל (ווטסאפ / מייל) — גם צילום טלפון מתקבל" onclick="attachScan('+d.id+',\''+esc(d.producer_name)+'\')">'+(d.has_signed_scan?'החליפי מסמך חתום':'📎 צרפי מסמך חתום')+'</button> ':'')+
