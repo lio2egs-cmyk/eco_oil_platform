@@ -502,6 +502,57 @@ padding:12px 28px;border-radius:8px;font-weight:bold;">כניסה לפורטל</
         html=html, to=submitter.email)
 
 
+# שדות שמותר למשרד לערוך (לימור 13/08, אחרי שם-כפול של מסד זילבר) —
+# טקסט חופשי בלבד; שדות-בחירה מרשימות מבוקרות נשארים דרך "החזירי לתיקון".
+_ADMIN_EDITABLE_FIELDS = {
+    "producer_name": "producer_name",
+    "business_id": "business_id",
+    "permit_number": "permit_number",
+    "ceo_name": "ceo_name",
+    "producer_email": "client_email",
+    "address": "client_address",
+    "production_facility": "production_facility",
+    "waste_stream_number": "waste_stream_number",
+    "concentration_range": "concentration_range",
+}
+
+
+@ecooil_docs.route("/admin/producer-declarations/<int:decl_id>/fields",
+                   methods=["PATCH"])
+@jwt_required()
+def admin_edit_declaration_fields(decl_id):
+    """עריכת משרד לפרטי הצהרה (לימור 13/08) — חוסכת החזרות לתיקון על טעויות
+    הקלדה. מותר רק לפני חתימת הלקוח (הוגשה / בתא הלקוח): מהחתימה והלאה
+    המסמך חייב להתאים למה שנחתם. כל שינוי נרשם בהערות (מעקב)."""
+    if get_jwt().get("role") != "admin":
+        return jsonify({"error": "admin only"}), 403
+    from .db import ProducerDeclaration
+
+    d = db.session.get(ProducerDeclaration, decl_id)
+    if d is None or d.submitted_by_user_id is None:
+        return jsonify({"error": "not found"}), 404
+    if d.status not in ("submitted", "released"):
+        return jsonify({"error": "עריכה אפשרית רק לפני חתימת הלקוח — "
+                                  "אחרי חתימה השתמשי בביטול אישור או בהחזרה לתיקון"}), 409
+
+    data = request.get_json(silent=True) or {}
+    changes = []
+    for key, col in _ADMIN_EDITABLE_FIELDS.items():
+        if key not in data:
+            continue
+        new = (str(data.get(key) or "")).strip() or None
+        old = getattr(d, col)
+        if (old or None) != new:
+            setattr(d, col, new)
+            changes.append(f"{key}: '{old or ''}' ← '{new or ''}'")
+    if not changes:
+        return jsonify({"id": d.id, "changed": 0})
+    stamp = (f"עריכת משרד {datetime.utcnow():%d/%m/%Y}: " + " | ".join(changes))
+    d.notes = f"{d.notes}\n{stamp}" if d.notes else stamp
+    db.session.commit()
+    return jsonify({"id": d.id, "changed": len(changes)})
+
+
 @ecooil_docs.route("/admin/producer-declarations/<int:decl_id>/agreement",
                    methods=["POST"])
 @jwt_required()

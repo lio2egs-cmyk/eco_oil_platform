@@ -223,10 +223,13 @@
         <div class="field" id="permitField"><label>מספר היתר רעלים של העסק</label><input type="text" id="p_permit" placeholder="הקלדה"><div class="cond">נדרש כי נבחר "מעל 10 טון" באחד הכרטיסים (יצרן גדול).</div></div>
         <div class="field"><label>מספר ח.פ. של העסק <span class="m">*</span></label><input type="text" id="p_hp" placeholder="הקלדה"></div>
         <div class="field"><label>כתובת העסק / מפעל <span class="m">*</span></label><input type="text" id="p_addr" placeholder="הקלדה"></div>
-        <div class="field"><label>מייל למשלוח אישורים <span class="m">*</span></label><input type="email" id="p_email" placeholder="לכאן יישלחו ההצהרה החתומה והתזכורות"></div>
+        <!-- סידור 13/08 (לימור, אחרי מקרה מסד זילבר): המייל לבדו בשורה מלאה,
+             ושתי תיבות השם זו לצד זו עם הדגשת "שם פרטי"/"שם משפחה" — הסידור
+             הקודם (פרטי ליד המייל, משפחה מתחת) גרם למילוי שם מלא פעמיים -->
+        <div class="field" style="grid-column:1/-1"><label>מייל למשלוח אישורים <span class="m">*</span></label><input type="email" id="p_email" placeholder="לכאן יישלחו ההצהרה החתומה והתזכורות"></div>
         <!-- שם מלא = שתי תיבות חובה (לימור 03/08): שם חלקי חסר תוקף משפטי -->
-        <div class="field"><label>מנכ"ל / אחראי היתר — שם פרטי <span class="m">*</span></label><input type="text" id="p_ceo_first" placeholder="הקלדה"></div>
-        <div class="field"><label>מנכ"ל / אחראי היתר — שם משפחה <span class="m">*</span></label><input type="text" id="p_ceo_last" placeholder="חובה — להצהרה נדרש שם מלא"></div>
+        <div class="field"><label>מנכ"ל / אחראי היתר — <b style="font-size:14px;color:#1c3f3a">שם פרטי</b> <span class="m">*</span></label><input type="text" id="p_ceo_first" placeholder="השם הפרטי בלבד"></div>
+        <div class="field"><label>מנכ"ל / אחראי היתר — <b style="font-size:14px;color:#1c3f3a">שם משפחה</b> <span class="m">*</span></label><input type="text" id="p_ceo_last" placeholder="שם המשפחה בלבד"></div>
       </div>
     </section>
 

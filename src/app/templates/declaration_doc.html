@@ -79,7 +79,9 @@
   <div class="prod">
     <h2>פרטי יצרן הפסולת:</h2>
     <div class="prow"><span class="l">שם העסק / המפעל</span><span class="v" id="d_biz"></span></div>
-    <div class="prow"><span class="l">מספר היתר רעלים של העסק / ח.פ. מפעל</span><span class="v" id="d_ids"></span></div>
+    <!-- ח.פ. והיתר בשורות נפרדות (לימור 13/08) — כשאין היתר השורה נשארת עם קו ריק -->
+    <div class="prow"><span class="l">מספר היתר רעלים של העסק</span><span class="v" id="d_permit"></span></div>
+    <div class="prow"><span class="l">מספר ח.פ. מפעל</span><span class="v" id="d_hp"></span></div>
     <div class="prow"><span class="l">כתובת העסק / מפעל</span><span class="v" id="d_addr"></span></div>
     <div class="prow"><span class="l">שם מנכ"ל / בעל ההיתר / אחראי היתר</span><span class="v" id="d_ceo"></span></div>
   </div>
@@ -133,11 +135,9 @@ async function api(url){
   document.getElementById('tbody').innerHTML='<tr>'+cells.map(function(c){
     var t=document.createElement('td'); t.textContent=esc(c); return t.outerHTML;
   }).join('')+'</tr>';
-  var ids=[];
-  if(d.permit_number) ids.push('היתר '+d.permit_number);
-  if(d.business_id) ids.push('ח.פ. '+d.business_id);
   document.getElementById('d_biz').textContent=esc(d.producer_name);
-  document.getElementById('d_ids').textContent=ids.join(' · ')||'—';
+  document.getElementById('d_permit').textContent=d.permit_number?d.permit_number:'';
+  document.getElementById('d_hp').textContent=esc(d.business_id);
   document.getElementById('d_addr').textContent=esc(d.address);
   document.getElementById('d_ceo').textContent=esc(d.ceo_name);
   document.title='הצהרת יצרן — '+esc(d.producer_name);

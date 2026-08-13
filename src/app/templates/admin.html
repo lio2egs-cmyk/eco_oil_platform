@@ -302,6 +302,7 @@ async function loadDeclarations(){
   var r=await api('/eco-oil/admin/producer-declarations');
   if(!r||!r.ok){ box.textContent='שגיאה בטעינת ההצהרות'; cnt.textContent=''; return; }
   var ds=(await r.json()).declarations;
+  window.DECLS=ds;  /* לטופס העריכה (13/08) */
   var pending=ds.filter(function(d){ return d.status==='submitted'; }).length;
   var atClient=ds.filter(function(d){ return d.status==='released'&&!d.has_signed_scan; }).length;
   var forFinal=ds.filter(function(d){ return d.status==='released'&&d.has_signed_scan; }).length;
@@ -317,6 +318,7 @@ async function loadDeclarations(){
        '<td>'+esc(d.waste_stream_number)+'</td><td>'+esc(d.quantity)+'</td>'+
        '<td>'+declStatus(d)+'</td>'+
        '<td><button class="btn btn-soft" onclick="toggleDecl('+i+')">פרטים מלאים</button> '+
+       ((d.status==='submitted'||d.status==='released')?'<button class="btn btn-soft" title="תיקון טעויות הקלדה בשדות הטקסט — בלי להחזיר ללקוח. אפשרי רק לפני חתימת הלקוח" onclick="editDecl('+i+')">✏ ערכי פרטים</button> ':'')+
        '<a class="btn btn-soft" target="_blank" href="/declaration-doc?id='+d.id+'" title="תצוגה בלבד: המסמך הרשמי (נספח 3) ממולא מהנתונים שהוגשו — לא שולח דבר ללקוח">👁 צפייה במסמך</a> '+
        (d.status==='submitted'?'<button class="btn" title="אישור הנוסח: הלקוח יראה את המסמך בפורטל שלו ויוכל להוריד ולהדפיס לחתימה" onclick="releaseDecl('+d.id+',\''+esc(d.producer_name)+'\')">📤 שמרי לתא הלקוח</button> ':'')+
        (d.has_signed_scan?'<button class="btn btn-soft" title="המסמך החתום שהתקבל — סריקה או צילום" onclick="viewScan('+d.id+')">📎 המסמך החתום</button> ':'')+
@@ -336,6 +338,46 @@ async function loadDeclarations(){
   box.innerHTML=h+'</table>';
 }
 function toggleDecl(i){ document.getElementById('decl-'+i).classList.toggle('hidden'); }
+/* עריכת משרד (לימור 13/08) — שדות טקסט חופשי בלבד, רק לפני חתימת הלקוח;
+   שדות-בחירה מהרשימות נשארים דרך "החזירי לתיקון". כל שינוי נרשם בהערות. */
+var EDIT_FIELDS=[
+  ['producer_name','שם העסק / המפעל'],
+  ['business_id','מספר ח.פ.'],
+  ['permit_number','מספר היתר רעלים'],
+  ['ceo_name','מנכ"ל / אחראי היתר — שם מלא'],
+  ['producer_email','מייל'],
+  ['address','כתובת העסק / מפעל'],
+  ['production_facility','מתקן הייצור'],
+  ['waste_stream_number','מספר זרם פסולת'],
+  ['concentration_range','טווח ריכוזים']];
+function editDecl(i){
+  var d=window.DECLS[i], row=document.getElementById('decl-'+i);
+  var h='<div style="background:#FFF7E8;border:1px solid #E8C97A;border-radius:10px;padding:12px 14px;margin:4px 0">'+
+    '<b>עריכת פרטים — '+esc(d.producer_name)+' ('+esc(d.material_name)+')</b>'+
+    '<div class="muted" style="margin:4px 0 8px">לתיקון טעויות הקלדה. שדות הבחירה (זרם, כמות, אריזה וכו\') לא נערכים כאן — לשינוי בהם השתמשי ב"החזירי לתיקון". כל שינוי נשמר בתיעוד.</div>'+
+    '<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px">';
+  EDIT_FIELDS.forEach(function(f){
+    h+='<div><label style="font-size:12px;color:#456;display:block">'+f[1]+'</label>'+
+       '<input type="text" id="ed_'+i+'_'+f[0]+'" value="'+esc(d[f[0]]==null?'':d[f[0]])+'" style="width:100%;padding:6px 8px;border:1px solid #ccc;border-radius:7px;font-size:13px"></div>';
+  });
+  h+='</div><div style="margin-top:10px">'+
+     '<button class="btn" onclick="saveDeclEdit('+i+','+d.id+')">💾 שמרי שינויים</button> '+
+     '<button class="btn btn-soft" onclick="loadDeclarations()">בטלי</button></div></div>';
+  row.classList.remove('hidden');
+  row.children[0].innerHTML=h;
+}
+async function saveDeclEdit(i,id){
+  var body={};
+  EDIT_FIELDS.forEach(function(f){ body[f[0]]=document.getElementById('ed_'+i+'_'+f[0]).value; });
+  var r=await api('/eco-oil/admin/producer-declarations/'+id+'/fields',{method:'PATCH',body:JSON.stringify(body)});
+  if(!r||!r.ok){
+    var e={}; try{ e=await r.json(); }catch(_){}
+    toast(e.error||'שגיאה בשמירת העריכה'); return;
+  }
+  var res=await r.json();
+  toast(res.changed?('נשמרו '+res.changed+' שינויים ✓'):'לא היו שינויים');
+  await loadDeclarations();
+}
 function declDetails(d){
   function row(label,val){ return '<tr><td style="width:220px;color:#456;font-weight:bold">'+label+'</td><td>'+esc(val==null||val===''?'—':val)+'</td></tr>'; }
   return '<table style="margin:4px 0">'+
