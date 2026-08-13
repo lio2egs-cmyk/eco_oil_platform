@@ -2959,6 +2959,11 @@ def submit_portal_declaration():
     claims = get_jwt()
     data = request.get_json(silent=True) or {}
 
+    # מנהלת פותחת את הטופס לצפייה/הדרכה טלפונית (לימור 13/08) — אבל
+    # "המילוי תמיד של הלקוח": הגשה בשם מנהלת חסומה במפורש.
+    if claims.get("role") == "admin":
+        return {"error": "מסך הניהול פותח את הטופס לצפייה והדרכה בלבד — ההגשה נעשית על ידי הלקוח מהחשבון שלו"}, 403
+
     # ─── זיהוי הלקוח ומגבלת גישה ───
     target_client_id = data.get("client_id") or claims.get("client_id")
     if not target_client_id:
