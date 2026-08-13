@@ -487,6 +487,13 @@ async function checkNew(){
   out.innerHTML=h;
 }
 
+/* הכפתורים נוספו ב-02/08 אבל הפונקציה נשכחה — תוקן 13/08 כשלימור
+   לחצה עליו לראשונה (פתיחת הלקוח העקיף הראשון) */
+function toggleNewCard(){
+  var c=document.getElementById('newCard');
+  c.classList.toggle('hidden');
+  if(!c.classList.contains('hidden')){ typeHint(); document.getElementById('newName').focus(); }
+}
 function typeHint(){
   var ind=document.getElementById('newType').value==='indirect';
   document.getElementById('newTypeHint').textContent=ind
