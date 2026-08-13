@@ -145,7 +145,12 @@ async function issueAgreement(){
     alert(e.error||'שגיאה בהפקת המסמך'); return;
   }
   var d=await r.json();
-  alert('מסמך הסכמה מס\' '+d.number+' הופק ✓'+(d.email_sent===false?'\n(המייל ללקוח לא נשלח — עדכני אותו ידנית)':'\nמייל נשלח ללקוח.'));
+  var msg='מסמך הסכמה מס\' '+d.number+' הופק ✓'+(d.email_sent===false?'\n(המייל ללקוח לא נשלח — עדכני אותו ידנית)':'\nמייל נשלח ללקוח.');
+  if(d.transporter==='not_linked') msg+='\n⚠ לא הוגדר מוביל אחראי לחברה — קבעי בכרטיס החברה כדי שהמוביל יעודכן אוטומטית בפעם הבאה; הפעם עדכני אותו ידנית.';
+  else if(d.transporter==='no_users') msg+='\n⚠ למוביל האחראי אין משתמש פורטל — עדכני אותו ידנית.';
+  else if(d.transporter==='send_failed') msg+='\n⚠ המייל למוביל לא נשלח — עדכני אותו ידנית.';
+  else if(d.transporter) msg+='\nגם המוביל האחראי עודכן במייל ✓';
+  alert(msg);
   location.href='/agreement-doc?id='+d.id;
 }
 (async function(){

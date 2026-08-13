@@ -78,6 +78,12 @@
       </select>
       <span class="muted" id="newTypeHint"></span>
     </div>
+    <!-- מוביל אחראי ליצרן עקיף (לימור 13/08) — ממלא את קשר חברת-האם מהחלטת יסוד 4 -->
+    <div class="row hidden" id="newParentRow">
+      <label>מוביל אחראי:</label>
+      <select id="newParent" style="padding:6px 10px;border:1px solid var(--line);border-radius:8px;font-size:13px"></select>
+      <span class="muted">כדי שהמוביל יעודכן אוטומטית כשההסדרה תושלם. אפשר לקבוע גם אחר-כך בכרטיס החברה.</span>
+    </div>
     <div class="row">
       <button class="btn btn-soft" onclick="checkNew()">בדקי כמה מסמכים נמצאו</button>
       <button class="btn" onclick="createClient()">צרי חברה</button>
@@ -483,7 +489,12 @@ function render(){
          (c.client_type==='indirect'?'<span class="pill" title="לקוח של מוביל — לפי עמודת סוג לקוח במסד">יצרן עקיף</span>':'')+
          (aliases.length?'<span class="pill">'+aliases.length+' צורות כתיב נוספות</span>':'')+
          '<span class="pill" id="cnt-'+c.id+'">…</span></div>'+
-       '<div class="meta">מס׳ חברה: '+c.id+(aliases.length?' · כתיבים: '+esc(aliases.join(' | ')):'')+'</div>'+
+       '<div class="meta">מס׳ חברה: '+c.id+(aliases.length?' · כתיבים: '+esc(aliases.join(' | ')):'')+
+         (c.client_type==='indirect'
+           ?' · מוביל אחראי: '+(function(){ var p=CLIENTS.find(function(x){return x.id===c.parent_client_id;});
+              return p?('<b>'+esc(p.name)+'</b>'):'<span class="warn">לא הוגדר — המוביל לא יעודכן אוטומטית</span>'; })()+
+            ' <span id="par-'+c.id+'"><button class="btn btn-soft" style="padding:2px 8px;font-size:12px" onclick="editParent('+c.id+')">'+(c.parent_client_id?'שני':'קבעי')+'</button></span>'
+           :'')+'</div>'+
        (users.length?
          '<table><tr><th>מייל</th><th>כניסה אחרונה</th><th>תזכורת חמישי</th><th></th></tr>'+rows+'</table>':
          '<div class="muted">אין עדיין משתמשים לחברה זו.</div>')+
@@ -536,10 +547,36 @@ function toggleNewCard(){
   c.classList.toggle('hidden');
   if(!c.classList.contains('hidden')){ typeHint(); document.getElementById('newName').focus(); }
 }
+function transporterOptions(exceptId,selectedId){
+  /* מועמדים למוביל אחראי: חברות אקו-אויל שאינן עקיפות ואינן החברה עצמה */
+  var h='<option value="">— בחרי מוביל (לא חובה) —</option>';
+  CLIENTS.filter(function(c){ return c.client_type!=='indirect' && c.id!==exceptId; })
+    .sort(function(a,b){ return a.name.localeCompare(b.name,'he'); })
+    .forEach(function(c){ h+='<option value="'+c.id+'"'+(c.id===selectedId?' selected':'')+'>'+esc(c.name)+'</option>'; });
+  return h;
+}
 function typeHint(){
   var ind=document.getElementById('newType').value==='indirect';
   document.getElementById('newTypeHint').textContent=ind
     ?'לפי עמודת "סוג לקוח" במסד. צפוי 0 מסמכים — האישורים שלו רשומים אצל המוביל.':'';
+  var pr=document.getElementById('newParentRow');
+  pr.classList.toggle('hidden',!ind);
+  if(ind) document.getElementById('newParent').innerHTML=transporterOptions(0,null);
+}
+function editParent(cid){
+  var c=CLIENTS.find(function(x){ return x.id===cid; });
+  var box=document.getElementById('par-'+cid);
+  box.innerHTML='<select id="parSel-'+cid+'" style="padding:5px 8px;border:1px solid var(--line);border-radius:7px;font-size:13px">'+
+    transporterOptions(cid,c.parent_client_id)+'</select> '+
+    '<button class="btn" onclick="saveParent('+cid+')">שמרי</button> '+
+    '<button class="btn btn-soft" onclick="render()">בטלי</button>';
+}
+async function saveParent(cid){
+  var v=document.getElementById('parSel-'+cid).value;
+  var r=await api('/clients/'+cid,{method:'PUT',body:JSON.stringify({parent_client_id:v?parseInt(v):null})});
+  if(!r||!r.ok){ toast('שגיאה בשמירת המוביל'); return; }
+  toast(v?'המוביל האחראי נשמר ✓':'הקישור למוביל הוסר');
+  await reload();
 }
 
 async function createClient(){
@@ -548,8 +585,10 @@ async function createClient(){
   var ctype=document.getElementById('newType').value;
   if(!name){ toast('מלאי את שם החברה'); return; }
   if(CLIENTS.some(function(c){ return c.name===name; })){ toast('חברה בשם הזה כבר קיימת'); return; }
+  var parentSel=document.getElementById('newParent');
+  var parentId=(ctype==='indirect'&&parentSel&&parentSel.value)?parseInt(parentSel.value):null;
   var r=await api('/clients',{method:'POST',body:JSON.stringify(
-    {name:name,division:'eco_oil',client_type:ctype,billing_aliases:aliases.join('\n')||null})});
+    {name:name,division:'eco_oil',client_type:ctype,billing_aliases:aliases.join('\n')||null,parent_client_id:parentId})});
   if(!r||!r.ok){ toast('שגיאה ביצירת החברה'); return; }
   toast(ctype==='indirect'?'החברה נוצרה ✓ עכשיו הוסיפי לה משתמש הצהרות בלבד':'החברה נוצרה ✓ עכשיו הוסיפי לה משתמש');
   document.getElementById('newName').value=''; document.getElementById('newAliases').value='';

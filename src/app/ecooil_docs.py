@@ -590,8 +590,32 @@ def admin_issue_agreement(decl_id):
         email_sent = _notify_customer_agreement_issued(d, agreement)
     except Exception as exc:
         current_app.logger.error("agreement notification failed: %s", exc)
-    return jsonify({"id": agreement.id, "number": agreement.number,
-                    "email_sent": email_sent}), 201
+
+    # יידוע המוביל האחראי (לימור 13/08) — רק ליצרן עקיף מקושר; היעדר קישור
+    # או היעדר משתמשי פורטל למוביל מדווח ללימור בתשובת ההפקה, לא נבלע.
+    transporter = None
+    client = db.session.get(Client, d.client_id)
+    if client is not None and client.client_type == "indirect":
+        if not client.parent_client_id:
+            transporter = "not_linked"
+        else:
+            parent = db.session.get(Client, client.parent_client_id)
+            emails = [u.email for u in User.query.filter_by(
+                client_id=client.parent_client_id, is_active=True).all() if u.email]
+            if not emails:
+                transporter = "no_users"
+            else:
+                try:
+                    sent = _notify_transporter_agreement_issued(d, agreement, emails)
+                    transporter = f"sent:{sent}" if sent else "send_failed"
+                except Exception as exc:
+                    current_app.logger.error("transporter notify failed: %s", exc)
+                    transporter = "send_failed"
+
+    resp = {"id": agreement.id, "number": agreement.number, "email_sent": email_sent}
+    if transporter is not None:
+        resp["transporter"] = transporter
+    return jsonify(resp), 201
 
 
 # משפחות הזרמים לכותרת המסמך — אותה חלוקה כמו שתי תבניות הוורד הישנות
@@ -651,7 +675,8 @@ def agreement_doc_data():
 
 
 def _notify_customer_agreement_issued(d, agreement):
-    """מייל למגיש כשמסמך ההסכמה הופק — סוף התהליך. נוסח: לימור 12/08."""
+    """מייל למגיש כשמסמך ההסכמה הופק — סוף התהליך. נוסח: לימור 12/08;
+    תוספת תוקף-שנתיים + שמירת עותקים לביקורת: לימור 13/08."""
     from .mailer import send_office_email
 
     submitter = db.session.get(User, d.submitted_by_user_id) if d.submitted_by_user_id else None
@@ -659,12 +684,17 @@ def _notify_customer_agreement_issued(d, agreement):
         return False
     portal_url = "https://portal.eco-oil.co.il"
     biz = (d.producer_name or "").strip()
+    until = d.valid_until.strftime("%d/%m/%Y") if d.valid_until else ""
     html = f"""<div dir="rtl" style="font-family:Arial,sans-serif;color:#222;">
 <p>שלום,</p>
 <p>הצהרת היצרן של <b>{biz}</b> אושרה סופית, ומסמך ההסכמה לקליטת הפסולת
 (מסמך מס' {agreement.number}) מוכן וזמין בפורטל הלקוחות — לצפייה, להורדה ולהדפסה.</p>
 <p><b>בכך הושלם התהליך במלואו.</b> ההצהרה בתוקף, ואפשר לשנע את הפסולת לטיפול
 בליווי המסמכים הנדרשים.</p>
+<p><b>חשוב לדעת:</b> לשני המסמכים יחד — הצהרת היצרן ומסמך ההסכמה — תוקף של
+שנתיים{f" (עד {until})" if until else ""}. הורידו עותק של שני המסמכים ושמרו
+אותם במיקום ייעודי במחשב שלכם — הם ההוכחה בעת ביקורת לכך שהפינויים
+הוסדרו לפי דרישות החוק.</p>
 <p style="margin:22px 0;">
 <a href="{portal_url}" style="background:#5B9E96;color:#fff;text-decoration:none;
 padding:12px 28px;border-radius:8px;font-weight:bold;">כניסה לפורטל</a></p>
@@ -672,6 +702,31 @@ padding:12px 28px;border-radius:8px;font-weight:bold;">כניסה לפורטל</
     return send_office_email(
         subject=f"מסמך ההסכמה לקליטת הפסולת מוכן — {biz}",
         html=html, to=submitter.email)
+
+
+def _notify_transporter_agreement_issued(d, agreement, emails):
+    """מייל למוביל האחראי כשלקוח עקיף שלו השלים את ההסדרה (לימור 13/08).
+    נחזיר כמה נשלחו בפועל."""
+    from .mailer import send_office_email
+
+    biz = (d.producer_name or "").strip()
+    html = f"""<div dir="rtl" style="font-family:Arial,sans-serif;color:#222;">
+<p>שלום,</p>
+<p>נשמח לעדכן כי <b>{biz}</b>, מלקוחותיכם, השלים את הסדרת הצהרת היצרן מול
+אקו-אויל: ההצהרה נחתמה ואושרה, ומסמך ההסכמה לקליטת הפסולת
+(מסמך מס' {agreement.number}, זרם {d.material_name or ""}) הופק ובתוקף.</p>
+<p>מעתה ניתן לשנע פסולת מהזרם המוסדר מלקוח זה, בליווי המסמכים הנדרשים.</p>
+<p>בברכה,<br>פורטל הלקוחות של אקו-אויל</p></div>"""
+    sent = 0
+    for to in emails:
+        try:
+            if send_office_email(
+                    subject=f"הושלמה הסדרת הצהרת יצרן — {biz}",
+                    html=html, to=to):
+                sent += 1
+        except Exception as exc:
+            current_app.logger.error("transporter agreement email failed (%s): %s", to, exc)
+    return sent
 
 
 @ecooil_docs.route("/portal/my-declaration-docs", methods=["GET"])

@@ -33,6 +33,8 @@ def create_client():
         division=data["division"],
         client_type=data.get("client_type"),
         billing_aliases=data.get("billing_aliases"),
+        # המוביל האחראי של יצרן עקיף (לימור 13/08) — הקשר מהחלטת יסוד 4
+        parent_client_id=data.get("parent_client_id") or None,
     )
 
     db.session.add(client)
@@ -52,6 +54,14 @@ def update_client(client_id):
     for field in ("name", "division", "client_type", "billing_aliases"):
         if field in data:
             setattr(client, field, data[field])
+    if "parent_client_id" in data:
+        # מוביל אחראי (13/08): ריק = ניתוק; אחרת חייב להיות חברה קיימת ושונה
+        pid = data.get("parent_client_id") or None
+        if pid is not None:
+            pid = int(pid)
+            if pid == client.id or db.session.get(Client, pid) is None:
+                return {"error": "מוביל אחראי לא תקין"}, 400
+        client.parent_client_id = pid
     db.session.commit()
 
     return {
@@ -78,6 +88,7 @@ def list_clients():
                 "division": c.division,
                 "client_type": c.client_type,
                 "billing_aliases": c.billing_aliases,
+                "parent_client_id": c.parent_client_id,
             }
             for c in clients
         ]
