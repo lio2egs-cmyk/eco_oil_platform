@@ -212,6 +212,12 @@
     <section>
       <div class="sec-title">שלב 3 · פרטי יצרן הפסולת</div>
       <div class="sec-sub">פרטי העסק שמגיש את ההצהרה.</div>
+      <!-- עיקרון האתרים הנפרדים (לימור 13/08, מקרה אידיאה) — כאן, באזור פרטי
+           העסק, ולא ליד "מתקן הייצור" (ששם הכוונה לתהליך שיצר את הפסולת) -->
+      <div style="font-size:12.5px;color:#8a5d00;background:#FFF7E8;border:1px solid #E8C97A;border-radius:8px;padding:8px 12px;margin:8px 0 10px">
+        שימו לב: הצהרת יצרן נדרשת <b>לכל אתר של העסק בנפרד</b>. אם לחברה כמה אתרים / סניפים —
+        יש למלא הצהרה נפרדת לכל אתר, עם הכתובת שלו, לפי הזרמים המפונים ממנו.
+      </div>
       <div class="pgrid">
         <div class="field"><label>שם העסק / המפעל <span class="m">*</span></label><input type="text" id="p_name" placeholder="הקלדה"></div>
         <div class="field" id="permitField"><label>מספר היתר רעלים של העסק</label><input type="text" id="p_permit" placeholder="הקלדה"><div class="cond">נדרש כי נבחר "מעל 10 טון" באחד הכרטיסים (יצרן גדול).</div></div>
@@ -300,9 +306,6 @@ function buildCard(d){
         '<select data-k="stream_name">'+optHtml(d.streamName)+'</select><span class="req">חובה</span></div>'+
 
       longField('מתקן הייצור ממנו נוצרה הפסולת', true, d.facility, 'production_facility')+
-      /* עיקרון האתרים הנפרדים (לימור 13/08, בעקבות מקרה אידיאה) */
-      '<div class="fld full" style="margin-top:-6px"><div style="font-size:12px;color:#8a5d00;background:#FFF7E8;border:1px solid #E8C97A;border-radius:8px;padding:7px 10px">'+
-      'שימו לב: הצהרת יצרן נדרשת <b>לכל אתר ייצור בנפרד</b>. אם לחברה כמה אתרים — יש למלא הצהרה נפרדת לכל אתר, לפי הזרמים המפונים ממנו.</div></div>'+
 
       '<div class="fld"><label>מספר הפסולת</label>'+
         '<select data-k="waste_number">'+optHtml(d.wasteNo)+'</select><span class="req">חובה</span></div>'+
