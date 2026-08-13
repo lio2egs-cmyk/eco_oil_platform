@@ -300,6 +300,9 @@ function buildCard(d){
         '<select data-k="stream_name">'+optHtml(d.streamName)+'</select><span class="req">חובה</span></div>'+
 
       longField('מתקן הייצור ממנו נוצרה הפסולת', true, d.facility, 'production_facility')+
+      /* עיקרון האתרים הנפרדים (לימור 13/08, בעקבות מקרה אידיאה) */
+      '<div class="fld full" style="margin-top:-6px"><div style="font-size:12px;color:#8a5d00;background:#FFF7E8;border:1px solid #E8C97A;border-radius:8px;padding:7px 10px">'+
+      'שימו לב: הצהרת יצרן נדרשת <b>לכל אתר ייצור בנפרד</b>. אם לחברה כמה אתרים — יש למלא הצהרה נפרדת לכל אתר, לפי הזרמים המפונים ממנו.</div></div>'+
 
       '<div class="fld"><label>מספר הפסולת</label>'+
         '<select data-k="waste_number">'+optHtml(d.wasteNo)+'</select><span class="req">חובה</span></div>'+
