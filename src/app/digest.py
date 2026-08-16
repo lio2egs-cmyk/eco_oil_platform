@@ -10,8 +10,9 @@ import os
 from datetime import datetime, timedelta
 
 from flask import Blueprint, jsonify, request, current_app
+from sqlalchemy import func, or_
 
-from .db import db, User, Client, LoginAuditLog
+from .db import db, User, Client, LoginAuditLog, MagicLinkToken
 from .ecooil_bridge import ecooil_bridge_required
 
 digest = Blueprint("digest", __name__)
@@ -21,6 +22,58 @@ DIGEST_TO = "office@eco-oil.co.il"
 
 def _fmt(dt):
     return dt.strftime("%d/%m/%Y %H:%M") if dt else ""
+
+
+@digest.route("/admin/user-login-diagnosis", methods=["POST"])
+@ecooil_bridge_required
+def user_login_diagnosis():
+    """Per-user login forensics (Limor's "she says she can't get in" tool,
+    16/08/2026 — first case: Nataliya/אורות פנינה). Given an email, returns the
+    user record, their recent magic-link tokens, and every audit event for that
+    address — so "never asked for a link" vs "asked but never clicked" vs
+    "clicked and failed" is answered from data, not guesses. Bridge-token auth,
+    read-only."""
+    email = (request.get_json(silent=True) or {}).get("email", "").strip().lower()
+    if not email or "@" not in email:
+        return jsonify(error="email is required"), 400
+
+    user = User.query.filter(func.lower(User.email) == email).first()
+    user_info = None
+    links = []
+    if user:
+        client = Client.query.get(user.client_id) if user.client_id else None
+        user_info = {
+            "id": user.id, "email": user.email, "role": user.role,
+            "is_active": bool(user.is_active),
+            "client_id": user.client_id,
+            "client_name": client.name if client else None,
+            "client_division": client.division if client else None,
+            "created_at": user.created_at.isoformat() if user.created_at else None,
+            "last_login_at": user.last_login_at.isoformat() if user.last_login_at else None,
+        }
+        links = [{
+            "created_at": t.created_at.isoformat(),
+            "expires_at": t.expires_at.isoformat(),
+            "used_at": t.used_at.isoformat() if t.used_at else None,
+            "requested_from_ip": t.requested_from_ip,
+        } for t in (MagicLinkToken.query.filter_by(user_id=user.id)
+                    .order_by(MagicLinkToken.created_at.desc()).limit(15).all())]
+
+    conds = [func.lower(LoginAuditLog.email_attempted) == email]
+    if user:
+        conds.append(LoginAuditLog.user_id == user.id)
+    events = [{
+        "created_at": l.created_at.isoformat(),
+        "event_type": l.event_type,
+        "success": bool(l.success),
+        "ip_address": l.ip_address,
+        "user_agent": l.user_agent,
+        "notes": l.notes,
+    } for l in (LoginAuditLog.query.filter(or_(*conds))
+                .order_by(LoginAuditLog.created_at.desc()).limit(200).all())]
+
+    return jsonify({"queried_email": email, "user": user_info,
+                    "magic_links": links, "audit_events": events})
 
 
 @digest.route("/admin/weekly-login-digest", methods=["POST"])
