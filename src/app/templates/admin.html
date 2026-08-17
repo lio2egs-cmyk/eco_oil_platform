@@ -628,7 +628,10 @@ function render(){
             '<button class="btn btn-soft" title="כניסה מלאה — רק אם היצרן ביקש במפורש לראות גם את האישורים שבהם הוא רשום כמקור" '+
               'onclick="addUser('+c.id+',\''+esc(c.name)+'\')">הוסיפי משתמש רגיל</button>'
            :'<button class="btn" onclick="addUser('+c.id+',\''+esc(c.name)+'\')">הוסיפי משתמש</button>')+
-         '<a class="btn btn-soft" target="_blank" href="/documents?client_id='+c.id+'">מה הלקוח רואה</a>'+
+         '<a class="btn btn-soft" target="_blank" title="עמוד הבית של הלקוח — ההצהרות, המסמכים לחתימה ומסמכי ההסכמה, כולל של היצרנים העקיפים שלו" '+
+           'href="/portal?client_id='+c.id+'">👁 עמוד הבית של הלקוח</a>'+
+         '<a class="btn btn-soft" target="_blank" title="אזור המסמכים — אישורי פריקה וטופסי מלווה" '+
+           'href="/documents?client_id='+c.id+'">👁 המסמכים של הלקוח</a>'+
          '<button class="btn btn-soft" onclick="editAliases('+c.id+')">עריכת צורות כתיב</button>'+
          (c.docs_blocked
            ?'<button class="btn" title="שחרור מיידי — כל האישורים והטופסי מלווה נפתחים ללקוח בחזרה" '+

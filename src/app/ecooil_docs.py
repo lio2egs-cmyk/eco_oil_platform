@@ -76,7 +76,12 @@ def _decl_scope_ids(user, include_indirect=True):
     סייקלון). ⚠ הרחבה זו היא לצפייה בלבד — פעולות כתיבה (העלאת המסמך
     החתום) נשארות אצל החברה שההצהרה שלה, ולכן include_indirect=False שם.
     התיוק ב-Z: לא מושפע כלל: הוא נשאר לפי הכלל היציב — אצל היצרן עצמו."""
-    ids = list(user.allowed_client_ids())
+    return _expand_indirect(user.allowed_client_ids(), include_indirect)
+
+
+def _expand_indirect(ids, include_indirect=True):
+    """רשימת חברות + היצרנים העקיפים שהן המוביל האחראי שלהם."""
+    ids = list(ids)
     if not ids or not include_indirect:
         return ids
     for c in Client.query.filter(Client.parent_client_id.in_(ids)).all():
@@ -810,14 +815,25 @@ def my_declaration_docs():
     from .db import ProducerDeclaration
 
     claims = get_jwt()
+    preview = None
     if claims.get("role") == "admin":
-        return jsonify({"declarations": []})
-    user = db.session.get(User, int(get_jwt_identity()))
-    if user is None:
-        return jsonify({"error": "no user"}), 403
-    # כולל היצרנים העקיפים שהמשתמש הוא המוביל האחראי שלהם (לימור 17/08)
-    allowed = _decl_scope_ids(user)
-    own = set(user.allowed_client_ids())
+        # תצוגת "דרך העיניים של הלקוח" (לימור 17/08): מנהלת מעבירה client_id
+        # ומקבלת בדיוק את מה שאותה חברה מקבלת — כולל היצרנים העקיפים שלה.
+        # בלי client_id — רשימה ריקה, כמו קודם.
+        cid = request.args.get("client_id", type=int)
+        pc = db.session.get(Client, cid) if cid else None
+        if pc is None:
+            return jsonify({"declarations": []})
+        own = {pc.id}
+        allowed = _expand_indirect([pc.id])
+        preview = {"client_id": pc.id, "client_name": pc.name}
+    else:
+        user = db.session.get(User, int(get_jwt_identity()))
+        if user is None:
+            return jsonify({"error": "no user"}), 403
+        # כולל היצרנים העקיפים שהמשתמש הוא המוביל האחראי שלהם (לימור 17/08)
+        allowed = _decl_scope_ids(user)
+        own = set(user.allowed_client_ids())
     if not allowed:
         return jsonify({"declarations": []})
 
@@ -840,7 +856,7 @@ def my_declaration_docs():
         # ולא יחפש כפתור העלאה שאינו שלו (לימור 17/08)
         row["indirect"] = d.client_id not in own
         rows.append(row)
-    return jsonify({"declarations": rows})
+    return jsonify({"declarations": rows, "preview": preview})
 
 
 @ecooil_docs.route("/portal/my-declaration-docs/<int:decl_id>/signed-scan",

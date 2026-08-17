@@ -22,6 +22,9 @@
   <div class="card">
     <img class="logo" src="{{ url_for('static', filename=logo) }}" alt="{{ brand }}">
     <h1>פורטל לקוחות {{ brand }}</h1>
+    <!-- תצוגת מנהלת "דרך העיניים של הלקוח" (לימור 17/08) -->
+    <div id="previewBar" style="display:none;background:#FFF3D6;border:1.5px solid #E8C97A;color:#7a5a10;
+         border-radius:12px;padding:10px 14px;margin-bottom:14px;font-size:13.5px;text-align:right"></div>
     <div class="who" id="who"></div>
     <div class="msg">התחברתם בהצלחה. 🎉<br>הפורטל בבנייה — בקרוב יופיעו כאן ההצהרות, הטפסים והמסמכים שלכם.</div>
     {% if division == 'eco_oil' %}
@@ -72,15 +75,29 @@
       if(br) br.style.display='none';
     }
   }catch(e){}
+  var PREVIEW=null;   /* תצוגת מנהלת — עמוד הלקוח (17/08) */
+  function esc0(s){ return (s==null?'':String(s)).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
   /* מסמכים שלימור שחררה לחתימה — מוצג רק כשיש */
   (async function(){
     var box=document.getElementById('signDocs');
     if(!box) return;
     try{
-      var r=await fetch('/eco-oil/portal/my-declaration-docs',
+      /* ?client_id= — תצוגת מנהלת של עמוד הלקוח (17/08) */
+      var PCID=new URLSearchParams(location.search).get('client_id');
+      var r=await fetch('/eco-oil/portal/my-declaration-docs'+(PCID?'?client_id='+encodeURIComponent(PCID):''),
         {headers:{'Authorization':'Bearer '+localStorage.getItem('eco_access_token')}});
       if(!r.ok) return;
-      var ds=(await r.json()).declarations||[];
+      var payload=await r.json();
+      var ds=payload.declarations||[];
+      PREVIEW=payload.preview||null;
+      if(PREVIEW){
+        var pb=document.getElementById('previewBar');
+        pb.innerHTML='🔍 <b>תצוגת מנהלת</b> — זה בדיוק מה שרואה <b>'+esc0(PREVIEW.client_name)+'</b> '+
+          'כשהוא נכנס לפורטל. שום לחיצה כאן לא משפיעה על הלקוח.';
+        pb.style.display='block';
+        var wh=document.getElementById('who');
+        if(wh) wh.textContent='שלום, '+PREVIEW.client_name;
+      }
       var rel=ds.filter(function(d){ return d.status==='released'; });
       var fix=ds.filter(function(d){ return d.status==='needs_fix'; });
       var done=ds.filter(function(d){ return d.status==='approved'; });
@@ -192,6 +209,7 @@
   })();
   /* העלאת המסמך החתום (09/08) — קובץ סרוק או צילום; בטלפון נפתחת גם המצלמה */
   function uploadScan(id){
+    if(PREVIEW){ alert('תצוגת מנהלת — כאן הלקוח מעלה את המסמך החתום.\nלצירוף מטעמך השתמשי ב"📎 צרפי מסמך חתום" במסך הניהול.'); return; }
     var inp=document.createElement('input');
     inp.type='file'; inp.accept='application/pdf,image/*';
     inp.onchange=async function(){
@@ -213,6 +231,7 @@
     inp.click();
   }
   async function viewMyScan(id){
+    if(PREVIEW){ alert('תצוגת מנהלת — לצפייה במסמך החתום השתמשי ב"📎 המסמך החתום" במסך הניהול.'); return; }
     try{
       var r=await fetch('/eco-oil/portal/my-declaration-docs/'+id+'/signed-scan',
         {headers:{'Authorization':'Bearer '+localStorage.getItem('eco_access_token')}});
