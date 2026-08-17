@@ -171,7 +171,13 @@
     <button id="camFlip" style="font-size:26px; width:56px; height:56px; border:none; border-radius:50%; background:rgba(30,30,30,.75); color:#fff;" onclick="flipCam()">🔄</button>
   </div>
   <div id="camView" style="flex:1; min-height:0; position:relative; overflow:hidden;">
-    <video id="camVideo" autoplay playsinline muted style="width:100%; height:100%; object-fit:cover;"></video>
+    <!-- לימור 17/08: "אין דרך להרחיק, הזום הבסיסי גדול מדי". השורש היה כאן —
+         object-fit:cover חתך את הצדדים של הפריים (במסך לאורך נראים רק ~55% מרוחב
+         התמונה), ולכן התצוגה הרגישה מקורבת ואי אפשר היה "להתרחק". גרוע מזה:
+         הצילום נשמר במלוא הפריים, כלומר התמונה שיצאה רחבה בהרבה ממה שהעובד מסגר —
+         ומספר המכל יצא קטן ורחוק (התמונות של 12:14). contain מציג את כל הפריים:
+         מה שרואים = מה שנשמר, גם ב-1x וגם בזום דיגיטלי. -->
+    <video id="camVideo" autoplay playsinline muted style="width:100%; height:100%; object-fit:contain; background:#000;"></video>
   </div>
   <!-- לימור 17/08: אזהרת טשטוש מיידית — בזמן שהעובד עוד עומד מול המכל -->
   <div id="camWarn" style="display:none; background:#c62828; color:#fff; font-size:21px; font-weight:bold; text-align:center; padding:14px 12px; line-height:1.4;">
