@@ -66,14 +66,33 @@ def _scan_response(d):
                  + os.path.splitext(d.signed_scan_filename or "")[1].lower()})
 
 
-def _decl_in_user_scope(decl_id):
+def _decl_scope_ids(user, include_indirect=True):
+    """מזהי החברות שהצהרותיהן מוצגות למשתמש.
+
+    החברות שלו (ראשית + נוספות), ובנוסף — היצרנים העקיפים שהחברות שלו הן
+    "המוביל האחראי" שלהם (Client.parent_client_id). זו החלטה 4 ממאי, שעד
+    17/08 מומשה רק לאישורי פריקה דרך שם החיוב ומעולם לא להצהרות: מוביל לא
+    ראה את ההצהרות וההסכמות של לקוחותיו העקיפים (מקרה ורידיס/אלביט
+    סייקלון). ⚠ הרחבה זו היא לצפייה בלבד — פעולות כתיבה (העלאת המסמך
+    החתום) נשארות אצל החברה שההצהרה שלה, ולכן include_indirect=False שם.
+    התיוק ב-Z: לא מושפע כלל: הוא נשאר לפי הכלל היציב — אצל היצרן עצמו."""
+    ids = list(user.allowed_client_ids())
+    if not ids or not include_indirect:
+        return ids
+    for c in Client.query.filter(Client.parent_client_id.in_(ids)).all():
+        if c.id not in ids:
+            ids.append(c.id)
+    return ids
+
+
+def _decl_in_user_scope(decl_id, include_indirect=True):
     """הצהרת פורטל בהיקף החברות של המשתמש המחובר — או None.
     זהה להיקף של my-declaration-docs (כולל תפקיד "הצהרות בלבד" ורב-חברות)."""
     from .db import ProducerDeclaration
     user = db.session.get(User, int(get_jwt_identity()))
     if user is None:
         return None
-    allowed = user.allowed_client_ids()
+    allowed = _decl_scope_ids(user, include_indirect)
     if not allowed:
         return None
     d = db.session.get(ProducerDeclaration, decl_id)
@@ -796,7 +815,9 @@ def my_declaration_docs():
     user = db.session.get(User, int(get_jwt_identity()))
     if user is None:
         return jsonify({"error": "no user"}), 403
-    allowed = user.allowed_client_ids()
+    # כולל היצרנים העקיפים שהמשתמש הוא המוביל האחראי שלהם (לימור 17/08)
+    allowed = _decl_scope_ids(user)
+    own = set(user.allowed_client_ids())
     if not allowed:
         return jsonify({"declarations": []})
 
@@ -812,7 +833,14 @@ def my_declaration_docs():
     users = {u.id: u.email for u in User.query.filter(User.id.in_(user_ids)).all()} if user_ids else {}
     clients = {c.id: c.name for c in Client.query.filter(Client.id.in_(allowed)).all()}
 
-    return jsonify({"declarations": [_decl_dict(d, clients, users) for d in decls]})
+    rows = []
+    for d in decls:
+        row = _decl_dict(d, clients, users)
+        # "של לקוח עקיף שלכם" — כדי שמוביל לא יחשוב שההצהרה שלו עצמו,
+        # ולא יחפש כפתור העלאה שאינו שלו (לימור 17/08)
+        row["indirect"] = d.client_id not in own
+        rows.append(row)
+    return jsonify({"declarations": rows})
 
 
 @ecooil_docs.route("/portal/my-declaration-docs/<int:decl_id>/signed-scan",
@@ -825,7 +853,9 @@ def upload_signed_scan(decl_id):
     האישור הסופי. אחרי האישור — נעול (לימור מבטלת אישור אם צריך להחליף)."""
     if get_jwt().get("role") == "admin":
         return jsonify({"error": "העלאת לקוח — מנהלת מצרפת דרך מסך הניהול"}), 403
-    d = _decl_in_user_scope(decl_id)
+    # כתיבה נשארת אצל החברה שההצהרה שלה — מוביל רואה את ההצהרה של יצרן
+    # עקיף אך לא מעלה עבורו את המסמך החתום (לימור 17/08)
+    d = _decl_in_user_scope(decl_id, include_indirect=False)
     if d is None:
         return jsonify({"error": "not found"}), 404
     if d.status != "released":

@@ -87,6 +87,15 @@
       var sub=ds.filter(function(d){ return d.status==='submitted'; });
       function dt(d){ var p=(d.submitted_at||'').slice(0,10).split('-'); return p.length===3?p[2]+'/'+p[1]+'/'+p[0]:''; }
       function esc(s){ return (s==null?'':String(s)).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+      /* הצהרה של יצרן עקיף שהחברה המחוברת היא המוביל האחראי שלו
+         (לימור 17/08) — מסומנת, ובלי כפתור העלאה: החתימה היא של היצרן */
+      function indirectTag(d){
+        return d.indirect
+          ?'<span style="background:#EDF3F2;color:#2F5F59;border-radius:8px;padding:1px 8px;'+
+           'font-size:11.5px;margin-inline-start:6px" title="יצרן שאתם המוביל האחראי שלו — '+
+           'החתימה וההעלאה נעשות אצלו">לקוח עקיף שלכם</span>'
+          :'';
+      }
       /* פס-השלבים (לימור 12/08): 4 שלבים קבועים, סימון "איפה אנחנו" על כל הצהרה,
          כדי שאישור נוסח לא ייקרא בטעות כסוף התהליך */
       function stepBar(d){
@@ -116,10 +125,16 @@
         document.getElementById('signDocsList').innerHTML=rel.map(function(d){
           return '<div style="margin:14px 0"><a target="_blank" href="/declaration-doc?id='+d.id+'" '+
             'style="color:#2F5F59;font-weight:600;text-decoration:underline">הצהרת יצרן — '+
-            esc(d.producer_name)+' ('+esc(d.material_name)+')</a>'+
+            esc(d.producer_name)+' ('+esc(d.material_name)+')</a>'+indirectTag(d)+
             '<span style="color:#8a8a8a;font-size:12px"> · '+dt(d)+'</span>'+
             stepBar(d)+
-            (d.has_signed_scan
+            (d.indirect
+              ?'<div style="font-size:12.5px;color:#5a6b6a;margin-top:3px">'+
+               (d.has_signed_scan
+                 ?'✓ המסמך החתום התקבל — ממתין לאישור אקו-אויל'+
+                  ' <a href="#" onclick="viewMyScan('+d.id+');return false;" style="color:#2F5F59">(צפייה)</a>'
+                 :'ממתין לחתימת היצרן ולהעלאת המסמך החתום אצלו')+'</div>'
+             :d.has_signed_scan
               ?'<div style="font-size:12.5px;color:#2F6B3A;margin-top:3px">✓ המסמך החתום התקבל — ממתין לאישור אקו-אויל'+
                ' <a href="#" onclick="viewMyScan('+d.id+');return false;" style="color:#2F5F59">(צפייה)</a>'+
                ' · <a href="#" onclick="uploadScan('+d.id+');return false;" style="color:#8a5d00">החלפת הקובץ</a></div>'
@@ -134,7 +149,7 @@
       if(sub.length){
         document.getElementById('subDocsList').innerHTML=sub.map(function(d){
           return '<div style="margin:10px 0"><span style="color:#2F5170;font-weight:600">הצהרת יצרן — '+
-            esc(d.producer_name)+' ('+esc(d.material_name)+')</span>'+
+            esc(d.producer_name)+' ('+esc(d.material_name)+')</span>'+indirectTag(d)+
             '<span style="color:#8a8a8a;font-size:12px"> · הוגשה '+dt(d)+'</span>'+
             stepBar(d)+'</div>';
         }).join('');
@@ -144,7 +159,7 @@
         document.getElementById('doneDocsList').innerHTML=done.map(function(d){
           return '<div style="margin:10px 0"><a target="_blank" href="/declaration-doc?id='+d.id+'" '+
             'style="color:#2F6B3A;font-weight:600;text-decoration:underline">הצהרת יצרן — '+
-            esc(d.producer_name)+' ('+esc(d.material_name)+')</a>'+
+            esc(d.producer_name)+' ('+esc(d.material_name)+')</a>'+indirectTag(d)+
             '<span style="color:#8a8a8a;font-size:12px"> · בתוקף עד '+esc(d.valid_until||'')+'</span>'+
             (d.has_signed_scan?' · <a href="#" onclick="viewMyScan('+d.id+');return false;" style="font-size:12.5px;color:#2F5F59">המסמך החתום</a>':'')+
             stepBar(d)+
@@ -155,12 +170,17 @@
       }
       if(fix.length){
         document.getElementById('fixDocsList').innerHTML=fix.map(function(d){
-          return '<div style="margin:12px 0"><a href="/declaration?fix='+d.id+'" '+
-            'style="color:#9E423C;font-weight:600;text-decoration:underline">הצהרת יצרן — '+
-            esc(d.producer_name)+' ('+esc(d.material_name)+')</a>'+
+          /* ליצרן עקיף אין קישור לתיקון — התיקון וההגשה מחדש נעשים אצלו */
+          var ttl='הצהרת יצרן — '+esc(d.producer_name)+' ('+esc(d.material_name)+')';
+          return '<div style="margin:12px 0">'+
+            (d.indirect
+              ?'<span style="color:#9E423C;font-weight:600">'+ttl+'</span>'
+              :'<a href="/declaration?fix='+d.id+'" style="color:#9E423C;font-weight:600;text-decoration:underline">'+ttl+'</a>')+
+            indirectTag(d)+
             '<span style="color:#8a8a8a;font-size:12px"> · '+dt(d)+'</span>'+
             stepBar(d)+
             (d.fix_note?'<div style="font-size:12.5px;color:#7a3b35;margin-top:2px">ההערות: '+esc(d.fix_note)+'</div>':'')+
+            (d.indirect?'<div style="font-size:12.5px;color:#5a6b6a;margin-top:2px">התיקון וההגשה מחדש נעשים אצל היצרן.</div>':'')+
             '</div>';
         }).join('');
         document.getElementById('fixDocs').style.display='block';
