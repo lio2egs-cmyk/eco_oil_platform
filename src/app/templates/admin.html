@@ -38,6 +38,11 @@
   .ok { color:#2E7D32; } .warn { color:#B45309; }
   .pill { display:inline-block; background:#EDF3F2; color:var(--dark); border-radius:8px;
           padding:2px 9px; font-size:12px; margin-inline-start:6px; }
+  /* כותרת נפתחת/נסגרת (17/08) — אותה התנהגות כמו בטופס ההצהרה */
+  .collapsible { cursor:pointer; user-select:none; }
+  .collapsible:hover { color:var(--green); }
+  .collapsible .chev { display:inline-block; font-size:13px; color:var(--green); }
+  .pill-alert { background:#FBE3E3; color:#8B2020; font-weight:bold; }
   /* חסימת מסמכים ברמת החברה (17/08) — בולט, כדי שלא תישכח חסימה פתוחה */
   .pill-blocked { background:#FBE3E3; color:#8B2020; font-weight:bold; }
   .blocked-note { background:#FDF0F0; border:1.5px solid #E9B5B5; color:#8B2020;
@@ -104,15 +109,6 @@
     <div id="declList" class="muted">טוען…</div>
   </div>
 
-  <!-- סתירות תיוק מול חיוב (לימור 06/08, אחרי מקרה עידן/מיקוש):
-       מיקום התיוק של האישור הוא הקובע למי הוא מוצג; הרשימה הזו חושפת כל
-       מקום שבו התיוק ועמודת החיוב לא מסכימים, כדי שטעות לא תישאר שקטה -->
-  <div class="card" id="discCard">
-    <h3>סתירות בין תיוק האישור לעמודת החיוב <span class="pill" id="discCount">…</span></h3>
-    <p class="muted" style="margin-bottom:8px">הכלל: האישור מוצג בפורטל לפי התיקייה שבה תייקת אותו. כשאין קובץ, או כשהתיקייה לא מזוהה כחברה רשומה — לפי עמודת החיוב.</p>
-    <div id="discList" class="muted">טוען…</div>
-  </div>
-
   <div class="card">
     <div class="row">
       <input type="text" id="q" placeholder="חיפוש חברה או מייל — הקלידי והרשימה תצטמצם מיד" style="max-width:360px" oninput="render()">
@@ -120,6 +116,22 @@
       <button class="btn btn-soft" style="margin-inline-start:auto" onclick="toggleNewCard()">+ הקמת חברה חדשה</button>
     </div>
     <div id="list">טוען…</div>
+  </div>
+
+  <!-- סתירות תיוק מול חיוב (לימור 06/08, אחרי מקרה עידן/מיקוש):
+       מיקום התיוק של האישור הוא הקובע למי הוא מוצג; הרשימה הזו חושפת כל
+       מקום שבו התיוק ועמודת החיוב לא מסכימים, כדי שטעות לא תישאר שקטה.
+       17/08: הועבר לתחתית הדף ונסגר כברירת מחדל (לימור — חסם את הדרך
+       לרשימת הלקוחות). הנתונים עדיין נטענים תמיד: המונה בכותרת נצבע
+       באדום כשיש סתירה של ממש, כדי שטעות לא תישאר שקטה גם כשסגור. -->
+  <div class="card" id="discCard">
+    <h3 class="collapsible collapsed" id="discHead" onclick="toggleDisc()">
+      <span class="chev" id="discChev">◂</span> סתירות בין תיוק האישור לעמודת החיוב
+      <span class="pill" id="discCount">…</span></h3>
+    <div id="discBody" class="hidden">
+      <p class="muted" style="margin-bottom:8px">הכלל: האישור מוצג בפורטל לפי התיקייה שבה תייקת אותו. כשאין קובץ, או כשהתיקייה לא מזוהה כחברה רשומה — לפי עמודת החיוב.</p>
+      <div id="discList" class="muted">טוען…</div>
+    </div>
   </div>
 </div>
 
@@ -197,6 +209,15 @@ async function reload(){
 }
 
 /* ── סתירות תיוק מול חיוב (לימור 06/08) ── */
+/* פתיחה/סגירה של הבלוק (17/08) — סגור כברירת מחדל; הנתונים נטענים תמיד
+   כדי שהמונה בכותרת יהיה אמיתי גם בלי לפתוח. */
+function toggleDisc(){
+  var head=document.getElementById('discHead'), body=document.getElementById('discBody');
+  var open=head.classList.contains('collapsed');
+  head.classList.toggle('collapsed',!open);
+  body.classList.toggle('hidden',!open);
+  document.getElementById('discChev').textContent=open?'▾':'◂';
+}
 function discKind(k){
   if(k==='conflict') return '<span class="warn">⚠ הקובץ מתויק אצל חברה אחרת מהחיוב</span>';
   if(k==='pulled_by_folder') return '<span class="warn">הקובץ מתויק אצל חברה רשומה, החיוב על גורם לא רשום</span>';
@@ -215,6 +236,9 @@ async function loadDiscrepancies(){
     ((conflicts?conflicts+' שורות בסתירה של ממש':'')+
      (pulled?(conflicts?' · ':'')+pulled+' נמשכות לפי תיוק':'')+
      (unrec?((conflicts||pulled)?' · ':'')+unrec+' בתיקייה לא מזוהה':'')):'אין סתירות';
+  /* סתירה של ממש = טעות שמציגה אישור ללקוח הלא נכון. אדום בכותרת כדי
+     שתיראה גם כשהבלוק סגור (17/08). */
+  cnt.classList.toggle('pill-alert', conflicts>0);
   if(!gs.length){ box.innerHTML='<span class="ok">אין סתירות — התיוק ועמודת החיוב מסכימים בכל השורות המשויכות לחברות רשומות.</span>'; return; }
   var h='<table><tr><th>מה קורה</th><th>עמודת החיוב אומרת</th><th>הקובץ מתויק בתיקייה</th>'+
         '<th>מי רואה בפורטל</th><th>שורות</th><th>הכי עדכני</th><th>דוגמה</th></tr>';
