@@ -3098,9 +3098,20 @@ def submit_portal_declaration():
     fix_id = data.get("fix_id")
     if fix_id:
         fixed_decl = db.session.get(ProducerDeclaration, int(fix_id))
-        if (fixed_decl is None or fixed_decl.client_id != target_client_id
-                or fixed_decl.status != "needs_fix"):
+        if fixed_decl is None or fixed_decl.status != "needs_fix":
             return {"error": "ההצהרה לתיקון לא נמצאה או שאינה במעמד תיקון"}, 409
+        if fixed_decl.client_id != target_client_id:
+            # מוביל מתקן הצהרה של יצרן עקיף שלו (לימור 17/08): "מי שהגיש את
+            # ההצהרה צריך להיות מסוגל גם לתקן". ההצהרה המתוקנת נשארת רשומה
+            # על החברה המקורית — התיקון לא מעביר אותה למוביל.
+            from .ecooil_docs import _expand_indirect
+
+            if fixed_decl.client_id not in _expand_indirect([target_client_id]):
+                return {"error": "ההצהרה לתיקון לא נמצאה או שאינה במעמד תיקון"}, 409
+            target_client_id = fixed_decl.client_id
+            client = Client.query.get(target_client_id)
+            if not client or client.division != "eco_oil":
+                return {"error": "הלקוח לא נמצא"}, 404
 
     # ─── תוקף: שנתיים לפי חודש (עד סוף אותו חודש, שנתיים קדימה) ───
     now = datetime.utcnow()

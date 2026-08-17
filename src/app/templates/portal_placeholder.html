@@ -205,17 +205,17 @@
       }
       if(fix.length){
         document.getElementById('fixDocsList').innerHTML=fix.map(function(d){
-          /* ליצרן עקיף אין קישור לתיקון — התיקון וההגשה מחדש נעשים אצלו */
+          /* גם ליצרן עקיף יש קישור תיקון (לימור 17/08): מי שהגיש מתקן.
+             ההצהרה המתוקנת נשארת רשומה על החברה המקורית. */
           var ttl='הצהרת יצרן — '+esc(d.producer_name)+' ('+esc(d.material_name)+')';
-          return '<div style="margin:12px 0">'+
-            (d.indirect
-              ?'<span style="color:#9E423C;font-weight:600">'+ttl+'</span>'
-              :'<a href="/declaration?fix='+d.id+'" style="color:#9E423C;font-weight:600;text-decoration:underline">'+ttl+'</a>')+
-            indirectTag(d)+
-            '<span style="color:#8a8a8a;font-size:12px"> · '+dt(d)+'</span>'+
+          return '<div style="margin:14px 0;padding-bottom:10px;border-bottom:1px solid #F3D9D5">'+
+            '<div style="color:#9E423C;font-weight:600">'+ttl+indirectTag(d)+
+            '<span style="color:#8a8a8a;font-size:12px;font-weight:400"> · '+dt(d)+'</span></div>'+
+            (d.fix_note?'<div style="font-size:12.5px;color:#7a3b35;margin-top:3px">ההערות: '+esc(d.fix_note)+'</div>':'')+
+            '<div style="margin:8px 0 2px"><a href="/declaration?fix='+d.id+'" '+
+            'style="display:inline-block;background:#9E423C;color:#fff;border-radius:9px;padding:9px 16px;'+
+            'font-family:var(--fh);font-size:13.5px;text-decoration:none">🛠 תיקון והגשה מחדש</a></div>'+
             stepBar(d)+
-            (d.fix_note?'<div style="font-size:12.5px;color:#7a3b35;margin-top:2px">ההערות: '+esc(d.fix_note)+'</div>':'')+
-            (d.indirect?'<div style="font-size:12.5px;color:#5a6b6a;margin-top:2px">התיקון וההגשה מחדש נעשים אצל היצרן.</div>':'')+
             '</div>';
         }).join('');
         document.getElementById('fixDocs').style.display='block';
