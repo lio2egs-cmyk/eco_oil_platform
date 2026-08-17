@@ -109,14 +109,31 @@
       var sub=ds.filter(function(d){ return d.status==='submitted'; });
       function dt(d){ var p=(d.submitted_at||'').slice(0,10).split('-'); return p.length===3?p[2]+'/'+p[1]+'/'+p[0]:''; }
       function esc(s){ return (s==null?'':String(s)).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
-      /* הצהרה של יצרן עקיף שהחברה המחוברת היא המוביל האחראי שלו
-         (לימור 17/08) — מסומנת, ובלי כפתור העלאה: החתימה היא של היצרן */
+      /* הצהרה של יצרן עקיף שהחברה המחוברת היא המוביל האחראי שלו (17/08) —
+         מסומנת בלבד. המוביל אחראי עליו, ולכן הוא מוריד, מחתים ומעלה. */
       function indirectTag(d){
         return d.indirect
           ?'<span style="background:#EDF3F2;color:#2F5F59;border-radius:8px;padding:1px 8px;'+
-           'font-size:11.5px;margin-inline-start:6px" title="יצרן שאתם המוביל האחראי שלו — '+
-           'החתימה וההעלאה נעשות אצלו">לקוח עקיף שלכם</span>'
+           'font-size:11.5px;margin-inline-start:6px" title="יצרן שאתם המוביל האחראי שלו">'+
+           'לקוח עקיף שלכם</span>'
           :'';
+      }
+      /* שתי הפעולות, גדולות וברורות, מעל פס השלבים (לימור 17/08: "איפה
+         היעילות והפשטות?" — קודם שם המסמך היה קישור בלבד ופס השלבים תפס
+         יותר מקום מהפעולה עצמה) */
+      function actionBtns(d){
+        var dl='<a target="_blank" href="/declaration-doc?id='+d.id+'" '+
+          'style="display:inline-block;background:#fff;border:1.5px solid #5B9E96;color:#2F5F59;'+
+          'border-radius:9px;padding:9px 16px;font-family:var(--fh);font-size:13.5px;'+
+          'text-decoration:none">⬇ הורדה / הדפסה</a>';
+        var up=d.has_signed_scan
+          ?'<button onclick="uploadScan('+d.id+')" style="background:#fff;border:1.5px solid #C9A227;'+
+           'color:#8a5d00;border-radius:9px;padding:9px 16px;font-family:var(--fh);font-size:13.5px;'+
+           'cursor:pointer">🔁 החלפת המסמך החתום</button>'
+          :'<button onclick="uploadScan('+d.id+')" style="background:#5B9E96;color:#fff;border:none;'+
+           'border-radius:9px;padding:9px 16px;font-family:var(--fh);font-size:13.5px;cursor:pointer">'+
+           '📷 העלאת המסמך החתום</button>';
+        return '<div style="display:flex;gap:8px;flex-wrap:wrap;margin:8px 0 2px">'+dl+up+'</div>';
       }
       /* פס-השלבים (לימור 12/08): 4 שלבים קבועים, סימון "איפה אנחנו" על כל הצהרה,
          כדי שאישור נוסח לא ייקרא בטעות כסוף התהליך */
@@ -128,16 +145,17 @@
         else if(d.status==='released'&&d.has_signed_scan){ cur=3; nowTxt='בבדיקת אקו-אויל'; nowCol='#2F5170'; nowBg='#E4EDF5'; }
         else if(d.status==='released'){ cur=2; nowTxt='◄ אתם כאן'; }
         else { cur=1; nowTxt='בבדיקת אקו-אויל'; nowCol='#2F5170'; nowBg='#E4EDF5'; }
-        var h='<div style="display:flex;gap:4px;margin:8px 0 2px">';
+        /* מוקטן ב-17/08: זו רצועת מצב מתחת לפעולות, לא הדבר הראשי במסך */
+        var h='<div style="display:flex;gap:3px;margin:6px 0 2px;opacity:.85">';
         for(var i=0;i<4;i++){
           var isDone=i<cur, isNow=i===cur;
           var col=isDone?'#2F6B3A':(isNow?nowCol:'#9a9a9a');
           var h2='<div style="flex:1;text-align:center;min-width:0">'+
-            '<div style="width:24px;height:24px;line-height:21px;border-radius:50%;margin:0 auto;'+
+            '<div style="width:17px;height:17px;line-height:15px;border-radius:50%;margin:0 auto;'+
             'background:'+(isDone?'#EDF7EE':(isNow?nowBg:'#f1f1f1'))+';'+
-            'border:1.5px solid '+(isDone?'#9CC9A1':(isNow?col:'#ddd'))+';'+
-            'color:'+col+';font-weight:bold;font-size:12px">'+(isDone?'✓':(i+1))+'</div>'+
-            '<div style="font-size:10.5px;line-height:1.35;color:'+col+';margin-top:3px'+(isNow?';font-weight:bold':'')+'">'+
+            'border:1px solid '+(isDone?'#9CC9A1':(isNow?col:'#ddd'))+';'+
+            'color:'+col+';font-weight:bold;font-size:10px">'+(isDone?'✓':(i+1))+'</div>'+
+            '<div style="font-size:9.5px;line-height:1.3;color:'+col+';margin-top:2px'+(isNow?';font-weight:bold':'')+'">'+
             steps[i]+(isNow?'<br>'+nowTxt:'')+'</div></div>';
           h+=h2;
         }
@@ -145,28 +163,20 @@
       }
       if(rel.length){
         document.getElementById('signDocsList').innerHTML=rel.map(function(d){
-          return '<div style="margin:14px 0"><a target="_blank" href="/declaration-doc?id='+d.id+'" '+
-            'style="color:#2F5F59;font-weight:600;text-decoration:underline">הצהרת יצרן — '+
-            esc(d.producer_name)+' ('+esc(d.material_name)+')</a>'+indirectTag(d)+
-            '<span style="color:#8a8a8a;font-size:12px"> · '+dt(d)+'</span>'+
+          /* סדר המסך (17/08): שם → שתי הפעולות → מצב. הפעולה קודמת להסבר. */
+          return '<div style="margin:16px 0;padding-bottom:12px;border-bottom:1px solid #EFE3C8">'+
+            '<div style="color:#2F5F59;font-weight:600">הצהרת יצרן — '+
+            esc(d.producer_name)+' ('+esc(d.material_name)+')'+indirectTag(d)+
+            '<span style="color:#8a8a8a;font-size:12px;font-weight:400"> · '+dt(d)+'</span></div>'+
+            actionBtns(d)+
+            (d.has_signed_scan
+              ?'<div style="font-size:12.5px;color:#2F6B3A;margin-top:4px">✓ המסמך החתום התקבל — ממתין לאישור אקו-אויל'+
+               ' <a href="#" onclick="viewMyScan('+d.id+');return false;" style="color:#2F5F59">(צפייה)</a></div>'
+              :'<div style="font-size:12px;color:#8a8a8a;margin-top:4px">'+
+               (d.indirect?'הורידו, החתימו אצל היצרן, והעלו כאן את המסמך החתום.'
+                          :'הורידו או הדפיסו, חתמו והחתימו בחותמת, והעלו כאן את המסמך החתום.')+
+               ' סריקה או צילום ברור מהטלפון.</div>')+
             stepBar(d)+
-            (d.indirect
-              ?'<div style="font-size:12.5px;color:#5a6b6a;margin-top:3px">'+
-               (d.has_signed_scan
-                 ?'✓ המסמך החתום התקבל — ממתין לאישור אקו-אויל'+
-                  ' <a href="#" onclick="viewMyScan('+d.id+');return false;" style="color:#2F5F59">(צפייה)</a>'
-                 /* המוביל מוריד ומעביר ליצרן לחתימה; ההעלאה נעשית אצל היצרן
-                    (לימור 17/08 — מקרה ורידיס/אלביט) */
-                 :'לחצו על שם המסמך למעלה כדי להוריד או להדפיס, והעבירו ליצרן לחתימה וחותמת.'+
-                  '<br>את המסמך החתום מעלה היצרן בפורטל שלו.')+'</div>'
-             :d.has_signed_scan
-              ?'<div style="font-size:12.5px;color:#2F6B3A;margin-top:3px">✓ המסמך החתום התקבל — ממתין לאישור אקו-אויל'+
-               ' <a href="#" onclick="viewMyScan('+d.id+');return false;" style="color:#2F5F59">(צפייה)</a>'+
-               ' · <a href="#" onclick="uploadScan('+d.id+');return false;" style="color:#8a5d00">החלפת הקובץ</a></div>'
-              :'<div style="margin-top:5px"><button onclick="uploadScan('+d.id+')" '+
-               'style="background:#5B9E96;color:#fff;border:none;border-radius:8px;padding:8px 14px;font-family:var(--fh);font-size:13px;cursor:pointer">'+
-               '📷 העלאת המסמך החתום</button>'+
-               '<span style="font-size:12px;color:#8a8a8a;margin-right:8px">סריקה או צילום ברור מהטלפון</span></div>')+
             '</div>';
         }).join('');
         box.style.display='block';
