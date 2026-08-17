@@ -51,6 +51,9 @@
   <button class="btn" onclick="startFlow('wash')">🧼 שטיפה</button>
   <button class="btn" onclick="startFlow('exit')">📤 יציאה</button>
   <button class="btn" style="background:#6a1b9a;" onclick="startFlow('repairs')">🔧 תיקונים</button>
+  <!-- לימור 17/08: הוספת תמונות למכל שכבר דווח — למשל כשהצילום הראשון יצא לא קריא.
+       תיעוד בלבד: התמונות מתויקות, ושום דבר בקובץ לא משתנה (בלי שעת כניסה מזויפת). -->
+  <button class="btn" style="background:#00695c;" onclick="startFlow('photos')">📎 הוספת תמונות</button>
   <div class="card">
     <div class="note">יצירת אייקון נפרד למסך הבית: לוחצים על קישור ← ואז בתפריט הדפדפן "הוספה למסך הבית".</div>
     <div style="display:flex; gap:10px; margin-top:8px;">
@@ -86,8 +89,14 @@
       <div id="tankResults" style="display:flex; flex-direction:column; gap:8px; margin-top:8px;"></div>
     </div>
     <div id="manualWrap">
-      <label>מספר (אם ידוע — לא חובה, המשרד מפענח מהתמונה)</label>
-      <input type="text" id="tankManual" autocapitalize="characters" autocomplete="off">
+      <label id="manualLabel">מספר (אם ידוע — לא חובה, המשרד מפענח מהתמונה)</label>
+      <input type="text" id="tankManual" autocapitalize="characters" autocomplete="off" oninput="checkTyped()">
+      <!-- לימור 17/08: לכל מספר מכל יש ספרת ביקורת מובנית (ISO-6346) — בדיקה מיידית
+           תופסת טעות הקלדה כאן, במקום גילוי במשרד למחרת -->
+      <div id="tankHint" class="hidden" style="margin-top:6px; font-size:16px; font-weight:bold;"></div>
+    </div>
+    <div id="photosNote" class="hidden note" style="background:#e0f2f1; border-radius:10px; padding:10px; font-size:16px; color:#00443f;">
+      תיעוד בלבד: התמונות יתויקו לתיק המכל. שום דבר בקובץ לא ישתנה — לא תאריך, לא שעה ולא סטטוס.
     </div>
     <!-- דאמוני 22/07: המצלמה הפנימית שודרגה לחוויית מצלמה מלאה (זום בצביטה, פלאש,
          היפוך לסלפי — חיוני לצילום דיסקיות תחתית ופנים מכל חשוך). הקלט הקבצי = גיבוי
@@ -164,6 +173,11 @@
   <div id="camView" style="flex:1; min-height:0; position:relative; overflow:hidden;">
     <video id="camVideo" autoplay playsinline muted style="width:100%; height:100%; object-fit:cover;"></video>
   </div>
+  <!-- לימור 17/08: אזהרת טשטוש מיידית — בזמן שהעובד עוד עומד מול המכל -->
+  <div id="camWarn" style="display:none; background:#c62828; color:#fff; font-size:21px; font-weight:bold; text-align:center; padding:14px 12px; line-height:1.4;">
+    ⚠ התמונה מטושטשת — צלם שוב<br>
+    <span style="font-size:16px; font-weight:normal;">להתקרב, לעמוד מול הלוחית, ובחושך ללחוץ על ⚡ הפנס</span>
+  </div>
   <div id="camZoomChips" style="display:flex; justify-content:center; gap:10px; padding:8px 0; background:#000;"></div>
   <div style="display:flex; gap:10px; padding:14px; background:#111; align-items:center;">
     <button style="flex:1; font-size:26px; font-weight:bold; padding:18px; border:none; border-radius:14px; background:#c62828; color:#fff;" onclick="camShot()">📷 צילום</button>
@@ -220,15 +234,25 @@ function startFlow(t) {
   flowType = t; photos = [];
   document.getElementById("thumbs").innerHTML = "";
   document.getElementById("tankManual").value = "";
-  document.getElementById("flowTitle").textContent = {entry:"📥 כניסה", wash:"🧼 שטיפה", exit:"📤 יציאה", repairs:"🔧 תיקונים"}[t];
+  document.getElementById("tankHint").classList.add("hidden");
+  blurBanner(false);
+  document.getElementById("flowTitle").textContent = {entry:"📥 כניסה", wash:"🧼 שטיפה", exit:"📤 יציאה",
+                                                      repairs:"🔧 תיקונים", photos:"📎 הוספת תמונות"}[t];
   document.getElementById("treatWrap").classList.toggle("hidden", t !== "wash");
   // דאמוני 22/07: גם בכניסה יש בחירה מהירה — מתוך רשימת הצפויים להיכנס (מקרה KRIU2267577:
   // כניסה מהתמונה בלי מספר חיכתה לפענוח ידני במשרד; בחירה מהרשימה נקלטת מיד)
   document.getElementById("pickWrap").classList.remove("hidden");
   document.getElementById("pickLabel").textContent = t === "entry"
     ? "בחירה מרשימת הצפויים להיכנס — הקלידו כמה ספרות מהמספר"
+    : t === "photos"
+    ? "לאיזה מכל להוסיף תמונות? — הקלידו כמה ספרות מהמספר"
     : "בחירת נכס — הקלידו כמה ספרות מהמספר";
-  document.getElementById("manualWrap").classList.toggle("hidden", t !== "entry");
+  // בהוספת תמונות תמיד אפשר גם להקליד מספר — זה בדיוק המצב שבו הפענוח נכשל
+  document.getElementById("manualWrap").classList.toggle("hidden", !(t === "entry" || t === "photos"));
+  document.getElementById("manualLabel").textContent = t === "photos"
+    ? "מספר המכל (חובה — אפשר לבחור מהרשימה למעלה או להקליד)"
+    : "מספר (אם ידוע — לא חובה, המשרד מפענח מהתמונה)";
+  document.getElementById("photosNote").classList.toggle("hidden", t !== "photos");
   // תיקונים = איזוטנקים בלבד (במכליות אין תיקונים) — בלי בורר סוג נכס
   if (t === "repairs") document.getElementById("assetType").value = "iso";
   document.getElementById("assetTypeWrap").classList.toggle("hidden", t === "repairs");
@@ -287,7 +311,11 @@ function enableUnlisted() {
 function cancelUnlisted() {
   unlistedMode = false;
   document.getElementById("tankManual").value = "";
-  if (flowType !== "entry") document.getElementById("manualWrap").classList.add("hidden");
+  document.getElementById("tankHint").classList.add("hidden");
+  // בכניסה ובהוספת תמונות שדה ההקלדה תמיד פתוח (17/08: בלעדיו אי אפשר להקליד
+  // מספר שהפענוח לא הצליח לקרוא — בדיוק המצב שבשבילו המסך נבנה)
+  if (flowType !== "entry" && flowType !== "photos")
+    document.getElementById("manualWrap").classList.add("hidden");
 }
 
 async function loadOnsite() {
@@ -383,6 +411,35 @@ function chooseTank(tank, cust) {
 }
 
 const UNLISTED_BTN = `<button type="button" style="font-size:20px; padding:14px; border-radius:10px; border:2px dashed #b8860b; background:#fff8e6; color:#222;" onclick="enableUnlisted()">🚫 המכל לא ברשימה — דיווח עם צילום המספר</button>`;
+// בהוספת תמונות אין "מכל לא ברשימה" — שם מקלידים את המספר ישירות (17/08)
+const unlistedBtn = () => flowType === "photos" ? "" : UNLISTED_BTN;
+
+// ---------- ספרת ביקורת ISO-6346 (לימור 17/08) ----------
+// אותה בדיקה שאיתה זוהה SVSU2650161 מהתמונה המטושטשת: טעות בספרה אחת נכשלת
+// בהסתברות 10 מתוך 11, ולכן זו תפיסת-טעויות מיידית בזמן ההקלדה.
+function isoValid(code) {
+  const s = (code || "").replace(/\s+/g, "").toUpperCase();
+  if (!/^[A-Z]{4}\d{7}$/.test(s)) return null;          // לא בפורמט — אין מה לבדוק
+  const LET = {};
+  let n = 10;
+  for (const ch of "ABCDEFGHIJKLMNOPQRSTUVWXYZ") { while (n % 11 === 0) n++; LET[ch] = n++; }
+  let sum = 0;
+  for (let i = 0; i < 10; i++) {
+    const c = s[i];
+    sum += (c >= "0" && c <= "9" ? +c : LET[c]) * Math.pow(2, i);
+  }
+  return (sum % 11) % 10 === +s[10];
+}
+
+function checkTyped() {
+  const el = document.getElementById("tankManual");
+  const hint = document.getElementById("tankHint");
+  const v = isoValid(el.value);
+  if (v === null) { hint.classList.add("hidden"); return; }
+  hint.classList.remove("hidden");
+  hint.style.color = v ? "#1d8a3a" : "#b03030";
+  hint.textContent = v ? "✓ מספר תקין" : "⚠ המספר לא תקין — כדאי לבדוק שוב את הלוחית";
+}
 
 function pickPool() {
   // בכניסה מציעים רק את הצפויים להיכנס; בשאר המסכים — כל הנכסים במגרש
@@ -405,8 +462,8 @@ function filterTanks() {
       return;
     }
     res.innerHTML = onsiteAssets.length
-      ? `<div class="note">${onsiteAssets.length} נכסים במגרש — הקלידו ספרות כדי לצמצם</div>` + UNLISTED_BTN
-      : '<div class="note">הרשימה לא נטענה — בדקו קליטה ונסו שוב</div>' + UNLISTED_BTN;
+      ? `<div class="note">${onsiteAssets.length} נכסים במגרש — הקלידו ספרות כדי לצמצם</div>` + unlistedBtn()
+      : '<div class="note">הרשימה לא נטענה — בדקו קליטה ונסו שוב</div>' + unlistedBtn();
     return;
   }
   const norm = t => (t || "").replace(/[^0-9A-Za-z]/g, "").toUpperCase();
@@ -432,9 +489,58 @@ function filterTanks() {
     }
   }
   const top = matches.sort((a, b) => ends(b) - ends(a)).slice(0, 10);
-  res.innerHTML = top.map(mkBtn).join("") ||
-    '<div class="note">אין התאמה ברשימה. אם המספר נכון — לא נורא: מדווחים בכפתור למטה, והדיווח יישמר בצד וייקלט אוטומטית כשהמשרד יפתח את השורה.</div>' + UNLISTED_BTN;
+  res.innerHTML = top.map(mkBtn).join("") || (flowType === "photos"
+    ? '<div class="note">אין התאמה ברשימה — אפשר להקליד את המספר המלא למטה ולצלם.</div>'
+    : '<div class="note">אין התאמה ברשימה. אם המספר נכון — לא נורא: מדווחים בכפתור למטה, והדיווח יישמר בצד וייקלט אוטומטית כשהמשרד יפתח את השורה.</div>' + UNLISTED_BTN);
   if (matches.length > 10) res.innerHTML += `<div class="note">מוצגות 10 מתוך ${matches.length} התאמות — הוסיפו עוד ספרה</div>`;
+}
+
+// ---------- בדיקת חדות התמונה (לימור 17/08) ----------
+// הרקע: ב-17/08 בבוקר הגיעה תמונת כניסה כל כך מטושטשת שגם אנשים לא הצליחו לקרוא
+// אותה, והבעיה התגלתה במשרד שעות אחרי שהעובד עזב את המכל. המדד (שונות לפלסיאן)
+// כויל בדפדפן עצמו על תמונות אמיתיות מהמערכת: שתי המטושטשות של אותו בוקר קיבלו
+// 31 ו-35, החלשה מבין הקריאות קיבלה 128, והשאר 273–3934. הסף 70 = כפול מהגרועות
+// ופחות מחצי מהחלשה שבקריאות. אזהרה בלבד — לעולם לא חסימה.
+const BLUR_MIN = 70;
+const _blurCv = document.createElement("canvas");
+function blurScore(src) {
+  const w0 = src.width || src.videoWidth, h0 = src.height || src.videoHeight;
+  if (!w0 || !h0) return null;
+  const r = Math.min(1, 900 / Math.max(w0, h0));
+  const w = Math.max(8, Math.round(w0 * r)), h = Math.max(8, Math.round(h0 * r));
+  _blurCv.width = w; _blurCv.height = h;
+  const ctx = _blurCv.getContext("2d", {willReadFrequently: true});
+  ctx.drawImage(src, 0, 0, w, h);
+  const d = ctx.getImageData(0, 0, w, h).data;
+  const g = new Float32Array(w * h);
+  for (let i = 0, p = 0; p < g.length; i += 4, p++) g[p] = 0.299*d[i] + 0.587*d[i+1] + 0.114*d[i+2];
+  let s = 0, s2 = 0, n = 0;
+  for (let y = 1; y < h - 1; y++) {
+    for (let x = 1; x < w - 1; x++) {
+      const i = y*w + x;
+      const v = g[i-w] + g[i+w] + g[i-1] + g[i+1] - 4*g[i];
+      s += v; s2 += v*v; n++;
+    }
+  }
+  if (!n) return null;
+  return s2/n - (s/n)*(s/n);
+}
+async function blurScoreFile(f) {
+  try {
+    const bmp = await createImageBitmap(f);
+    const v = blurScore(bmp);
+    if (bmp.close) bmp.close();
+    return v;
+  } catch (e) { return null; }   // לא הצלחנו לבדוק — לא חוסמים את העובד
+}
+function blurBanner(show) {
+  const el = document.getElementById("camWarn");
+  if (!el) return;
+  el.style.display = show ? "block" : "none";
+  if (show) {
+    clearTimeout(el._t);
+    el._t = setTimeout(() => { el.style.display = "none"; }, 6000);
+  }
 }
 
 function addThumb(f) {
@@ -443,17 +549,33 @@ function addThumb(f) {
   wrap.style.cssText = "position:relative; display:inline-block;";
   const img = document.createElement("img");
   img.src = URL.createObjectURL(f);
+  // סימון ויזואלי לתמונה מטושטשת: מסגרת אדומה + תגית (התגית נוספת אחרי התמונה
+  // כדי שתופיע מעליה)
+  let tag = null;
+  if (f._blurry) {
+    img.style.borderColor = "#c62828";
+    tag = document.createElement("div");
+    tag.textContent = "מטושטש";
+    tag.style.cssText = "position:absolute; bottom:0; right:0; left:0; background:rgba(198,40,40,.9); color:#fff; font-size:12px; font-weight:bold; text-align:center; border-radius:0 0 8px 8px;";
+  }
   const x = document.createElement("button");
   x.textContent = "✕";
   x.style.cssText = "position:absolute; top:-8px; right:-8px; background:#b03030; color:#fff; border:2px solid #fff; border-radius:50%; width:32px; height:32px; font-size:16px; font-weight:bold;";
   x.onclick = () => { photos = photos.filter(p => p !== f); wrap.remove(); };
-  wrap.appendChild(img); wrap.appendChild(x);
+  wrap.appendChild(img);
+  if (tag) wrap.appendChild(tag);
+  wrap.appendChild(x);
   document.getElementById("thumbs").appendChild(wrap);
 }
 
-document.getElementById("fileInput").addEventListener("change", ev => {
-  for (const f of ev.target.files) { photos.push(f); addThumb(f); }
+document.getElementById("fileInput").addEventListener("change", async ev => {
+  const files = [...ev.target.files];
   ev.target.value = "";
+  for (const f of files) {
+    const sc = await blurScoreFile(f);
+    f._blurry = (sc !== null && sc < BLUR_MIN);
+    photos.push(f); addThumb(f);
+  }
 });
 const fileInput = document.getElementById("fileInput");
 
@@ -706,9 +828,14 @@ function camShot() {
   }
   c.width = sw; c.height = sh;
   c.getContext("2d").drawImage(v, sx, sy, sw, sh, 0, 0, sw, sh);
+  // בדיקת חדות מיד בזמן הצילום (לימור 17/08) — העובד עוד עומד מול המכל
+  const sc = blurScore(c);
+  const blurry = (sc !== null && sc < BLUR_MIN);
+  blurBanner(blurry);
   c.toBlob(b => {
     if (!b) return;
     const f = new File([b], "cam_" + Date.now() + ".jpg", {type: "image/jpeg"});
+    f._blurry = blurry;
     photos.push(f); addThumb(f); updateCamCount();
     // הבזק משוב קצר — שהעובד יראה שהתמונה נתפסה
     v.style.opacity = "0.25";
@@ -733,10 +860,24 @@ async function submitEvent() {
   const at = document.getElementById("assetType").value;
   // כניסה: קודם הבחירה מרשימת הצפויים (דאמוני 22/07), אחרת המספר שהוקלד ידנית
   let tank = unlistedMode ? document.getElementById("tankManual").value
-           : flowType === "entry" ? (selectedTank || document.getElementById("tankManual").value)
+           : (flowType === "entry" || flowType === "photos") ? (selectedTank || document.getElementById("tankManual").value)
            : selectedTank;
-  if (flowType !== "entry" && !unlistedMode && !tank) { alert("נא לבחור נכס מהרשימה (הקלידו ספרות ולחצו על הנכס)"); return; }
+  // הוספת תמונות (17/08): מספר המכל חובה — בלי מספר אין לאן לתייק
+  if (flowType === "photos") {
+    if (!(tank || "").trim()) { alert("צריך מספר מכל — לבחור מהרשימה או להקליד"); return; }
+    if (photos.length === 0) { alert("צריך לצלם לפחות תמונה אחת"); return; }
+  }
+  if (flowType !== "entry" && flowType !== "photos" && !unlistedMode && !tank) { alert("נא לבחור נכס מהרשימה (הקלידו ספרות ולחצו על הנכס)"); return; }
   if ((flowType === "entry" || unlistedMode) && photos.length === 0) { alert("חובה לצלם את לוחית המספר"); return; }
+  // ספרת ביקורת: מספר שהוקלד ידנית ואינו תקין — אישור מפורש לפני שליחה
+  const typed = document.getElementById("tankManual").value.trim();
+  if (typed && !selectedTank && isoValid(typed) === false &&
+      !confirm("⚠ המספר " + typed.toUpperCase() + " לא תקין לפי ספרת הביקורת.\n\n" +
+               "כדאי לבדוק שוב את הלוחית. לשלוח בכל זאת?")) return;
+  // כל התמונות מטושטשות — אישור מפורש (תמונה אחת טובה מספיקה כדי לא להציק)
+  if (photos.length && photos.every(p => p._blurry) &&
+      !confirm("⚠ התמונות יצאו מטושטשות ואולי לא יהיה אפשר לקרוא את המספר.\n\n" +
+               "מומלץ לצלם שוב מקרוב, ובחושך עם הפנס.\n\nלשלוח בכל זאת?")) return;
   // פעימה 3 (הכרעת יואב 19/07): תמונת פנים המכל אחרי השטיפה = חובה
   if (flowType === "wash" && photos.length === 0) { alert("חובה לצלם את פנים המכל לאחר השטיפה"); return; }
   // פעימת התיקונים: חייבים לסמן מה תוקן + לצלם (לפני ואחרי — הכרעת יואב)
