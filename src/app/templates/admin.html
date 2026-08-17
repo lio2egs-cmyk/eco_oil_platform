@@ -109,13 +109,20 @@
     <div id="declList" class="muted">טוען…</div>
   </div>
 
+  <!-- לקוחות ומשתמשים (17/08, לימור): הרשימה גדלה כל הזמן, אז היא סגורה
+       כברירת מחדל — קודם תיבת החיפוש, ורק אז הרשימה. הקלדה בחיפוש פותחת
+       את התוצאות לבד; כפתור נפרד פותח את כל הרשימה. -->
   <div class="card">
     <div class="row">
-      <input type="text" id="q" placeholder="חיפוש חברה או מייל — הקלידי והרשימה תצטמצם מיד" style="max-width:360px" oninput="render()">
+      <input type="text" id="q" placeholder="חיפוש חברה או מייל — הקלידי והרשימה תיפתח" style="max-width:360px" oninput="render()">
       <span class="muted" id="stats"></span>
       <button class="btn btn-soft" style="margin-inline-start:auto" onclick="toggleNewCard()">+ הקמת חברה חדשה</button>
     </div>
-    <div id="list">טוען…</div>
+    <div class="row" style="margin-top:6px">
+      <button class="btn btn-soft" id="listToggle" onclick="toggleList()">◂ הצגת כל הלקוחות</button>
+      <span class="muted" id="listHint">הרשימה סגורה — הקלידי בחיפוש כדי למצוא חברה, או פתחי את כולן</span>
+    </div>
+    <div id="list" class="hidden">טוען…</div>
   </div>
 
   <!-- סתירות תיוק מול חיוב (לימור 06/08, אחרי מקרה עידן/מיקוש):
@@ -487,8 +494,15 @@ function fmtDate(iso){
   return '<span class="ok">'+('0'+d.getDate()).slice(-2)+'/'+('0'+(d.getMonth()+1)).slice(-2)+'/'+d.getFullYear()+'</span>';
 }
 
+/* פתיחה/סגירה של רשימת הלקוחות (לימור 17/08).
+   הרשימה נפתחת בשני מצבים: כפתור "הצגת כל הלקוחות", או הקלדה בחיפוש —
+   שאז מוצגות רק ההתאמות. מחיקת החיפוש מחזירה למצב סגור. */
+var LIST_OPEN=false;
+function toggleList(){ LIST_OPEN=!LIST_OPEN; render(); }
+
 function render(){
   var q=(document.getElementById('q').value||'').trim();
+  var visible=LIST_OPEN||!!q;
   var byClient={};
   USERS.forEach(function(u){ (byClient[u.client_id]=byClient[u.client_id]||[]).push(u); });
   var shown=0, h='';
@@ -547,8 +561,19 @@ function render(){
              'onclick="toggleDocsBlock('+c.id+',\''+esc(c.name)+'\',1)">⛔ חסמי מסמכים</button>')+
        '</div></div>';
   });
-  document.getElementById('stats').textContent=shown+' חברות · '+USERS.length+' משתמשים בסה"כ';
-  document.getElementById('list').innerHTML=h||'<div class="muted">לא נמצאו חברות</div>';
+  document.getElementById('stats').textContent=
+    (q?shown+' מתוך '+CLIENTS.length+' חברות':CLIENTS.length+' חברות')+
+    ' · '+USERS.length+' משתמשים בסה"כ';
+
+  var listEl=document.getElementById('list');
+  listEl.classList.toggle('hidden',!visible);
+  document.getElementById('listToggle').textContent=
+    LIST_OPEN?'▾ סגירת הרשימה':'◂ הצגת כל הלקוחות';
+  document.getElementById('listHint').textContent=
+    q?('מוצגות ההתאמות ל"'+q+'" — מחקי את החיפוש כדי לסגור')
+     :(LIST_OPEN?'':'הרשימה סגורה — הקלידי בחיפוש כדי למצוא חברה, או פתחי את כולן');
+  if(!visible){ listEl.innerHTML=''; return; }   /* סגור = לא בונים ולא מושכים מונים */
+  listEl.innerHTML=h||'<div class="muted">לא נמצאו חברות</div>';
   CLIENTS.forEach(function(c){ lazyCount(c.id); });
 }
 
