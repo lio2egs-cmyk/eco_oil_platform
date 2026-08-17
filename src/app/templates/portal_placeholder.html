@@ -63,8 +63,13 @@
   </div>
 {% raw %}<script>
   if(!localStorage.getItem('eco_access_token')){ location.href='/login'; }
+  /* תצוגת מנהלת (17/08): ?client_id= — הזהות נקבעת מהשרת, ולכן מדלגים על
+     כל מה שנשען על eco_user שבדפדפן. בלי הדילוג הזה זהות ישנה שנשארה
+     באחסון (למשל כניסה קודמת לניהול הדיפו) הקפיצה את לימור למסך הדיפו
+     במקום להראות לה את עמוד הלקוח. */
+  var IS_PREVIEW=!!new URLSearchParams(location.search).get('client_id');
   try{
-    var u=JSON.parse(localStorage.getItem('eco_user')||'{}');
+    var u=IS_PREVIEW?{}:JSON.parse(localStorage.getItem('eco_user')||'{}');
     /* צוות מסך ניהול הדיפו (לימור 06/08) — נכנס בקסם-קישור ומגיע ישר למסך שלו */
     if(u && u.role==='depot_admin'){ location.href='/depot-admin'; }
     if(u && u.client_name){ document.getElementById('who').textContent='שלום, '+u.client_name; }

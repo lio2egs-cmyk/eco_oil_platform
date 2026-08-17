@@ -194,6 +194,10 @@ async function doLogin(){
   if((d.user||{}).role!=='admin'){ document.getElementById('loginMsg').textContent='חשבון זה אינו מנהל'; return; }
   localStorage.setItem('eco_access_token',d.access_token);
   localStorage.setItem('eco_refresh_token',d.refresh_token);
+  /* דורסים זהות ישנה שנשארה באחסון (17/08): הכניסה הזו שמרה רק את הטוקן,
+     ו-eco_user של כניסה קודמת — למשל לניהול הדיפו — שרד והקפיץ מסכים
+     אחרים למקום הלא נכון */
+  localStorage.setItem('eco_user',JSON.stringify(d.user||{role:'admin'}));
   document.getElementById('pw').value='';
   boot();
 }
