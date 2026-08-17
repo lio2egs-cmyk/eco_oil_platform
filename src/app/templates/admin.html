@@ -43,6 +43,10 @@
   .collapsible:hover { color:var(--green); }
   .collapsible .chev { display:inline-block; font-size:13px; color:var(--green); }
   .pill-alert { background:#FBE3E3; color:#8B2020; font-weight:bold; }
+  /* כותרות קבוצה בתוך טבלת ההצהרות (17/08) — סדרי עדיפות בתצוגה */
+  .declgrp td { background:#EDF3F2; font-weight:bold; color:var(--dark);
+          cursor:pointer; user-select:none; padding:7px 12px; font-size:13.5px; }
+  .declgrp td:hover { background:#E1EBE9; }
   /* חסימת מסמכים ברמת החברה (17/08) — בולט, כדי שלא תישכח חסימה פתוחה */
   .pill-blocked { background:#FBE3E3; color:#8B2020; font-weight:bold; }
   .blocked-note { background:#FDF0F0; border:1.5px solid #E9B5B5; color:#8B2020;
@@ -274,7 +278,17 @@ function daysSince(iso){
 }
 function daysTxt(n){ return n===1?'יום':n+' ימים'; }
 function declStatus(d){
-  if(d.status==='approved') return '<span class="ok">✔ אושרה סופית'+(d.approved_at?' '+fmtDT(d.approved_at).slice(0,10):'')+'</span>';
+  if(d.status==='approved'){
+    var on=(d.approved_at?' '+fmtDT(d.approved_at).slice(0,10):'');
+    /* אושרה אבל מסמך ההסכמה עוד לא הופק = התהליך לא נגמר, והכדור אצלך
+       (לימור 17/08) — בלי זה שתי השורות נראו זהות והתיק נשאר פתוח בשקט */
+    if(!d.agreement){
+      var na=daysSince(d.approved_at);
+      return '<span class="warn">✔ אושרה סופית'+on+' · ממתינה להפקת מסמך הסכמה'+
+             (na>=1?' — כבר '+daysTxt(na):'')+'</span>';
+    }
+    return '<span class="ok">✔ הוסדרה במלואה'+on+' · הסכמה מס\' '+d.agreement.number+'</span>';
+  }
   if(d.status==='released'&&d.has_signed_scan){
     var ns=daysSince(d.signed_scan_at);
     return '<span class="warn">מסמך חתום התקבל — ממתין לאישור הסופי שלך'+(ns>=1?' · לפני '+daysTxt(ns):'')+'</span>';
@@ -338,23 +352,87 @@ async function unreleaseDecl(id,name){
   toast('המסמך הוסר מתא הלקוח');
   await loadDeclarations();
 }
+/* ── סדרי עדיפות בתצוגת ההצהרות (לימור 17/08) ──────────────────────────
+   ההצפה: כל ההצהרות בערבוביה, כולל גרסאות ישנות של הגשות שכבר תוקנו.
+   הכלל שלה — מה שדורש אותה למעלה, מה שהוסדר יורד לתחתית, וגרסאות
+   ישנות לא מוצגות בכלל. ארבע קבוצות, לפי מי "מחזיק את הכדור":
+     0 דורש טיפול שלך  — הוגשה / מסמך חתום התקבל / אושרה בלי מסמך הסכמה
+     1 ממתין ללקוח     — בתא הלקוח לחתימה / הוחזרה לתיקון
+     2 הוסדר במלואו    — אושרה + מסמך הסכמה הופק  (סגור, בתחתית)
+     3 ארכיון          — גרסה ישנה שהוגשה מחדש / נפסלה  (סגור, בתחתית)
+   בתוך כל קבוצה: מי שממתין הכי הרבה זמן — ראשון. */
+function declGroup(d){
+  if(d.status==='superseded'||d.status==='rejected') return 3;
+  if(d.status==='approved') return d.agreement?2:0;
+  if(d.status==='submitted') return 0;
+  if(d.status==='released'&&d.has_signed_scan) return 0;
+  return 1;   /* בתא הלקוח ללא סריקה, או הוחזרה לתיקון */
+}
+var DECL_GROUPS=[
+  {key:'todo', title:'⬤ דורשות טיפול שלך',       open:true,  cls:'grp-todo'},
+  {key:'wait', title:'⏳ ממתינות ללקוח',           open:true,  cls:'grp-wait'},
+  {key:'done', title:'✔ הוסדרו במלואן',           open:false, cls:'grp-done'},
+  {key:'arch', title:'🗄 ארכיון — גרסאות ישנות ופסולות', open:false, cls:'grp-arch'}
+];
+/* "ממתין מאז" — התאריך שממנו סופרים בכל מצב; הישן ביותר עולה למעלה */
+function declWaitingSince(d){
+  if(d.status==='released'&&d.has_signed_scan) return d.signed_scan_at||d.submitted_at;
+  if(d.status==='released') return d.released_at||d.submitted_at;
+  if(d.status==='approved') return d.approved_at||d.submitted_at;
+  return d.submitted_at;
+}
+function toggleDeclGroup(key){
+  var g=DECL_GROUPS.filter(function(x){ return x.key===key; })[0];
+  g.open=!g.open;
+  document.querySelectorAll('#declList tr.'+g.cls).forEach(function(tr){
+    /* שורות הפירוט נשארות סגורות תמיד בפתיחת קבוצה */
+    tr.classList.toggle('hidden', tr.classList.contains('det')?true:!g.open);
+  });
+  var ch=document.getElementById('gch-'+key);
+  if(ch) ch.textContent=g.open?'▾':'◂';
+}
+
 async function loadDeclarations(){
   var box=document.getElementById('declList'), cnt=document.getElementById('declCount');
   var r=await api('/eco-oil/admin/producer-declarations');
   if(!r||!r.ok){ box.textContent='שגיאה בטעינת ההצהרות'; cnt.textContent=''; return; }
   var ds=(await r.json()).declarations;
-  window.DECLS=ds;  /* לטופס העריכה (13/08) */
-  var pending=ds.filter(function(d){ return d.status==='submitted'; }).length;
-  var atClient=ds.filter(function(d){ return d.status==='released'&&!d.has_signed_scan; }).length;
-  var forFinal=ds.filter(function(d){ return d.status==='released'&&d.has_signed_scan; }).length;
-  var inFix=ds.filter(function(d){ return d.status==='needs_fix'; }).length;
-  var done=ds.filter(function(d){ return d.status==='approved'; }).length;
-  cnt.textContent=ds.length?(ds.length+' הצהרות'+(pending?' · '+pending+' ממתינות לטיפולך':'')+(atClient?' · '+atClient+' אצל הלקוח לחתימה':'')+(forFinal?' · '+forFinal+' ממתינות לאישור סופי':'')+(inFix?' · '+inFix+' בתיקון אצל הלקוח':'')+(done?' · '+done+' אושרו':'')):'';
-  if(!ds.length){ box.textContent='אין עדיין הצהרות שהוגשו מהפורטל.'; return; }
+  window.DECLS=ds;  /* לטופס העריכה (13/08) — האינדקסים חייבים להישאר של המערך הזה */
+  if(!ds.length){ box.textContent='אין עדיין הצהרות שהוגשו מהפורטל.'; cnt.textContent=''; return; }
+
+  /* שיוך לקבוצות תוך שמירת האינדקס המקורי (toggleDecl/editDecl תלויים בו) */
+  var buckets=[[],[],[],[]];
+  ds.forEach(function(d,i){ buckets[declGroup(d)].push({d:d,i:i}); });
+  buckets.forEach(function(b){
+    b.sort(function(x,y){
+      var ax=declWaitingSince(x.d)||'', ay=declWaitingSince(y.d)||'';
+      return ax<ay?-1:(ax>ay?1:0);        /* הישן ביותר ראשון = הממתין הכי הרבה */
+    });
+  });
+  buckets[2].reverse(); buckets[3].reverse();   /* בהוסדר/ארכיון — החדש ראשון */
+
+  var live=buckets[0].length+buckets[1].length+buckets[2].length;
+  cnt.textContent=live+' הצהרות'+
+    (buckets[0].length?' · '+buckets[0].length+' דורשות טיפול שלך':'')+
+    (buckets[1].length?' · '+buckets[1].length+' אצל הלקוח':'')+
+    (buckets[2].length?' · '+buckets[2].length+' הוסדרו':'');
+
   var h='<table><tr><th>הוגשה בתאריך</th><th>חשבון פורטל</th><th>שם העסק בהצהרה</th>'+
         '<th>שם הזרם</th><th>מספר פסולת</th><th>כמות שנתית</th><th>מעמד</th><th></th></tr>';
-  ds.forEach(function(d,i){
-    h+='<tr><td>'+fmtDT(d.submitted_at)+'</td><td>'+esc(d.client_name)+'</td>'+
+  DECL_GROUPS.forEach(function(g,gi){
+    var items=buckets[gi];
+    if(!items.length) return;
+    h+='<tr class="declgrp"><td colspan="8" onclick="toggleDeclGroup(\''+g.key+'\')">'+
+       '<span class="chev" id="gch-'+g.key+'">'+(g.open?'▾':'◂')+'</span> '+
+       g.title+' <span class="pill">'+items.length+'</span></td></tr>';
+    items.forEach(function(it){ h+=declRow(it.d,it.i,g); });
+  });
+  box.innerHTML=h+'</table>';
+}
+
+function declRow(d,i,g){
+  var hide=g.open?'':' hidden';
+  return '<tr class="'+g.cls+hide+'"><td>'+fmtDT(d.submitted_at)+'</td><td>'+esc(d.client_name)+'</td>'+
        '<td><b>'+esc(d.producer_name)+'</b></td><td>'+esc(d.material_name)+'</td>'+
        '<td>'+esc(d.waste_stream_number)+'</td><td>'+esc(d.quantity)+'</td>'+
        '<td>'+declStatus(d)+'</td>'+
@@ -374,9 +452,7 @@ async function loadDeclarations(){
        ((d.status==='submitted'||d.status==='released'||d.status==='needs_fix')?'<button class="btn btn-danger" title="כלי צדדי — כפילות / הגשת ניסיון / ביטול; נשארת בתיעוד, לא מוצגת ללקוח" onclick="rejectDecl('+d.id+',\''+esc(d.producer_name)+'\')">✖ פסלי</button>':'')+
        (d.status==='rejected'?'<button class="btn btn-soft" onclick="unrejectDecl('+d.id+',\''+esc(d.producer_name)+'\')">החזירי</button>':'')+
        '</td></tr>'+
-       '<tr id="decl-'+i+'" class="hidden"><td colspan="8" style="background:#F8FBFA">'+declDetails(d)+'</td></tr>';
-  });
-  box.innerHTML=h+'</table>';
+       '<tr id="decl-'+i+'" class="'+g.cls+' det hidden"><td colspan="8" style="background:#F8FBFA">'+declDetails(d)+'</td></tr>';
 }
 function toggleDecl(i){ document.getElementById('decl-'+i).classList.toggle('hidden'); }
 /* עריכת משרד (לימור 13/08) — שדות טקסט חופשי בלבד, רק לפני חתימת הלקוח;
