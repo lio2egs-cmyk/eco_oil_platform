@@ -16,4 +16,8 @@ with app.app_context():
 
 
 if __name__ == "__main__":
-    app.run(debug=True, use_reloader=False)
+    # PORT lets a second local instance run alongside the usual one on 5000
+    # (production uses gunicorn, not this block).
+    import os
+
+    app.run(debug=True, use_reloader=False, port=int(os.environ.get("PORT", 5000)))

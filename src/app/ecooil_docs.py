@@ -30,6 +30,10 @@ WITHHELD_STATUSES = {"awaiting_declaration", "unpublished"}
 # לעולם לא את אזור המסמכים (אישורי פריקה / טופסי מלווה).
 DECLARATION_ONLY_ROLE = "eco_oil_declaration_only"
 
+# חסימת מסמכים ברמת החברה (לימור 17/08) — הנוסח שבחרה, מנומס ומפנה
+# להנהלת החשבונות. אין לשנות בלי אישורה.
+DOCS_BLOCKED_NOTICE = ("לצפייה במסמכים יש לפנות להנהלת החשבונות של אקו-אויל.")
+
 # הסריקה החתומה (לימור 09/08): מתקבלת גם כצילום טלפון — הרבה יצרנים מצלמים
 # את הדף החתום במקום לסרוק. לימור שופטת קריאוּת ברגע האישור הסופי.
 MAX_SCAN_BYTES = 15 * 1024 * 1024
@@ -888,6 +892,10 @@ def my_documents():
         q = q.filter(or_(EcoOilUnloadEvent.customer.ilike(like),
                          EcoOilUnloadEvent.transporter.ilike(like)))
 
+    # חסימת חברה (לימור 17/08): הפריקות עצמן עדיין מוצגות — הן לא מסמך;
+    # רק ההורדות נחסמות, וההודעה המנומסת מוצגת במקומן.
+    blocked = bool(client.docs_blocked)
+
     rows = q.order_by(EcoOilUnloadEvent.event_date.desc(),
                       EcoOilUnloadEvent.id.desc()).limit(5000).all()
     years = [y for (y,) in base.with_entities(EcoOilUnloadEvent.year)
@@ -900,6 +908,8 @@ def my_documents():
         "client_name": client.name,
         "client_id": client.id,
         "companies": _companies_for_user(get_jwt()),
+        "docs_blocked": blocked,
+        "docs_blocked_notice": DOCS_BLOCKED_NOTICE if blocked else None,
         "years": years,
         "streams": streams,
         "rows": [{
@@ -913,9 +923,12 @@ def my_documents():
             "code": r.code,
             # Sanction (Limor 29/07): she ALWAYS produces+files the documents and
             # withholds only the SENDING — so a filed PDF must never override the
-            # sanction. Withheld statuses hide BOTH downloads.
-            "has_pdf": bool(r.pdf_key) and r.doc_status not in WITHHELD_STATUSES,
-            "has_manifest": bool(r.manifest_key) and r.doc_status not in WITHHELD_STATUSES,
+            # sanction. Withheld statuses hide BOTH downloads. A company-level
+            # block (17/08) hides them all the same way, row by row.
+            "has_pdf": (not blocked) and bool(r.pdf_key)
+            and r.doc_status not in WITHHELD_STATUSES,
+            "has_manifest": (not blocked) and bool(r.manifest_key)
+            and r.doc_status not in WITHHELD_STATUSES,
             "doc_status": r.doc_status,
         } for r in rows],
     })
@@ -929,6 +942,10 @@ def download(event_id):
     client = _client_for_request()
     if client is None:
         return jsonify({"error": "no client"}), 403
+    # חסימת חברה (לימור 17/08) — נאכפת בשרת, לא רק בהסתרת הכפתור.
+    if client.docs_blocked:
+        return jsonify({"error": "blocked",
+                        "message": DOCS_BLOCKED_NOTICE}), 403
     q, _mode = _scoped_query(client)
     ev = q.filter(EcoOilUnloadEvent.id == event_id).first()
     if ev is None:

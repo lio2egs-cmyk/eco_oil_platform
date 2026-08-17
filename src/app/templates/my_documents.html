@@ -36,6 +36,11 @@
               padding:5px 12px; border-radius:8px; font-size:12.5px; text-decoration:none; font-weight:600; }
   .sanction .btn-decl:hover { background:#a96812; }
   .doconly { color:#667; font-size:12px; background:#E9EDEC; padding:4px 10px; border-radius:8px; }
+  /* חסימת מסמכים ברמת החברה (לימור 17/08) — הודעה מנומסת, בלי נימה של עונש */
+  .blocked-banner { display:none; background:#EEF3F7; border:1.5px solid #B9CBDA; color:#2F4A60;
+              font-size:14px; line-height:1.6; padding:12px 16px; border-radius:10px; margin-bottom:12px; }
+  .blocked-cell { color:#4A6478; font-size:12px; background:#EEF3F7; border:1px solid #C9D8E4;
+              padding:4px 10px; border-radius:8px; display:inline-block; }
   .back { color:var(--dark); text-decoration:none; font-size:14px; }
   .empty { text-align:center; padding:40px; color:#678; background:#fff; border-radius:10px; }
   .tabs { display:none; gap:8px; flex-wrap:wrap; margin-bottom:12px; }
@@ -55,6 +60,7 @@
 <div class="wrap">
   <!-- multi-company users (Limor 02/08): switch between their companies -->
   <div class="tabs" id="companyTabs"></div>
+  <div class="blocked-banner" id="blockedBanner"></div>
   <div class="filters">
     <select id="fYear"><option value="">כל השנים</option></select>
     <select id="fStream"><option value="">כל הזרמים</option></select>
@@ -68,6 +74,7 @@ if(!localStorage.getItem('eco_access_token')){ location.href='/login'; }
 /* משתמש "הצהרות בלבד" (לקוח עקיף, לימור 05/08) — אין לו אזור מסמכים; ה-API חוסם ממילא */
 try{ if(JSON.parse(localStorage.getItem('eco_user')||'{}').role==='eco_oil_declaration_only'){ location.href='/portal'; } }catch(e){}
 var MODE='billed';
+var BLOCKED=false;   /* חסימת מסמכים ברמת החברה (17/08) */
 
 async function apiGet(url){
   var r=await fetch(url,{headers:{'Authorization':'Bearer '+localStorage.getItem('eco_access_token')}});
@@ -119,8 +126,12 @@ async function load(first){
   if(!r||!r.ok){ document.getElementById('content').innerHTML='<div class="empty">שגיאה בטעינה</div>'; return; }
   var d=await r.json();
   MODE=d.mode;
+  BLOCKED=!!d.docs_blocked;
   document.getElementById('who').textContent=d.client_name;
   renderTabs(d.companies, d.client_id);
+  var bb=document.getElementById('blockedBanner');
+  bb.textContent=d.docs_blocked_notice||'';
+  bb.style.display=BLOCKED?'block':'none';
   if(first){
     d.years.forEach(function(v){ var o=document.createElement('option'); o.value=v; o.textContent=v;
       document.getElementById('fYear').appendChild(o); });
@@ -148,6 +159,8 @@ function docCell(r){
   if(r.has_pdf) out+='<button class="btn" onclick="dl('+r.id+')">אישור פריקה</button>';
   if(r.has_manifest) out+=' <button class="btn btn-manifest" onclick="dlm('+r.id+')">טופס מלווה</button>';
   if(out) return out;
+  // חסימת חברה (17/08) — אותה הודעה בכל שורה, כדי שגם מי שגלל למטה יבין למה
+  if(BLOCKED) return '<span class="blocked-cell">לפנות להנהלת החשבונות</span>';
   if(r.doc_status==='awaiting_declaration')
     // First sentence approved by Yoav 20/07/2026; per-site sentence added per
     // Limor 13/08/2026 (the אידיאה multi-site case) — do not change without approval.
@@ -168,7 +181,11 @@ async function dl(id,doc){
   if(CID)qp.set('client_id',CID);
   var url='/eco-oil/my-documents/'+id+'/download'+(qp.toString()?'?'+qp.toString():'');
   var r=await apiGet(url);
-  if(!r||!r.ok){ alert('הקובץ אינו זמין כרגע'); return; }
+  if(!r||!r.ok){
+    var msg='הקובץ אינו זמין כרגע';
+    try{ var e=await r.json(); if(e&&e.message) msg=e.message; }catch(_){}
+    alert(msg); return;
+  }
   var d=await r.json();
   if(d.url) window.open(d.url,'_blank');
 }

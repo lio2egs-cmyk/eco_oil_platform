@@ -76,6 +76,47 @@ def update_client(client_id):
     }, 200
 
 
+@main.route("/clients/<int:client_id>/docs-block", methods=["POST"])
+@admin_required
+def set_client_docs_block(client_id):
+    """חסימת/שחרור מסמכים ברמת החברה (לימור 17/08, בקשת הנהלת החשבונות).
+
+    חוסמת אישורי פריקה + טופסי מלווה בלבד — הקיימים וכל מה שייכנס בעתיד;
+    ההצהרות ומסמכי ההסכמה נשארים פתוחים. body: {"blocked": true/false,
+    "reason": "..."} — הסיבה חובה בחסימה, כדי שתמיד יהיה ברור מי ביקש ולמה."""
+    client = db.session.get(Client, client_id)
+    if client is None:
+        return {"error": "Client not found"}, 404
+
+    data = request.get_json(silent=True) or {}
+    blocked = bool(data.get("blocked"))
+    if blocked:
+        reason = (data.get("reason") or "").strip()
+        if not reason:
+            return {"error": "חובה לציין סיבה לחסימה"}, 400
+        from .db import User
+
+        admin = db.session.get(User, int(get_jwt_identity()))
+        client.docs_blocked = True
+        client.docs_blocked_at = datetime.utcnow()
+        client.docs_blocked_by = (admin.username if admin else None)
+        client.docs_blocked_reason = reason
+    else:
+        client.docs_blocked = False
+        client.docs_blocked_at = None
+        client.docs_blocked_by = None
+        client.docs_blocked_reason = None
+    db.session.commit()
+    return {
+        "id": client.id,
+        "docs_blocked": client.docs_blocked,
+        "docs_blocked_at": (client.docs_blocked_at.isoformat()
+                            if client.docs_blocked_at else None),
+        "docs_blocked_by": client.docs_blocked_by,
+        "docs_blocked_reason": client.docs_blocked_reason,
+    }, 200
+
+
 @main.route("/clients", methods=["GET"])
 @admin_required
 def list_clients():
@@ -89,6 +130,11 @@ def list_clients():
                 "client_type": c.client_type,
                 "billing_aliases": c.billing_aliases,
                 "parent_client_id": c.parent_client_id,
+                "docs_blocked": bool(c.docs_blocked),
+                "docs_blocked_at": (c.docs_blocked_at.isoformat()
+                                    if c.docs_blocked_at else None),
+                "docs_blocked_by": c.docs_blocked_by,
+                "docs_blocked_reason": c.docs_blocked_reason,
             }
             for c in clients
         ]
@@ -2816,9 +2862,10 @@ def eco_oil_client_portal(client_id):
             "billed_to": e.billed_to,
         })
 
-    # אישורי פריקה
+    # אישורי פריקה — חסימת חברה (לימור 17/08) מסתירה אותם כאן גם כן,
+    # כדי שלא ייווצר פתח עוקף. ההצהרות וההסכמות למעלה נשארות פתוחות.
     certs_data = []
-    for e in events:
+    for e in ([] if client.docs_blocked else events):
         for cert in e.disposal_certificate:
             certs_data.append({
                 "id": cert.id,

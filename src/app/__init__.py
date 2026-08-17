@@ -132,6 +132,11 @@ def create_app():
             "ALTER TABLE producer_declarations ADD COLUMN scan_file_note TEXT",
             "ALTER TABLE agreement_documents ADD COLUMN filed_at TIMESTAMP",
             "ALTER TABLE agreement_documents ADD COLUMN file_note TEXT",
+            # חסימת מסמכים ברמת החברה (17/08)
+            "ALTER TABLE clients ADD COLUMN docs_blocked BOOLEAN DEFAULT FALSE",
+            "ALTER TABLE clients ADD COLUMN docs_blocked_at TIMESTAMP",
+            "ALTER TABLE clients ADD COLUMN docs_blocked_by VARCHAR(120)",
+            "ALTER TABLE clients ADD COLUMN docs_blocked_reason TEXT",
         ):
             try:
                 db.session.execute(db.text(stmt))

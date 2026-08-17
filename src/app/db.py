@@ -17,6 +17,16 @@ class Client(db.Model):
     # former names, absorbed companies, per-site billed names, ריכוז spelling variants.
     billing_aliases = db.Column(db.Text)
 
+    # חסימת מסמכים ברמת החברה (לימור 17/08/2026, בקשת הנהלת החשבונות).
+    # חוסמת אישורי פריקה + טופסי מלווה בלבד — הקיימים וכל מה שייכנס בעתיד.
+    # ההצהרות ומסמכי ההסכמה נשארים פתוחים תמיד: מסמכים רגולטוריים, לא כלי
+    # לחץ מסחרי. שחרור = לחיצה אחת, בלי לגעת בעמודת "הערות למערכת פורטל"
+    # בריכוז (זו נשארת החסימה הנקודתית לשורה בודדת).
+    docs_blocked = db.Column(db.Boolean, default=False)
+    docs_blocked_at = db.Column(db.DateTime, nullable=True)
+    docs_blocked_by = db.Column(db.String(120), nullable=True)
+    docs_blocked_reason = db.Column(db.Text)
+
     sub_clients = db.relationship("Client", backref=db.backref("parent_client", remote_side="Client.id"), lazy="dynamic")
 
     def billed_names(self):

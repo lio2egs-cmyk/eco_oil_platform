@@ -38,6 +38,10 @@
   .ok { color:#2E7D32; } .warn { color:#B45309; }
   .pill { display:inline-block; background:#EDF3F2; color:var(--dark); border-radius:8px;
           padding:2px 9px; font-size:12px; margin-inline-start:6px; }
+  /* חסימת מסמכים ברמת החברה (17/08) — בולט, כדי שלא תישכח חסימה פתוחה */
+  .pill-blocked { background:#FBE3E3; color:#8B2020; font-weight:bold; }
+  .blocked-note { background:#FDF0F0; border:1.5px solid #E9B5B5; color:#8B2020;
+          border-radius:9px; padding:8px 12px; font-size:13px; line-height:1.6; margin:6px 0; }
   .toast { position:fixed; bottom:18px; right:18px; background:var(--dark); color:#fff;
            padding:10px 18px; border-radius:10px; font-size:14px; display:none; z-index:9; }
   #login { max-width:420px; margin:60px auto; }
@@ -487,8 +491,13 @@ function render(){
     h+='<div class="client" data-cid="'+c.id+'">'+
        '<div class="name">'+esc(c.name)+
          (c.client_type==='indirect'?'<span class="pill" title="לקוח של מוביל — לפי עמודת סוג לקוח במסד">יצרן עקיף</span>':'')+
+         (c.docs_blocked?'<span class="pill pill-blocked" title="אישורי הפריקה והטופסי מלווה חסומים לחברה זו">⛔ מסמכים חסומים</span>':'')+
          (aliases.length?'<span class="pill">'+aliases.length+' צורות כתיב נוספות</span>':'')+
          '<span class="pill" id="cnt-'+c.id+'">…</span></div>'+
+       (c.docs_blocked?'<div class="blocked-note">⛔ <b>אישורי פריקה וטופסי מלווה חסומים</b> — נחסם '+
+          fmtDT(c.docs_blocked_at)+(c.docs_blocked_by?' על ידי '+esc(c.docs_blocked_by):'')+
+          '<br>סיבה: '+esc(c.docs_blocked_reason||'')+
+          '<br><span class="muted">ההצהרות ומסמכי ההסכמה נשארו פתוחים ללקוח.</span></div>':'')+
        '<div class="meta">מס׳ חברה: '+c.id+(aliases.length?' · כתיבים: '+esc(aliases.join(' | ')):'')+
          (c.client_type==='indirect'
            ?' · מוביל אחראי: '+(function(){ var p=CLIENTS.find(function(x){return x.id===c.parent_client_id;});
@@ -507,6 +516,11 @@ function render(){
            :'<button class="btn" onclick="addUser('+c.id+',\''+esc(c.name)+'\')">הוסיפי משתמש</button>')+
          '<a class="btn btn-soft" target="_blank" href="/documents?client_id='+c.id+'">מה הלקוח רואה</a>'+
          '<button class="btn btn-soft" onclick="editAliases('+c.id+')">עריכת צורות כתיב</button>'+
+         (c.docs_blocked
+           ?'<button class="btn" title="שחרור מיידי — כל האישורים והטופסי מלווה נפתחים ללקוח בחזרה" '+
+             'onclick="toggleDocsBlock('+c.id+',\''+esc(c.name)+'\',0)">🔓 שחררי מסמכים</button>'
+           :'<button class="btn btn-danger" title="חוסם אישורי פריקה וטופסי מלווה לחברה כולה — הקיימים וכל מה שייכנס בעתיד. ההצהרות וההסכמות נשארות פתוחות" '+
+             'onclick="toggleDocsBlock('+c.id+',\''+esc(c.name)+'\',1)">⛔ חסמי מסמכים</button>')+
        '</div></div>';
   });
   document.getElementById('stats').textContent=shown+' חברות · '+USERS.length+' משתמשים בסה"כ';
@@ -677,6 +691,28 @@ async function editAliases(cid){
   if(!r||!r.ok){ toast('שגיאה בעדכון'); return; }
   COUNTS[cid]=null;
   toast('צורות הכתיב עודכנו ✓');
+  await reload();
+}
+
+/* חסימת/שחרור מסמכים ברמת החברה (לימור 17/08) — אישורי פריקה + טופסי מלווה
+   בלבד; ההצהרות וההסכמות תמיד נשארות פתוחות. */
+async function toggleDocsBlock(cid,name,block){
+  var body;
+  if(block){
+    var reason=prompt('חסימת אישורי פריקה וטופסי מלווה ל"'+name+'".\n\n'+
+      'הלקוח יראה: "לצפייה במסמכים יש לפנות להנהלת החשבונות של אקו-אויל".\n'+
+      'ההצהרות ומסמכי ההסכמה יישארו פתוחים.\n\n'+
+      'מה הסיבה? (חובה — נשמר לתיעוד)','בקשת הנהלת החשבונות');
+    if(reason===null) return;
+    if(!reason.trim()){ toast('חובה לציין סיבה'); return; }
+    body={blocked:true,reason:reason.trim()};
+  }else{
+    if(!confirm('לשחרר את המסמכים של "'+name+'"?\n\nכל האישורים והטופסי מלווה ייפתחו ללקוח מיד.')) return;
+    body={blocked:false};
+  }
+  var r=await api('/clients/'+cid+'/docs-block',{method:'POST',body:JSON.stringify(body)});
+  if(!r||!r.ok){ toast('שגיאה בעדכון החסימה'); return; }
+  toast(block?'המסמכים של "'+name+'" נחסמו ⛔':'המסמכים של "'+name+'" שוחררו ✓');
   await reload();
 }
 
