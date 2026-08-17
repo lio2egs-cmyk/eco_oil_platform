@@ -144,6 +144,13 @@ def _myy(iso):
 
 
 def build_filename(prefix, row, date_iso, ext):
+    """שם הקובץ לתיוק. מ-17/08 השרת בונה את השם (שדה file_name) — אותו שם
+    בדיוק שהלקוח מוריד מהפורטל, בתוספת מספר ההסכמה. הבנייה המקומית נשארת
+    כגיבוי בלבד לשרת ישן; שימי לב שהיא השתמשה ב"מתקן הייצור" כאתר, וזה
+    התהליך ולא האתר (לקח אידיאה 13/08) — הבנייה בשרת מתקנת את זה."""
+    server_name = _clean(row.get("file_name"), 150)
+    if server_name:
+        return server_name + ext
     parts = [prefix]
     stream_size = " ".join(x for x in (_clean(row.get("material_name"), 30),
                                        _clean(row.get("producer_size"), 10)) if x)

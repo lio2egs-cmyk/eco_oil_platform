@@ -130,6 +130,47 @@ def _norm_name(s):
     return s
 
 
+# ── שמות קבצים למסמכי ההצהרה/ההסכמה (לימור 17/08) ────────────────────────
+# הכלל שקבעה: השם משקף את המסמך עצמו, לא רק את שם החברה. המבנה —
+#   הסכמה_חומצה גדול_גלבוע תעשיות_אתר ספיר_8.26
+#   סוג_זרם גודל-יצרן_שם קצר_אתר_חודש.שנה של תחילת התוקף
+# ארבע הכרעות שלה באותו יום: האתר = שדה "כתובת העסק / מפעל" (ולא "מתקן
+# הייצור", שהוא התהליך — לקח אידיאה 13/08); התאריך = תחילת התוקף; השם
+# הקצר = שתי המילים הראשונות; והעותקים שהגשר מתייק ב-Z: מקבלים את אותו שם
+# בתוספת מספר ההסכמה. השם נבנה כאן בשרת בלבד — הפורטל והגשר קוראים אותו
+# מוכן, כדי ששני המקומות לא ייפרדו לעולם.
+_FS_FORBIDDEN = r'[\\/:*?"<>|]'
+_LTD_SUFFIX = re.compile(r'\s*בע\s*["\']?\s*מ\s*$')
+
+
+def _fs_clean(s, maxlen=None):
+    """טקסט חופשי → מקטע בטוח לשם קובץ בחלונות."""
+    s = re.sub(_FS_FORBIDDEN, " ", str(s or ""))
+    s = re.sub(r"\s+", " ", s).strip(" .")
+    if maxlen and len(s) > maxlen:
+        cut = s[:maxlen].rsplit(" ", 1)[0]      # לא חותכים באמצע מילה
+        s = (cut or s[:maxlen]).strip()
+    return s
+
+
+def _short_company(name):
+    """שתי המילים הראשונות של שם החברה, בלי בע\"מ (בחירת לימור 17/08)."""
+    base = _LTD_SUFFIX.sub("", _fs_clean(name))
+    return " ".join(base.split()[:2])
+
+
+def _doc_file_name(d, kind, number=None):
+    """שם הקובץ למסמך הצהרה/הסכמה. kind = 'הצהרה' / 'הסכמה'.
+    number — מספר ההסכמה; נוסף רק לעותק המתויק ב-Z:, לא להורדה מהפורטל."""
+    stream = _fs_clean(" ".join(x for x in (d.material_name, d.producer_size) if x))
+    when = f"{d.valid_from.month}.{d.valid_from:%y}" if d.valid_from else ""
+    parts = [kind, stream, _short_company(d.producer_name),
+             _fs_clean(d.client_address, maxlen=30), when]
+    if number:
+        parts.append(f"מס {number}")
+    return "_".join(p for p in parts if p)
+
+
 def _billed_core(billed):
     """Billed name without a parenthetical customer suffix: 'X (customer)' → X."""
     if not billed:
@@ -349,6 +390,9 @@ def _decl_dict(d, clients, users):
         # תוקף
         "valid_from": d.valid_from.strftime("%d/%m/%Y") if d.valid_from else None,
         "valid_until": d.valid_until.strftime("%d/%m/%Y") if d.valid_until else None,
+        # שם הקובץ להורדה (לימור 17/08) — נבנה בשרת כדי שהפורטל והתיוק ב-Z:
+        # ישתמשו באותו שם בדיוק
+        "file_name": _doc_file_name(d, "הצהרה"),
         "notes": d.notes,
         "fix_note": d.fix_note,
         "released_at": d.released_at.isoformat() if d.released_at else None,
@@ -675,6 +719,9 @@ def agreement_doc_data():
         "agreement": ({"id": agreement.id, "number": agreement.number,
                        "issued_at": agreement.issued_at.isoformat()}
                       if agreement else None),
+        # שם הקובץ להורדת מסמך ההסכמה (17/08) — בלי המספר; המספר מתווסף רק
+        # לעותק שהגשר מתייק ב-Z:
+        "file_name": _doc_file_name(d, "הסכמה"),
     })
 
 

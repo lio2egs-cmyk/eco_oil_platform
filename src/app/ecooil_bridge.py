@@ -311,6 +311,7 @@ def filing_feed_pending():
     """מה שממתין לתיוק: מסמכי הסכמה שהופקו (filed_at ריק) + סריקות חתומות
     של הצהרות שאושרו סופית (scan_filed_at ריק)."""
     from .db import AgreementDocument, Client, ProducerDeclaration
+    from .ecooil_docs import _doc_file_name
 
     agreements = (AgreementDocument.query
                   .filter(AgreementDocument.number.isnot(None),
@@ -336,13 +337,17 @@ def filing_feed_pending():
         if d is None:
             continue
         row = _filing_decl_fields(d, clients)
+        # שם הקובץ נבנה בשרת (לימור 17/08) — זהה לשם שהלקוח מוריד מהפורטל,
+        # בתוספת מספר ההסכמה
         row.update({"agreement_id": a.id, "number": a.number,
+                    "file_name": _doc_file_name(d, "הסכמה", a.number),
                     "issued_at": a.issued_at.isoformat() if a.issued_at else None})
         ag_rows.append(row)
     scan_rows = []
     for d in scans:
         row = _filing_decl_fields(d, clients)
         row.update({"declaration_id": d.id,
+                    "file_name": _doc_file_name(d, "הצהרה חתומה"),
                     "approved_at": d.approved_at.isoformat() if d.approved_at else None,
                     "scan_filename": d.signed_scan_filename,
                     "scan_mime": d.signed_scan_mime})

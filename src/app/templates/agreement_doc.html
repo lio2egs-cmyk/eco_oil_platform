@@ -194,7 +194,9 @@ async function issueAgreement(){
   document.getElementById('tbody').innerHTML='<tr>'+cells.map(function(c){
     var t=document.createElement('td'); t.textContent=esc(c); return t.outerHTML;
   }).join('')+'</tr>';
-  document.title='מסמך הסכמה — '+esc(d.producer_name);
+  /* שם הקובץ בשמירה כ-PDF = כותרת הדף (לימור 17/08). נבנה בשרת כדי שיהיה
+     זהה לשם שהגשר מתייק ב-Z:. */
+  document.title=data.file_name||('מסמך הסכמה — '+esc(d.producer_name));
   document.getElementById('sheet').style.visibility='visible';
 })();
 </script>

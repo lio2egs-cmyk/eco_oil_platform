@@ -140,7 +140,8 @@ async function api(url){
   document.getElementById('d_hp').textContent=esc(d.business_id);
   document.getElementById('d_addr').textContent=esc(d.address);
   document.getElementById('d_ceo').textContent=esc(d.ceo_name);
-  document.title='הצהרת יצרן — '+esc(d.producer_name);
+  /* שם הקובץ בשמירה כ-PDF = כותרת הדף (לימור 17/08), נבנה בשרת */
+  document.title=d.file_name||('הצהרת יצרן — '+esc(d.producer_name));
   document.getElementById('sheet').style.visibility='visible';
 })();
 </script>
