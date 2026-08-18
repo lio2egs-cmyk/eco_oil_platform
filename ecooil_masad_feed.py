@@ -113,6 +113,17 @@ def _norm(s):
     return " ".join(s.split())
 
 
+def _site_keys(d):
+    """הצורות שבהן שורת אתר עשויה להיכתב בגיליון, מנורמלות — שתיהן בשוויון
+    מלא: שם העסק בלבד, ושם העסק יחד עם הכתובת (שהיא האתר, לימור 17/08)."""
+    name = d.get("producer_name") or ""
+    addr = d.get("address") or ""
+    keys = {_norm(name)}
+    if addr.strip():
+        keys.add(_norm(f"{name} {addr}"))
+    return {k for k in keys if k}
+
+
 def resolve_summary_row(rows, d):
     """איתור שורת האתר הנכונה בגיליון ח.פ.-היתר-תוקף — לפי הבנת לימור 10/08:
     ח.פ. אחד לכל החברה (כמו מספר רישוי); היתר רעלים מזהה אתר (אבל לא תמיד —
@@ -127,10 +138,12 @@ def resolve_summary_row(rows, d):
         return by_hp[0][0], None
     if not by_hp:
         # לפני פתיחת שורה חדשה: אולי החברה קיימת עם תא ח.פ. ריק/שונה — לא משכפלים
-        name_hits = [r for r in rows if _norm(r[1]) == _norm(d.get("producer_name"))]
+        name_hits = [r for r in rows if _norm(r[1]) in _site_keys(d)]
         if name_hits:
-            return None, ("נמצאה שורה בשם זהה אך עם ח.פ. שונה/ריק "
-                          f"(שורה {name_hits[0][0]}) — השלימי את הח.פ. בגיליון או עדכני ידנית")
+            return None, (
+                f'בגיליון "{SUMMARY_SHEET}", שורה {name_hits[0][0]}: קיימת שורה '
+                "באותו שם אך הח.פ. בה ריק או שונה. השלימי שם את הח.פ., "
+                "או עדכני ידנית את תאריך התוקף באותה שורה.")
         return "NEW", None
 
     # כמה אתרים: קודם היתר רעלים (אם יש בהצהרה), אחר כך שם האתר
@@ -142,13 +155,21 @@ def resolve_summary_row(rows, d):
             return by_permit[0][0], None
         if by_permit:
             cand = by_permit
-    nm = _norm(d.get("producer_name"))
-    by_name = [r for r in cand if _norm(r[1]) == nm]
+    # שם האתר יושב בגיליון בתוך תא הלקוח ("גלבוע ... בע"מ, אתר ספיר"), ואילו
+    # בהצהרה הוא בשדה נפרד — "כתובת העסק / מפעל". לכן משווים גם את צירוף
+    # שם העסק + הכתובת, ולא רק את השם (לימור 18/08, מקרה מגן שאול/ספיר).
+    # עדיין שוויון מלא ולא "מכיל" — כדי ש"אתר ספיר" לא ייתפס על "אתר ספיר 2".
+    keys = _site_keys(d)
+    by_name = [r for r in cand if _norm(r[1]) in keys]
     if len(by_name) == 1:
         return by_name[0][0], None
-    sites = ", ".join(f"שורה {r[0]} ({str(r[1])[:30]})" for r in cand[:5])
-    return None, (f"החברה מופיעה בכמה שורות-אתרים ({sites}) ולא זוהה האתר "
-                  "לפי היתר או שם — עדכני את התוקף ידנית")
+    sites = "; ".join(f'שורה {r[0]} — "{r[1]}"' for r in cand)
+    return None, (
+        f'בגיליון "{SUMMARY_SHEET}": לחברה יש כמה שורות-אתרים ולא ניתן לקבוע '
+        f"לאיזה אתר שייכת ההצהרה. השורות: {sites}. "
+        "עדכני ידנית את תאריך התוקף בשורה הנכונה. "
+        "כדי שזה יזוהה אוטומטית בפעם הבאה — מלאי מספר היתר רעלים בשורות, "
+        "או ודאי ששם האתר בתא הלקוח זהה לכתובת שנרשמה בהצהרה.")
 
 
 def _fmt_date(iso):
@@ -175,7 +196,8 @@ def plan_client_type(d):
     ישיר כשהחשבון הוא היצרן עצמו; שם המוביל כשהמוביל מילא עבור לקוחו;
     ריק + הערה כשהיצרן העקיף הגיש בעצמו (המוביל לא ידוע למערכת)."""
     if d.get("account_type") == "indirect":
-        return "", "לקוח חדש נוסף לגיליון התוקף — השלימי את עמודת 'סוג לקוח' (שם המוביל)"
+        return "", (f'בגיליון "{SUMMARY_SHEET}": נוספה שורת לקוח חדשה — השלימי '
+                    'את עמודת "סוג לקוח" (שם המוביל).')
     if _norm(d.get("account_name")) == _norm(d.get("producer_name")):
         return "ישיר", None
     return d.get("account_name") or "", None
@@ -289,9 +311,14 @@ def run(api_base, masad_path, dry_run=False):
                     biz = _digits(d.get("business_id"))
                     if stream_col is None:
                         note_parts.append(
-                            f"זרם לא מזוהה ('{d.get('material_classification')}') — עדכני את גיליון התוקף ידנית")
+                            f'בגיליון "{SUMMARY_SHEET}": הזרם '
+                            f"'{d.get('material_classification')}' אינו אחד מזרמי "
+                            "העמודות בגיליון, ולכן לא ידעתי באיזו עמודה לרשום. "
+                            "עדכני ידנית את תאריך התוקף בעמודת הזרם המתאימה.")
                     elif not biz:
-                        note_parts.append("אין ח.פ. בהצהרה — עדכני את גיליון התוקף ידנית")
+                        note_parts.append(
+                            f'בגיליון "{SUMMARY_SHEET}": אין ח.פ. בהצהרה ולכן לא '
+                            "ניתן לאתר את שורת החברה. עדכני ידנית את תאריך התוקף.")
                     else:
                         last_sum = max(
                             _com(ws_sum.Cells(ws_sum.Rows.Count, 2).End, XL_UP).Row,
@@ -335,7 +362,7 @@ def run(api_base, masad_path, dry_run=False):
                             print(f"  #{d['id']} summary row {row}: {d['material_classification']}"
                                   + (f" → {vu:%d/%m/%Y}" if vu else ""))
             except Exception as exc:
-                note_parts.append(f"שגיאת כתיבה: {exc}")
+                note_parts.append(f"שגיאת כתיבה בקובץ המסד: {exc}")
                 print(f"  #{d['id']} ERROR: {exc}")
             if note_parts:
                 res["note"] = "; ".join(note_parts)
@@ -375,8 +402,10 @@ def run(api_base, masad_path, dry_run=False):
             results[decl_id]["note"] = f"{prev}; {msg}" if prev else msg
 
     # --- ack to the cloud (alerts email fires there on new notes) ---
+    # masad_path נשלח כדי שהמייל יוכל לומר במפורש לאיזה קובץ ללכת (לימור 18/08)
     r = requests.post(api_base + "/bridge/ecooil/masad-feed/ack", headers=headers,
-                      json={"results": list(results.values())}, timeout=60)
+                      json={"results": list(results.values()),
+                            "masad_path": masad_path}, timeout=60)
     if r.status_code != 200:
         print(f"ERROR: ack failed {r.status_code}: {r.text[:200]}")
         return 1

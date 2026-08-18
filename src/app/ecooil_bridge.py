@@ -471,22 +471,37 @@ def masad_feed_ack():
 
     emailed = False
     if alerts:
+        # ניסוח ההודעה (לימור 18/08): הודעה שדורשת התייחסות חייבת לומר
+        # במפורש לאיזה קובץ ולאיזה גיליון ללכת — מספרי שורות בלי זה הם
+        # חסרי תכלית. הערות השורה כבר נושאות את שם הגיליון מהסקריפט המשרדי.
+        import html as _html
+
+        masad_path = (data.get("masad_path") or
+                      r"Z:\Eco_General\מסד מלא_הצהרות_היתרים_מובילים.xlsx")
         rows = "".join(
-            f"<tr><td style='border:1px solid #999;padding:6px 12px;'>{d.producer_name or ''}</td>"
-            f"<td style='border:1px solid #999;padding:6px 12px;'>{d.material_name or ''}</td>"
-            f"<td style='border:1px solid #999;padding:6px 12px;'>{note}</td></tr>"
+            f"<tr><td style='border:1px solid #999;padding:6px 12px;'>{_html.escape(d.producer_name or '')}</td>"
+            f"<td style='border:1px solid #999;padding:6px 12px;'>{_html.escape(d.material_name or '')}</td>"
+            f"<td style='border:1px solid #999;padding:6px 12px;'>{_html.escape(note)}</td></tr>"
             for d, note in alerts)
+        n = len(alerts)
         html = f"""<div dir="rtl" style="font-family:Arial,sans-serif;color:#222;">
-<p>ההזנה האוטומטית למסד דורשת השלמה ידנית עבור ההצהרות הבאות:</p>
+<p>רשמתי את ההצהרות המאושרות למסד.
+{'הצהרה אחת נרשמה' if n == 1 else f'{n} הצהרות נרשמו'} רק חלקית
+{'ודורשת' if n == 1 else 'ודורשות'} השלמה ידנית שלך.</p>
+<p style="background:#EEF3F7;border:1px solid #B9CBDA;border-radius:8px;padding:8px 12px;">
+<b>הקובץ לעדכון:</b><br>{_html.escape(masad_path)}<br>
+<span style="color:#555;">שם הגיליון והשורה מופיעים בעמודה "מה חסר ומה לעשות".</span></p>
 <table dir="rtl" style="border-collapse:collapse;">
 <tr><td style="border:1px solid #999;padding:6px 12px;background:#eef3f2;"><b>העסק</b></td>
 <td style="border:1px solid #999;padding:6px 12px;background:#eef3f2;"><b>זרם</b></td>
-<td style="border:1px solid #999;padding:6px 12px;background:#eef3f2;"><b>מה דרוש</b></td></tr>
+<td style="border:1px solid #999;padding:6px 12px;background:#eef3f2;"><b>מה חסר ומה לעשות</b></td></tr>
 {rows}</table>
-<p>אחרי התיקון במסד — ההזנה תושלם אוטומטית בסיבוב השעתי הבא.</p></div>"""
+<p>אחרי שתעדכני בקובץ — אין צורך לעשות דבר נוסף. ההזנה תושלם לבד
+בסיבוב השעתי הבא (בין 07:00 ל-18:00).</p></div>"""
         try:
             emailed = send_office_email(
-                subject="הזנת הצהרות למסד — נדרשת השלמה ידנית", html=html)
+                subject=("מסד ההצהרות — הצהרה אחת ממתינה לך" if n == 1
+                         else f"מסד ההצהרות — {n} הצהרות ממתינות לך"), html=html)
         except Exception as exc:
             current_app.logger.error("masad-feed alert email failed: %s", exc)
 
