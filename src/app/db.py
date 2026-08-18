@@ -22,6 +22,11 @@ class Client(db.Model):
     # ההצהרות ומסמכי ההסכמה נשארים פתוחים תמיד: מסמכים רגולטוריים, לא כלי
     # לחץ מסחרי. שחרור = לחיצה אחת, בלי לגעת בעמודת "הערות למערכת פורטל"
     # בריכוז (זו נשארת החסימה הנקודתית לשורה בודדת).
+    # שם קצר לשמות קבצים (לימור 18/08) — ריק = השם המלא בלי בע"מ.
+    # נוצר אחרי שכלל "שתי המילים הראשונות" הפיל את "אלביט מערכות סאיקלון"
+    # ל-"אלביט מערכות", והתנגש עם "אלביט מערכות כרמיאל" באותה עיר.
+    file_short_name = db.Column(db.String(80))
+
     docs_blocked = db.Column(db.Boolean, default=False)
     docs_blocked_at = db.Column(db.DateTime, nullable=True)
     docs_blocked_by = db.Column(db.String(120), nullable=True)

@@ -158,10 +158,11 @@ def _norm_name(s):
 # הכלל שקבעה: השם משקף את המסמך עצמו, לא רק את שם החברה. המבנה —
 #   הסכמה_חומצה גדול_גלבוע תעשיות_אתר ספיר_8.26
 #   סוג_זרם גודל-יצרן_שם קצר_אתר_חודש.שנה של תחילת התוקף
-# ארבע הכרעות שלה באותו יום: האתר = שדה "כתובת העסק / מפעל" (ולא "מתקן
-# הייצור", שהוא התהליך — לקח אידיאה 13/08); התאריך = תחילת התוקף; השם
-# הקצר = שתי המילים הראשונות; והעותקים שהגשר מתייק ב-Z: מקבלים את אותו שם
-# בתוספת מספר ההסכמה. השם נבנה כאן בשרת בלבד — הפורטל והגשר קוראים אותו
+# הכרעותיה: האתר = שדה "כתובת העסק / מפעל" (ולא "מתקן הייצור", שהוא
+# התהליך — לקח אידיאה 13/08); התאריך = תחילת התוקף; והעותקים שהגשר מתייק
+# ב-Z: מקבלים את אותו שם בתוספת מספר ההסכמה. שם החברה: 17/08 היו שתי
+# המילים הראשונות, ומ-18/08 — שם קצר ידני בכרטיס, ובלעדיו השם המלא (ראי
+# _short_company). השם נבנה כאן בשרת בלבד — הפורטל והגשר קוראים אותו
 # מוכן, כדי ששני המקומות לא ייפרדו לעולם.
 _FS_FORBIDDEN = r'[\\/:*?"<>|]'
 _LTD_SUFFIX = re.compile(r'\s*בע\s*["\']?\s*מ\s*$')
@@ -177,10 +178,41 @@ def _fs_clean(s, maxlen=None):
     return s
 
 
-def _short_company(name):
-    """שתי המילים הראשונות של שם החברה, בלי בע\"מ (בחירת לימור 17/08)."""
+def _short_name_map():
+    """norm(שם חברה) → שם קצר לקבצים, לכל חברה שהוגדר לה אחד."""
+    return {_norm_name(c.name): c.file_short_name.strip()
+            for c in Client.query.filter(Client.division == "eco_oil",
+                                         Client.file_short_name.isnot(None)).all()
+            if (c.file_short_name or "").strip()}
+
+
+def _short_company(name, short_map=None):
+    """שם החברה בשם הקובץ (לימור 18/08): שם קצר שהוגדר לה ידנית בכרטיס,
+    ואם לא הוגדר — השם המלא בלי בע"מ.
+
+    קודם היו שתי המילים הראשונות, וזה הפיל את "אלביט מערכות סאיקלון"
+    ל-"אלביט מערכות" — שם שמתנגש עם "אלביט מערכות כרמיאל", מפעל אחר של
+    אותה חברה באותה עיר. חיתוך קשיח בולע בדיוק את המילה המבדילה, ולכן
+    ברירת המחדל היא השם המלא, והקיצור הוא החלטה אנושית לכל חברה."""
     base = _LTD_SUFFIX.sub("", _fs_clean(name))
-    return " ".join(base.split()[:2])
+    if short_map:
+        chosen = short_map.get(_norm_name(base)) or short_map.get(_norm_name(name))
+        if chosen:
+            return _fs_clean(chosen, maxlen=40)
+    return _fs_clean(base, maxlen=40)
+
+
+def _site_part(site, company_part):
+    """מקטע האתר — ריק כשהאתר כבר מופיע בתוך שם החברה (לימור 18/08:
+    "אלביט מערכות כרמיאל" + אתר כרמיאל ≠ כרמיאל פעמיים). ההשוואה על
+    הטקסט המנורמל בלבד, בלי ניחושים."""
+    s = _fs_clean(site, maxlen=30)
+    if not s:
+        return ""
+    a = " ".join(w for w in _norm_name(s).split() if w != "אתר")
+    if a and a in _norm_name(company_part):
+        return ""
+    return s
 
 
 def _doc_file_name(d, kind, number=None):
@@ -188,8 +220,9 @@ def _doc_file_name(d, kind, number=None):
     number — מספר ההסכמה; נוסף רק לעותק המתויק ב-Z:, לא להורדה מהפורטל."""
     stream = _fs_clean(" ".join(x for x in (d.material_name, d.producer_size) if x))
     when = f"{d.valid_from.month}.{d.valid_from:%y}" if d.valid_from else ""
-    parts = [kind, stream, _short_company(d.producer_name),
-             _fs_clean(d.client_address, maxlen=30), when]
+    company = _short_company(d.producer_name, _short_name_map())
+    parts = [kind, stream, company,
+             _site_part(d.client_address, company), when]
     if number:
         parts.append(f"מס {number}")
     return "_".join(p for p in parts if p)

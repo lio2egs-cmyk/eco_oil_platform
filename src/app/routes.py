@@ -51,7 +51,8 @@ def update_client(client_id):
         return {"error": "Client not found"}, 404
 
     data = request.get_json() or {}
-    for field in ("name", "division", "client_type", "billing_aliases"):
+    for field in ("name", "division", "client_type", "billing_aliases",
+                  "file_short_name"):
         if field in data:
             setattr(client, field, data[field])
     if "parent_client_id" in data:
@@ -129,6 +130,7 @@ def list_clients():
                 "division": c.division,
                 "client_type": c.client_type,
                 "billing_aliases": c.billing_aliases,
+                "file_short_name": c.file_short_name,
                 "parent_client_id": c.parent_client_id,
                 "docs_blocked": bool(c.docs_blocked),
                 "docs_blocked_at": (c.docs_blocked_at.isoformat()

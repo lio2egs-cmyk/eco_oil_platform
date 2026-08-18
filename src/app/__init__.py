@@ -137,6 +137,8 @@ def create_app():
             "ALTER TABLE clients ADD COLUMN docs_blocked_at TIMESTAMP",
             "ALTER TABLE clients ADD COLUMN docs_blocked_by VARCHAR(120)",
             "ALTER TABLE clients ADD COLUMN docs_blocked_reason TEXT",
+            # שם קצר לשמות קבצים (18/08)
+            "ALTER TABLE clients ADD COLUMN file_short_name VARCHAR(80)",
         ):
             try:
                 db.session.execute(db.text(stmt))

@@ -617,6 +617,7 @@ function render(){
           '<br>סיבה: '+esc(c.docs_blocked_reason||'')+
           '<br><span class="muted">ההצהרות ומסמכי ההסכמה נשארו פתוחים ללקוח.</span></div>':'')+
        '<div class="meta">מס׳ חברה: '+c.id+(aliases.length?' · כתיבים: '+esc(aliases.join(' | ')):'')+
+         (c.file_short_name?' · שם בקבצים: <b>'+esc(c.file_short_name)+'</b>':'')+
          (c.client_type==='indirect'
            ?' · מוביל אחראי: '+(function(){ var p=CLIENTS.find(function(x){return x.id===c.parent_client_id;});
               return p?('<b>'+esc(p.name)+'</b>'):'<span class="warn">לא הוגדר — המוביל לא יעודכן אוטומטית</span>'; })()+
@@ -637,6 +638,8 @@ function render(){
          '<a class="btn btn-soft" target="_blank" title="אזור המסמכים — אישורי פריקה וטופסי מלווה" '+
            'href="/documents?client_id='+c.id+'">👁 המסמכים של הלקוח</a>'+
          '<button class="btn btn-soft" onclick="editAliases('+c.id+')">עריכת צורות כתיב</button>'+
+         '<button class="btn btn-soft" title="איך שם החברה ייכתב בשמות הקבצים של ההצהרות וההסכמות. ריק = השם המלא" '+
+           'onclick="editShortName('+c.id+')">שם קצר לקבצים</button>'+
          (c.docs_blocked
            ?'<button class="btn" title="שחרור מיידי — כל האישורים והטופסי מלווה נפתחים ללקוח בחזרה" '+
              'onclick="toggleDocsBlock('+c.id+',\''+esc(c.name)+'\',0)">🔓 שחררי מסמכים</button>'
@@ -845,6 +848,23 @@ async function toggleDocsBlock(cid,name,block){
   var r=await api('/clients/'+cid+'/docs-block',{method:'POST',body:JSON.stringify(body)});
   if(!r||!r.ok){ toast('שגיאה בעדכון החסימה'); return; }
   toast(block?'המסמכים של "'+name+'" נחסמו ⛔':'המסמכים של "'+name+'" שוחררו ✓');
+  await reload();
+}
+
+/* שם קצר לשמות קבצים (לימור 18/08) — ריק מחזיר לשם המלא. נוצר אחרי
+   ש"שתי המילים הראשונות" בלע את "סאיקלון" מתוך "אלביט מערכות סאיקלון". */
+async function editShortName(cid){
+  var c=CLIENTS.find(function(x){ return x.id===cid; });
+  var v=prompt('איך שם החברה ייכתב בשמות הקבצים של ההצהרות וההסכמות?'+
+    '\n\nהחברה: '+c.name+
+    '\nאם תשאירי ריק — ייכתב השם המלא בלי בע"מ.'+
+    '\nקצרי רק אם חשוב לך, והקפידי להשאיר את המילה שמבדילה בין אתרים.',
+    c.file_short_name||'');
+  if(v===null) return;
+  var r=await api('/clients/'+cid,{method:'PUT',
+    body:JSON.stringify({file_short_name:v.trim()||null})});
+  if(!r||!r.ok){ toast('שגיאה בעדכון'); return; }
+  toast(v.trim()?('בקבצים ייכתב: '+v.trim()+' ✓'):'הוחזר לשם המלא ✓');
   await reload();
 }
 
