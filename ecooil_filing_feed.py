@@ -5,10 +5,11 @@ Eco-Oil bridge — FILING FEED stage (לימור 12/08/2026).
 Pulls from the portal cloud everything awaiting filing and drops it into the
 customer's own folder under Z:\Eco_General\לקוחות :
   * Agreement documents (מסמך הסכמה) — rendered to PDF locally via headless
-    Edge from the same layout as the portal page, filed as
-    "הסכמה_מס <number>_<זרם> <גודל>_אתר <אתר>_<M.YY>.pdf".
-  * Signed declaration scans (after final approval) — filed as
-    "יצרן_<זרם> <גודל>_אתר <אתר>_<M.YY>.<ext>".
+    Edge from the same layout as the portal page.
+  * Signed declaration scans — only after Limor's final approval.
+  Filenames come from the server (field "file_name", Limor 17/08) so the copy
+  filed here and the copy the customer downloads carry the exact same name:
+  "הסכמה_<זרם> <גודל>_<חברה>_<אתר>_<M.YY>_מס <number>.pdf".
 
 Folder resolution (per Limor 12/08):
   * customer dir under the clients root, matched by producer name / portal
@@ -72,8 +73,9 @@ def _norm(s):
     return " ".join(s.split())
 
 
-def find_customer_dir(root, candidates):
+def find_customer_dir(root, candidates, allow_partial=True):
     """התיקייה של הלקוח — התאמה מנורמלת, בלי ניחושים.
+    allow_partial=False מחייב התאמה מדויקת (ליצרן עקיף — ראי resolve_target).
     מחזיר (path, None) או (None, note)."""
     try:
         dirs = [d for d in os.listdir(root)
@@ -92,6 +94,8 @@ def find_customer_dir(root, candidates):
             return None, f"נמצאו כמה תיקיות עם השם '{cand}' — אחדי או שני שם"
 
     # התאמה חלקית — רק אם היא חד-משמעית (תיקייה אחת בלבד מתאימה)
+    if not allow_partial:
+        return None, None            # המתקשר מנסח את ההערה
     partial = set()
     for cand in candidates:
         n = _norm(cand)
@@ -285,9 +289,33 @@ def render_pdf(html_text, out_pdf):
 
 # ------------------------------------------------------------- main work
 def resolve_target(root, row):
-    cdir, note = find_customer_dir(root, row.get("folder_candidates") or [])
-    if note:
-        return None, note
+    """תיקיית היעד לתיוק.
+
+    כלל לימור 18/08: מסמכי הצהרה והסכמה מתויקים תמיד בתיקייה של היצרן
+    עצמו — גם ליצרן עקיף, שלו היא פותחת תיקייה משלו. לכן כשההצהרה היא של
+    יצרן עקיף (שם היצרן שונה משם החשבון) ותיקייתו לא נמצאה — עוצרים
+    ומדווחים, ולא נופלים לשם החשבון, אחרת המסמך של אלביט היה נוחת בשקט
+    בתיקייה של ורידיס. הנפילה לשם החשבון ולצורות הכתיב נשארת ללקוח ישיר,
+    שם היא רק מגשרת על הבדלי כתיב באותו שם.
+    ליצרן עקיף גם לא מסתפקים בהתאמה חלקית: "אלביט מערכות" אינה בהכרח
+    "אלביט מערכות סאיקלון", ותיוק אצל המפעל השני גרוע ממייל."""
+    producer = (row.get("producer_name") or "").strip()
+    account = (row.get("account_name") or "").strip()
+    indirect = bool(producer) and bool(account) and _norm(producer) != _norm(account)
+
+    if indirect:
+        cdir, note = find_customer_dir(root, [producer], allow_partial=False)
+        if cdir is None:
+            return None, (
+                f'לא נמצאה תיקייה בשם "{producer}" תחת {root}. '
+                "זהו יצרן עקיף, והמסמכים שלו מתויקים אצלו ולא אצל המוביל "
+                f'("{account}") — לכן לא תייקתי. '
+                "צרי לו תיקייה (עם תת-תיקיית מסמכים), והתיוק יושלם "
+                "אוטומטית בסיבוב השעתי הבא." + (f" [{note}]" if note else ""))
+    else:
+        cdir, note = find_customer_dir(root, row.get("folder_candidates") or [])
+        if note:
+            return None, note
     sub, note = find_docs_subdir(cdir)
     if note:
         return None, note
