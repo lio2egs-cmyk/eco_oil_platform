@@ -459,8 +459,15 @@ def _decl_dict(d, clients, users):
         "signed_scan_source": d.signed_scan_source,
         "signed_scan_filename": d.signed_scan_filename,
         "approved_at": d.approved_at.isoformat() if d.approved_at else None,
+        # מחוון התיוק (לימור 18/08): הגשר כבר רשם מתי כל מסמך תויק, אבל
+        # המידע לא הוצג בשום מקום — ולכן היחיד שידע לספר שמשהו עבד היה
+        # היעדר מייל כישלון. עכשיו זה מוצג במסך.
+        "scan_filed_at": d.scan_filed_at.isoformat() if d.scan_filed_at else None,
+        "scan_file_note": d.scan_file_note,
         # מסמך ההסכמה שהופק מהפורטל (לימור 12/08) — רק מסמכים ממוספרים
-        "agreement": next(({"id": a.id, "number": a.number}
+        "agreement": next(({"id": a.id, "number": a.number,
+                            "filed_at": a.filed_at.isoformat() if a.filed_at else None,
+                            "file_note": a.file_note}
                            for a in sorted(d.agreement_documents,
                                            key=lambda a: a.id, reverse=True)
                            if a.number), None),

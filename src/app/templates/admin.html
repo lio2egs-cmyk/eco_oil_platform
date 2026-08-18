@@ -43,6 +43,12 @@
   .collapsible:hover { color:var(--green); }
   .collapsible .chev { display:inline-block; font-size:13px; color:var(--green); }
   .pill-alert { background:#FBE3E3; color:#8B2020; font-weight:bold; }
+  /* מחוון תיוק (18/08) */
+  .filed { font-size:11.5px; border-radius:7px; padding:2px 8px; margin-top:4px;
+          display:inline-block; }
+  .filed-ok { background:#EDF7EE; color:#2F6B3A; border:1px solid #9CC9A1; }
+  .filed-wait { background:#F1F1F1; color:#666; border:1px solid #ddd; }
+  .filed-bad { background:#FDF0F0; color:#8B2020; border:1px solid #E9B5B5; }
   /* כותרות קבוצה בתוך טבלת ההצהרות (17/08) — סדרי עדיפות בתצוגה */
   .declgrp td { background:#EDF3F2; font-weight:bold; color:var(--dark);
           cursor:pointer; user-select:none; padding:7px 12px; font-size:13.5px; }
@@ -281,6 +287,22 @@ function daysSince(iso){
   return Math.floor((Date.now()-d.getTime())/86400000);
 }
 function daysTxt(n){ return n===1?'יום':n+' ימים'; }
+/* מחוון התיוק לתיקיית הלקוח (לימור 18/08) — כדי שלא תצטרך לבדוק בתיקיות
+   ולא לחכות למייל כישלון. "ממתין" = בתור לסבב השעתי הקרוב (07:00-18:00). */
+function filedPill(label, filedAt, note, fem){
+  var v=fem?{done:'תויקה',wait:'ממתינה',no:'לא תויקה'}:{done:'תויק',wait:'ממתין',no:'לא תויק'};
+  if(note) return '<div class="filed filed-bad">⚠ '+label+' '+v.no+' — '+esc(note)+'</div>';
+  if(filedAt) return '<div class="filed filed-ok">✔ '+label+' '+v.done+' בתיקיית הלקוח · '+fmtDT(filedAt)+'</div>';
+  return '<div class="filed filed-wait">⏳ '+label+' '+v.wait+' לתיוק אוטומטי</div>';
+}
+function filingBadges(d){
+  var h='';
+  if(d.agreement) h+=filedPill('מסמך ההסכמה', d.agreement.filed_at, d.agreement.file_note, false);
+  if(d.status==='approved'&&d.has_signed_scan)
+    h+=filedPill('ההצהרה החתומה', d.scan_filed_at, d.scan_file_note, true);
+  return h;
+}
+
 function declStatus(d){
   if(d.status==='approved'){
     var on=(d.approved_at?' '+fmtDT(d.approved_at).slice(0,10):'');
@@ -439,7 +461,7 @@ function declRow(d,i,g){
   return '<tr class="'+g.cls+hide+'"><td>'+fmtDT(d.submitted_at)+'</td><td>'+esc(d.client_name)+'</td>'+
        '<td><b>'+esc(d.producer_name)+'</b></td><td>'+esc(d.material_name)+'</td>'+
        '<td>'+esc(d.waste_stream_number)+'</td><td>'+esc(d.quantity)+'</td>'+
-       '<td>'+declStatus(d)+'</td>'+
+       '<td>'+declStatus(d)+filingBadges(d)+'</td>'+
        '<td><button class="btn btn-soft" onclick="toggleDecl('+i+')">פרטים מלאים</button> '+
        ((d.status==='submitted'||d.status==='released')?'<button class="btn btn-soft" title="תיקון טעויות הקלדה בשדות הטקסט — בלי להחזיר ללקוח. אפשרי רק לפני חתימת הלקוח" onclick="editDecl('+i+')">✏ ערכי פרטים</button> ':'')+
        '<a class="btn btn-soft" target="_blank" href="/declaration-doc?id='+d.id+'" title="תצוגה בלבד: המסמך הרשמי (נספח 3) ממולא מהנתונים שהוגשו — לא שולח דבר ללקוח">👁 צפייה במסמך</a> '+
