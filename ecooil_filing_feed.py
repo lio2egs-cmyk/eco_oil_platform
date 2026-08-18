@@ -113,6 +113,38 @@ def find_customer_dir(root, candidates, allow_partial=True):
                   " — צרי תיקייה (או הוסיפי צורת כתיב בפורטל)")
 
 
+def find_site_subdir(customer_dir, producer_name):
+    """תת-תיקיית האתר בתוך תיקיית-על של החברה (לימור 18/08).
+
+    אצל אלביט תיקיית הלקוח היא "אלביט", ובתוכה תיקייה לכל אתר —
+    "אלביט סאיקלון", "אלביט מערכות, כרמיאל", "אלביט יקנעם"... שם צריך
+    להתבצע התיוק, ולא בתיקיית המסמכים הכללית שמתחת לתיקיית-העל.
+
+    ההתאמה: כל מילות תת-התיקייה חייבות להופיע בשם היצרן — כך
+    "אלביט סאיקלון" נקלטת עבור "אלביט מערכות סאיקלון", ואילו
+    "אלביט מערכות, כרמיאל" לא. בלי ניחוש: רק התאמה יחידה מתקבלת.
+    מחזיר (path, None) | (None, note) | (None, None) כשאין תיקיות-אתר בכלל."""
+    try:
+        subs = [d for d in os.listdir(customer_dir)
+                if os.path.isdir(os.path.join(customer_dir, d))]
+    except OSError as exc:
+        return None, f"תיקיית הלקוח לא נגישה ({exc})"
+    prod = set(_norm(producer_name).split())
+    if not prod:
+        return None, None
+    hits = []
+    for d in subs:
+        toks = set(_norm(d).split())
+        if toks and toks <= prod:
+            hits.append(d)
+    if len(hits) == 1:
+        return os.path.join(customer_dir, hits[0]), None
+    if len(hits) > 1:
+        return None, ("כמה תיקיות-אתר מתאימות (" + ", ".join(sorted(hits)[:4])
+                      + ") — לא ניחשתי")
+    return None, None
+
+
 def find_docs_subdir(customer_dir):
     """תת-תיקיית התיוק: "מסמכים" / "מסמכים ואישורים" / "הצהרת יצרן+הסכמה" / "יצרן+הסכמה"."""
     try:
@@ -318,6 +350,13 @@ def resolve_target(root, row):
         cdir, note = find_customer_dir(root, row.get("folder_candidates") or [])
         if note:
             return None, note
+    # תיקיית-על עם תיקיות-אתר (אלביט): התיוק שייך לתיקיית האתר עצמה
+    site, note = find_site_subdir(cdir, producer)
+    if note:
+        return None, note
+    if site:
+        cdir = site
+
     sub, note = find_docs_subdir(cdir)
     if note:
         return None, note

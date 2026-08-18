@@ -124,6 +124,20 @@ def _site_keys(d):
     return {k for k in keys if k}
 
 
+def _match_by_site_words(cand, d):
+    """שורת האתר לפי המילים שמבדילות בין השורות בלבד — או None."""
+    token_sets = [set(_norm(r[1]).split()) for r in cand]
+    shared = set.intersection(*token_sets) if token_sets else set()
+    haystack = set(_norm((d.get("producer_name") or "") + " "
+                         + (d.get("address") or "")).split())
+    hits = []
+    for r, toks in zip(cand, token_sets):
+        site = toks - shared - {"אתר"}
+        if site and site <= haystack:
+            hits.append(r[0])
+    return hits[0] if len(hits) == 1 else None
+
+
 def resolve_summary_row(rows, d):
     """איתור שורת האתר הנכונה בגיליון ח.פ.-היתר-תוקף — לפי הבנת לימור 10/08:
     ח.פ. אחד לכל החברה (כמו מספר רישוי); היתר רעלים מזהה אתר (אבל לא תמיד —
@@ -163,6 +177,16 @@ def resolve_summary_row(rows, d):
     by_name = [r for r in cand if _norm(r[1]) in keys]
     if len(by_name) == 1:
         return by_name[0][0], None
+
+    # השוואת מילות-האתר בלבד (לימור 18/08, מקרה גלבוע/מגן שאול): מסירים
+    # מכל שורה את המילים המשותפות לכל שורות אותה חברה — מה שנשאר מבדיל בין
+    # האתרים ("מגן שאול" מול "ספיר") — ובודקים אילו מהן מופיעות בשם+כתובת
+    # שבהצהרה. עוקף גם כתובת רחוב מלאה ("תאנה 2, מגן שאול") וגם הבדלי כתיב
+    # בשם החברה ("מכשור" מול "מיכשור"), כי שם החברה כלל לא נכנס להשוואה.
+    # עדיין בלי ניחוש: חייבת להיות בדיוק שורה אחת מתאימה.
+    site_row = _match_by_site_words(cand, d)
+    if site_row is not None:
+        return site_row, None
     sites = "; ".join(f'שורה {r[0]} — "{r[1]}"' for r in cand)
     return None, (
         f'בגיליון "{SUMMARY_SHEET}": לחברה יש כמה שורות-אתרים ולא ניתן לקבוע '
