@@ -29,6 +29,10 @@
   .btn:hover { background:var(--dark); }
   .btn-manifest { background:#8A6FB8; }
   .btn-manifest:hover { background:#6B549A; }
+  /* כפתור ההורדה — נפרד ומודע (לימור 18/08) */
+  .btn-dl { background:#fff; color:var(--dark); border:1.5px solid var(--green);
+            padding:5px 10px; margin-inline-start:4px; font-weight:bold; }
+  .btn-dl:hover { background:var(--green); color:#fff; }
   .nofile { color:#99A; font-size:12px; background:#EEF1F1; padding:4px 10px; border-radius:8px; }
   .sanction { display:block; max-width:280px; background:#FDF1DD; border:1.5px solid #E5B96B;
               color:#8a5a00; font-size:12.5px; line-height:1.5; padding:7px 10px; border-radius:10px; }
@@ -142,7 +146,7 @@ async function load(first){
   if(!d.rows.length){ document.getElementById('content').innerHTML='<div class="empty">לא נמצאו פריקות</div>'; return; }
   var srcCol = MODE==='billed';
   var h='<table><tr><th>תאריך</th>'+(srcCol?'<th>מקור הפסולת</th>':'')+
-        '<th>זרם</th><th>כמות (טון)</th><th class="hide-m">מוביל</th><th>אישור פריקה</th></tr>';
+        '<th>זרם</th><th>כמות (טון)</th><th class="hide-m">מוביל</th><th>מסמכים — צפייה או ⬇ הורדה</th></tr>';
   d.rows.forEach(function(r){
     h+='<tr><td>'+esc(r.date)+'</td>'+
        (srcCol?'<td>'+esc(r.customer)+'</td>':'')+
@@ -156,8 +160,18 @@ async function load(first){
 
 function docCell(r){
   var out='';
-  if(r.has_pdf) out+='<button class="btn" onclick="dl('+r.id+')">אישור פריקה</button>';
-  if(r.has_manifest) out+=' <button class="btn btn-manifest" onclick="dlm('+r.id+')">טופס מלווה</button>';
+  /* התווית אומרת גם מה הכפתור עושה (לימור 18/08): לקוח על הקו חיפש
+     "כפתור הורדה" ולא הבין ששם המסמך הוא הכפתור. */
+  /* צפייה והורדה הן שתי פעולות נפרדות (לימור 18/08): שם המסמך פותח
+     לצפייה, וההורדה היא כפתור ⬇ נפרד ומודע. */
+  if(r.has_pdf) out+='<button class="btn" title="פתיחת אישור הפריקה לצפייה" '+
+    'onclick="viewDoc('+r.id+')">אישור פריקה</button>'+
+    '<button class="btn btn-dl" title="הורדת אישור הפריקה למחשב" '+
+    'onclick="dl('+r.id+')">⬇</button>';
+  if(r.has_manifest) out+=' <button class="btn btn-manifest" title="פתיחת הטופס המלווה לצפייה" '+
+    'onclick="viewDoc('+r.id+',\'manifest\')">טופס מלווה</button>'+
+    '<button class="btn btn-dl" title="הורדת הטופס המלווה למחשב" '+
+    'onclick="dlm('+r.id+')">⬇</button>';
   if(out) return out;
   // חסימת חברה (17/08) — אותה הודעה בכל שורה, כדי שגם מי שגלל למטה יבין למה
   if(BLOCKED) return '<span class="blocked-cell">לפנות להנהלת החשבונות</span>';
@@ -173,6 +187,26 @@ function docCell(r){
     // Limor's "לא לפרסם" — docs withheld, deliberately with no explanation.
     return '<span class="nofile">—</span>';
   return '<span class="nofile">אין קובץ</span>';
+}
+
+/* צפייה: פותחים את החלון מיד בלחיצה — לפני הפנייה לשרת — אחרת חוסם
+   החלונות בנייד עוצר אותו, כי אחרי await זו כבר לא לחיצת משתמש. */
+async function viewDoc(id,doc){
+  var w=window.open('','_blank');
+  var qp=new URLSearchParams();
+  qp.set('mode','view');
+  if(doc)qp.set('doc',doc);
+  if(CID)qp.set('client_id',CID);
+  var r=await apiGet('/eco-oil/my-documents/'+id+'/download?'+qp.toString());
+  if(!r||!r.ok){
+    if(w) w.close();
+    var msg='הקובץ אינו זמין כרגע';
+    try{ var e=await r.json(); if(e&&e.message) msg=e.message; }catch(_){}
+    alert(msg); return;
+  }
+  var d=await r.json();
+  if(d.url && w) w.location=d.url;
+  else if(d.url) location.href=d.url;
 }
 
 async function dl(id,doc){

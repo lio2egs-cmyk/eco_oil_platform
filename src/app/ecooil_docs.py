@@ -1105,10 +1105,16 @@ def download(event_id):
     )
     from urllib.parse import quote
     fname = quote(key.rsplit("/", 1)[-1])
+    # צפייה מול הורדה (לימור 18/08): עד היום כל לחיצה החזירה attachment,
+    # ולכן כל פתיחה של מסמך גם הורידה אותו בשקט — לקוח על הקו צבר עשרה
+    # קבצים בלי לדעת. ההורדה חייבת להיות בחירה מודעת, ולכן ?mode=view
+    # מגיש את הקובץ לצפייה בלבד.
+    disp = "inline" if request.args.get("mode") == "view" else "attachment"
     url = s3.generate_presigned_url(
         "get_object",
         Params={"Bucket": os.environ["B2_BUCKET_CERTS"], "Key": key,
-                "ResponseContentDisposition": f"attachment; filename*=UTF-8''{fname}"},
+                "ResponseContentDisposition":
+                    f"{disp}; filename*=UTF-8''{fname}"},
         ExpiresIn=PRESIGN_SECONDS,
     )
     return jsonify({"url": url})
