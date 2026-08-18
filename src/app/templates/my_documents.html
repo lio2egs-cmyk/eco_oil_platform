@@ -187,9 +187,24 @@ async function dl(id,doc){
     alert(msg); return;
   }
   var d=await r.json();
-  if(d.url) window.open(d.url,'_blank');
+  if(d.url) startDownload(d.url);
 }
 function dlm(id){ dl(id,'manifest'); }
+
+/* הורדה במקום פתיחת חלון (לימור 18/08, מול לקוח בטלפון): window.open אחרי
+   await כבר לא נחשב "לחיצת משתמש", ולכן נחסם בחוסם-החלוצים בנייד, ובחלק
+   מהדפדפנים נפתח כצפייה בלי אפשרות שמירה נראית. האחסון כבר מחזיר את
+   הקובץ כ-attachment, ולכן לחיצה על קישור רגיל מורידה אותו בלי לנווט
+   ובלי לפתוח חלון. */
+function startDownload(url){
+  var a=document.createElement('a');
+  a.href=url;
+  a.rel='noopener';
+  a.style.display='none';
+  document.body.appendChild(a);
+  a.click();
+  setTimeout(function(){ a.remove(); },0);
+}
 
 ['fYear','fStream'].forEach(function(id){
   document.getElementById(id).addEventListener('change',function(){load(false);});
