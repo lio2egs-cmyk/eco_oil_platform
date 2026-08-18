@@ -297,14 +297,16 @@ def resolve_target(root, row):
     ומדווחים, ולא נופלים לשם החשבון, אחרת המסמך של אלביט היה נוחת בשקט
     בתיקייה של ורידיס. הנפילה לשם החשבון ולצורות הכתיב נשארת ללקוח ישיר,
     שם היא רק מגשרת על הבדלי כתיב באותו שם.
-    ליצרן עקיף גם לא מסתפקים בהתאמה חלקית: "אלביט מערכות" אינה בהכרח
-    "אלביט מערכות סאיקלון", ותיוק אצל המפעל השני גרוע ממייל."""
+    התאמה חלקית כן מותרת גם ליצרן עקיף — היא ממילא מתקבלת רק כשהיא
+    חד-משמעית, והיא זו שמאפשרת לתיקייה בשם "אלביט" לקלוט את "אלביט
+    מערכות סאיקלון". החמרתי כאן בתחילה לדרישת שם מדויק, וזה היה מרחיק
+    לכת: זה היה חוסם תיוק תקין אצל היצרן עצמו, שזו בדיוק המטרה."""
     producer = (row.get("producer_name") or "").strip()
     account = (row.get("account_name") or "").strip()
     indirect = bool(producer) and bool(account) and _norm(producer) != _norm(account)
 
     if indirect:
-        cdir, note = find_customer_dir(root, [producer], allow_partial=False)
+        cdir, note = find_customer_dir(root, [producer])
         if cdir is None:
             return None, (
                 f'לא נמצאה תיקייה בשם "{producer}" תחת {root}. '
