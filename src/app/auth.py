@@ -457,6 +457,55 @@ def create_portal_user():
     ), 201
 
 
+def _build_portal_invite(user, client):
+    """מייל ההזמנה לפורטל (לימור 19/08) — שני נוסחים לפי סוג המשתמש.
+    הנוסח אושר על ידה 19/08 — אין לשנות בלי אישורה."""
+    company = (client.name if client else "").strip()
+    portal_url = "https://portal.eco-oil.co.il"
+    if user.role == "eco_oil_declaration_only":
+        opening = (f"לחשבון של <b>{company}</b> נפתחה גישה לפורטל הלקוחות של "
+                   "אקו-אויל, שבו תוכלו למלא ולחדש את הצהרת היצרן שלכם, "
+                   "ולצפות ולהוריד בכל עת את ההצהרה ואת מסמך ההסכמה לקליטת הפסולת.")
+    else:
+        opening = (f"לחשבון של <b>{company}</b> נפתחה גישה לפורטל הלקוחות של "
+                   "אקו-אויל, בו מרוכזים אישורי הפריקה ותיעוד טופסי המלווה שלכם, "
+                   "הניתנים להורדה והדפסה בכל עת — וכן מילוי וחידוש הצהרות יצרן.")
+    html = f"""<div dir="rtl" style="font-family:Arial,sans-serif;color:#222;">
+<p>שלום,</p>
+<p>{opening}</p>
+<p>הכניסה פשוטה ואינה דורשת סיסמה:</p>
+<ol style="line-height:1.8;">
+<li>נכנסים לכתובת <a href="{portal_url}">portal.eco-oil.co.il</a>.</li>
+<li>מקלידים את כתובת המייל הזו — <b>{user.email}</b>.</li>
+<li>מקבלים למייל קישור כניסה אישי ולוחצים עליו — וזהו, אתם בפנים.</li>
+</ol>
+<p style="margin:22px 0;">
+<a href="{portal_url}" style="background:#5B9E96;color:#fff;text-decoration:none;
+padding:12px 28px;border-radius:8px;font-weight:bold;">כניסה לפורטל</a></p>
+<p>בברכה,<br>פורטל הלקוחות של אקו-אויל</p></div>"""
+    return f"הוזמנתם לפורטל הלקוחות של אקו-אויל — {company}", html
+
+
+@auth.route("/portal-users/<int:user_id>/invite", methods=["POST"])
+@admin_required
+def send_portal_invite(user_id):
+    """מייל הזמנה לפורטל (לימור 19/08): נשלח אוטומטית מטופס הקמת חברה חדשה,
+    או ידנית מכפתור בשורת המשתמש (גם שליחה חוזרת). מעדכן invited_at רק אחרי
+    שליחה שאושרה."""
+    from .mailer import send_office_email
+
+    user = db.session.get(User, user_id)
+    if user is None or user.role not in PORTAL_ROLES or not user.email:
+        return jsonify(error="User not found"), 404
+    client = db.session.get(Client, user.client_id) if user.client_id else None
+    subject, html = _build_portal_invite(user, client)
+    if not send_office_email(subject=subject, html=html, to=user.email):
+        return jsonify(error="שליחת מייל ההזמנה נכשלה — נסי שוב או בדקי את הלוג"), 502
+    user.invited_at = datetime.utcnow()
+    db.session.commit()
+    return jsonify(ok=True, invited_at=user.invited_at.isoformat())
+
+
 @auth.route("/portal-users", methods=["GET"])
 @admin_required
 def list_portal_users():
@@ -469,6 +518,7 @@ def list_portal_users():
         "id": u.id, "email": u.email, "role": u.role,
         "client_id": u.client_id, "client_name": clients.get(u.client_id),
         "last_login_at": u.last_login_at.isoformat() if u.last_login_at else None,
+        "invited_at": u.invited_at.isoformat() if u.invited_at else None,
         "weekly_reminder": bool(u.weekly_reminder),
         "extra_client_ids": [i for i in u.allowed_client_ids() if i != u.client_id],
     } for u in users])

@@ -103,11 +103,15 @@
       <select id="newParent" style="padding:6px 10px;border:1px solid var(--line);border-radius:8px;font-size:13px"></select>
       <span class="muted">כדי שהמוביל יעודכן אוטומטית כשההסדרה תושלם. אפשר לקבוע גם אחר-כך בכרטיס החברה.</span>
     </div>
+    <!-- מהלך אחד ורציף (לימור 19/08): שם + כתיבים + מיילים + הזמנה — בלי
+         לרדוף אחרי הכרטיס אחרי היצירה -->
+    <div class="row"><textarea id="newEmails" placeholder="מיילים של נציגי החברה — שורה לכל נציג (אפשר כמה, כמו בגדות או טמבור). אפשר להשאיר ריק ולהוסיף בכרטיס אחר-כך."></textarea></div>
+    <div class="row"><label style="font-size:13px;cursor:pointer"><input type="checkbox" id="newInvite" checked> לשלוח לנציגים מייל הזמנה לפורטל מיד עם היצירה</label></div>
     <div class="row">
       <button class="btn btn-soft" onclick="checkNew()">בדקי כמה מסמכים נמצאו</button>
       <button class="btn" onclick="createClient()">צרי חברה</button>
       <button class="btn btn-soft" onclick="toggleNewCard()">סגרי בלי ליצור</button>
-      <span class="muted">אחרי היצירה — מוסיפים משתמשים בכרטיס החברה למטה.</span>
+      <span class="muted">בסיום — כרטיס החברה ייפתח מולך.</span>
     </div>
     <div class="aliascheck" id="newCheck"></div>
   </div>
@@ -619,12 +623,14 @@ function render(){
       var extras=(u.extra_client_ids||[]).map(clientName).join(' · ');
       return '<tr><td>'+esc(u.email)+
         (declOnly?' <span class="pill" title="לקוח עקיף — רואה רק הצהרת יצרן+הסכמה">הצהרות בלבד</span>':'')+
+        (u.invited_at?'<div class="muted" style="font-size:12px">✉ הוזמן '+fmtDate(u.invited_at)+'</div>':'')+
         (extras?'<div class="muted" style="font-size:12px">רואה גם: '+esc(extras)+'</div>':'')+
         '</td><td>'+fmtDate(u.last_login_at)+'</td>'+
         '<td>'+(declOnly?'<span class="muted">—</span>'
           :'<button class="btn '+(rem?'':'btn-soft')+'" title="מייל תזכורת קצר בכל יום חמישי — רק מספרים וקישור לפורטל, בלי מסמכים. נשלח רק אם היו פעולות באותו שבוע." '+
           'onclick="toggleRem('+u.id+','+(rem?1:0)+',\''+esc(u.email)+'\')">'+(rem?'🔔 פועלת':'🔕 כבויה')+'</button>')+'</td>'+
-        '<td><button class="btn btn-soft" onclick="sendLink(\''+esc(u.email)+'\')">שלחי קישור כניסה</button> '+
+        '<td><button class="btn btn-soft" title="מייל שמסביר ללקוח מה יש בפורטל ואיך נכנסים — לשליחה ראשונה או לתזכורת" onclick="sendInvite('+u.id+',\''+esc(u.email)+'\')">✉ '+(u.invited_at?'הזמנה שוב':'שליחת הזמנה')+'</button> '+
+        '<button class="btn btn-soft" onclick="sendLink(\''+esc(u.email)+'\')">שלחי קישור כניסה</button> '+
         (declOnly?'':'<button class="btn btn-soft" title="משתמש שרואה כמה חברות בפורטל (מתג מעבר) — למשל לאורה עם שתי חברות גדות" onclick="editExtras('+u.id+',\''+esc(u.email)+'\')">חברות נוספות</button> ')+
         '<button class="btn btn-danger" onclick="delUser('+u.id+',\''+esc(u.email)+'\')">הסירי</button></td></tr>';
     }).join('');
@@ -751,20 +757,51 @@ async function saveParent(cid){
 }
 
 async function createClient(){
+  /* מהלך אחד ורציף (לימור 19/08): חברה + נציגים + הזמנות בלחיצה אחת,
+     ובסיום כרטיס החברה נפתח מולה במקום להיסגר ולהעלם */
   var name=document.getElementById('newName').value.trim();
   var aliases=document.getElementById('newAliases').value.split('\n').map(function(a){return a.trim();}).filter(Boolean);
   var ctype=document.getElementById('newType').value;
   if(!name){ toast('מלאי את שם החברה'); return; }
   if(CLIENTS.some(function(c){ return c.name===name; })){ toast('חברה בשם הזה כבר קיימת'); return; }
+  var emails=document.getElementById('newEmails').value.split('\n')
+    .map(function(a){return a.trim().toLowerCase();}).filter(Boolean);
+  var bad=emails.filter(function(e){ return e.indexOf('@')<1; });
+  if(bad.length){ toast('כתובת מייל לא תקינה: '+bad[0]); return; }
+  var doInvite=document.getElementById('newInvite').checked;
   var parentSel=document.getElementById('newParent');
   var parentId=(ctype==='indirect'&&parentSel&&parentSel.value)?parseInt(parentSel.value):null;
   var r=await api('/clients',{method:'POST',body:JSON.stringify(
     {name:name,division:'eco_oil',client_type:ctype,billing_aliases:aliases.join('\n')||null,parent_client_id:parentId})});
   if(!r||!r.ok){ toast('שגיאה ביצירת החברה'); return; }
-  toast(ctype==='indirect'?'החברה נוצרה ✓ עכשיו הוסיפי לה משתמש הצהרות בלבד':'החברה נוצרה ✓ עכשיו הוסיפי לה משתמש');
+  var cid=(await r.json()).client_id;
+  var role=(ctype==='indirect')?'eco_oil_declaration_only':'eco_oil_client';
+  var added=0, invited=0, problems=[];
+  for(var i=0;i<emails.length;i++){
+    var e=emails[i];
+    var ru=await api('/auth/portal-users',{method:'POST',
+      body:JSON.stringify({email:e,role:role,client_id:cid})});
+    if(ru&&ru.status===409){ problems.push(e+' — המייל כבר רשום במערכת'); continue; }
+    if(!ru||!ru.ok){ problems.push(e+' — שגיאה בהוספה'); continue; }
+    added++;
+    if(doInvite){
+      var ud=await ru.json();
+      var ri=await api('/auth/portal-users/'+ud.id+'/invite',{method:'POST'});
+      if(ri&&ri.ok) invited++; else problems.push(e+' — נוסף, אך מייל ההזמנה לא נשלח');
+    }
+  }
   document.getElementById('newName').value=''; document.getElementById('newAliases').value='';
-  document.getElementById('newCheck').innerHTML='';
+  document.getElementById('newEmails').value=''; document.getElementById('newCheck').innerHTML='';
+  document.getElementById('newCard').classList.add('hidden');
   await reload();
+  /* פתיחת הכרטיס: החיפוש מסונן לשם החדש, כך שהכרטיס לבדו מוצג מולה */
+  document.getElementById('q').value=name; render();
+  document.getElementById('q').scrollIntoView({behavior:'smooth',block:'start'});
+  var msg='החברה נוצרה ✓';
+  if(added) msg+=' · נוספו '+added+' נציגים';
+  if(invited) msg+=' · נשלחו '+invited+' הזמנות';
+  toast(msg);
+  if(problems.length) alert('שימי לב:\n'+problems.join('\n'));
 }
 
 async function addUser(cid,cname,declOnly){
@@ -778,7 +815,19 @@ async function addUser(cid,cname,declOnly){
     body:JSON.stringify({email:email,role:declOnly?'eco_oil_declaration_only':'eco_oil_client',client_id:cid})});
   if(r&&r.status===409){ toast('המייל הזה כבר רשום במערכת'); return; }
   if(!r||!r.ok){ toast('שגיאה בהוספת המשתמש'); return; }
-  toast(email+' נוסף ✓ אפשר לשלוח הזמנה');
+  var ud=await r.json();
+  if(confirm('נוסף ✓\nלשלוח ל-'+email+' מייל הזמנה לפורטל?')){
+    await sendInvite(ud.id,email);
+    return;
+  }
+  toast(email+' נוסף ✓');
+  await reload();
+}
+
+async function sendInvite(uid,email){
+  var r=await api('/auth/portal-users/'+uid+'/invite',{method:'POST'});
+  if(!r||!r.ok){ toast('שליחת מייל ההזמנה נכשלה — נסי שוב'); return; }
+  toast('מייל הזמנה נשלח אל '+email+' ✓');
   await reload();
 }
 

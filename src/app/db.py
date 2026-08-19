@@ -61,6 +61,9 @@ class User(db.Model):
     # Opt-in Thursday reminder email (Laura's request via Limor, 02/08/2026):
     # a short "your week's documents are in the portal" nudge, no attachments.
     weekly_reminder = db.Column(db.Boolean, default=False)
+    # מתי נשלחה למשתמש הזמנת-הפורטל (לימור 19/08) — מוצג בכרטיס כדי לדעת
+    # מי כבר הוזמן; שליחה חוזרת מעדכנת את התאריך.
+    invited_at = db.Column(db.DateTime, nullable=True)
     # Multi-company user (Limor 02/08/2026): comma-separated ADDITIONAL client
     # ids this login may view (e.g. Laura = both Gadot companies, Shulamit =
     # Gilboa + Beit-El). The portal shows a company switcher; client_id above

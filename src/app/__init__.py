@@ -97,6 +97,7 @@ def create_app():
             "ALTER TABLE users ADD COLUMN last_login_at DATETIME",
             "ALTER TABLE users ADD COLUMN weekly_reminder BOOLEAN DEFAULT FALSE",
             "ALTER TABLE users ADD COLUMN extra_client_ids VARCHAR(200)",
+            "ALTER TABLE users ADD COLUMN invited_at TIMESTAMP",
         ):
             try:
                 db.session.execute(db.text(stmt))
