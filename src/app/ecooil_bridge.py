@@ -234,6 +234,11 @@ def masad_feed_pending():
             "summary_pending": d.masad_summary_at is None,
             "approved_at": d.approved_at.isoformat() if d.approved_at else None,
             "account_name": c.name if c else None,
+            # צורות הכתיב של הכרטיס (19/08, מקרה גדות פי גלילות): בלעדיהן שם
+            # מקוצר בהצהרה נראה לגשר כמו "מוביל שמילא ללקוחו" ונרשם במסד
+            # בעמודת סוג-לקוח במקום "ישיר".
+            "account_aliases": ([a.strip() for a in (c.billing_aliases or "").splitlines()
+                                 if a.strip()] if c else []),
             "account_type": (c.client_type if c else None) or "direct",
             "producer_name": d.producer_name,
             "address": d.client_address,
@@ -279,6 +284,9 @@ def _filing_decl_fields(d, clients):
     return {
         "producer_name": d.producer_name,
         "account_name": c.name if c else None,
+        # 19/08 (גדות פי גלילות): זיהוי ישיר/עקיף בתיוק משווה את שם היצרן גם
+        # מול צורות הכתיב — שם מקוצר בהצהרה איננו "יצרן עקיף".
+        "account_aliases": aliases,
         "folder_candidates": [x for x in ([d.producer_name, c.name if c else None] + aliases) if x],
         "material_name": d.material_name,
         "material_classification": d.material_classification,

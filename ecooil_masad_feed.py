@@ -151,8 +151,12 @@ def resolve_summary_row(rows, d):
     if len(by_hp) == 1:
         return by_hp[0][0], None
     if not by_hp:
-        # לפני פתיחת שורה חדשה: אולי החברה קיימת עם תא ח.פ. ריק/שונה — לא משכפלים
-        name_hits = [r for r in rows if _norm(r[1]) in _site_keys(d)]
+        # לפני פתיחת שורה חדשה: אולי החברה קיימת עם תא ח.פ. ריק/שונה — לא משכפלים.
+        # משווים גם מול שם הכרטיס וצורות הכתיב שלו (19/08, גדות פי גלילות:
+        # בהצהרה נכתב "גדות פי גלילות" והשורה בגיליון נשאה את השם המלא —
+        # רשת-הביטחון החטיאה ונפתחה שורה כפולה).
+        name_keys = _site_keys(d) | _account_forms(d)
+        name_hits = [r for r in rows if _norm(r[1]) in name_keys]
         if name_hits:
             return None, (
                 f'בגיליון "{SUMMARY_SHEET}", שורה {name_hits[0][0]}: קיימת שורה '
@@ -215,14 +219,23 @@ def _xl_serial(dt):
 
 
 # --------------------------------------------------------------- planning
+def _account_forms(d):
+    """כל צורות הכתיב של החשבון, מנורמלות: שם הכרטיס + צורות הכתיב שבו."""
+    forms = [d.get("account_name")] + list(d.get("account_aliases") or [])
+    return {_norm(x) for x in forms if x}
+
+
 def plan_client_type(d):
     """עמודת "סוג לקוח" לשורת לקוח חדשה — בלי ניחושים:
-    ישיר כשהחשבון הוא היצרן עצמו; שם המוביל כשהמוביל מילא עבור לקוחו;
+    ישיר כשהחשבון הוא היצרן עצמו — גם כשההצהרה נכתבה באחת מצורות הכתיב
+    של הכרטיס (לקח 19/08, גדות פי גלילות + גרין סטרים: שם מקוצר/מלא בהצהרה
+    נראה כמו "מוביל שמילא ללקוחו" ושם החשבון נרשם בעמודת סוג-לקוח);
+    שם המוביל כשהמוביל מילא עבור לקוחו;
     ריק + הערה כשהיצרן העקיף הגיש בעצמו (המוביל לא ידוע למערכת)."""
     if d.get("account_type") == "indirect":
         return "", (f'בגיליון "{SUMMARY_SHEET}": נוספה שורת לקוח חדשה — השלימי '
                     'את עמודת "סוג לקוח" (שם המוביל).')
-    if _norm(d.get("account_name")) == _norm(d.get("producer_name")):
+    if _norm(d.get("producer_name")) in _account_forms(d):
         return "ישיר", None
     return d.get("account_name") or "", None
 
@@ -352,6 +365,16 @@ def run(api_base, masad_path, dry_run=False):
                         grid = grid if isinstance(grid, tuple) else (grid,)
                         # (row_idx, name, permit, hp) — הבסיס לזיהוי אתר
                         rows_ix = [(i + 2, r[1], r[2], r[4]) for i, r in enumerate(grid)]
+                        # סוף הנתונים האמיתי — מהערכים עצמם, לא מ-End(xlUp):
+                        # הגיליון מעוצב כטבלת-אקסל, ו-End(xlUp) עוצר בגבול
+                        # הטבלה גם כששורותיה האחרונות ריקות (19/08: הטבלה
+                        # הגיעה עד 553 → גרין סטרים נכתבה ב-554 וגדות פי
+                        # גלילות ב-555, במרחק 76 שורות מסוף הנתונים).
+                        data_last = max(
+                            (i + 2 for i, r in enumerate(grid)
+                             if (r[1] is not None and str(r[1]).strip())
+                             or (r[4] is not None and str(r[4]).strip())),
+                            default=1)
                         target, note = resolve_summary_row(rows_ix, d)
                         vu = _parse_dt(d.get("valid_until"))
                         wnum = d.get("waste_stream_number") or ""
@@ -359,7 +382,7 @@ def run(api_base, masad_path, dry_run=False):
                             note_parts.append(note)
                         elif target == "NEW":
                             ctype, ctype_note = plan_client_type(d)
-                            row = last_sum + 1
+                            row = data_last + 1
                             newvals = {2: d.get("producer_name"),
                                        3: d.get("permit_number"),
                                        5: d.get("business_id"),

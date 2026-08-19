@@ -75,39 +75,54 @@ def _norm(s):
 
 def find_customer_dir(root, candidates, allow_partial=True):
     """התיקייה של הלקוח — התאמה מנורמלת, בלי ניחושים.
+    מ-19/08 החיפוש יורד גם רמה אחת פנימה, אל תוך תיקיות-אם (מקרה גדות פי
+    גלילות: תיקיות קבוצת גדות יושבות בתוך "גדות_כולל" ולכן התיוק החטיא).
+    תיקייה ברמה העליונה ותיקייה מקוננת באותו שם = דו-משמעות שמדווחת, לא ניחוש.
     allow_partial=False מחייב התאמה מדויקת (ליצרן עקיף — ראי resolve_target).
     מחזיר (path, None) או (None, note)."""
     try:
-        dirs = [d for d in os.listdir(root)
-                if os.path.isdir(os.path.join(root, d))]
+        top = [d for d in os.listdir(root)
+               if os.path.isdir(os.path.join(root, d))]
     except OSError as exc:
         return None, f"תיקיית הלקוחות לא נגישה ({exc})"
+    # (שם-לתצוגה, נתיב מלא) — הרמה העליונה, ואחריה תת-התיקיות של כל תיקייה
+    entries = [(d, os.path.join(root, d)) for d in top]
+    for d in top:
+        try:
+            subs = os.listdir(os.path.join(root, d))
+        except OSError:
+            continue
+        entries.extend((d + "\\" + s, os.path.join(root, d, s)) for s in subs
+                       if os.path.isdir(os.path.join(root, d, s)))
     by_norm = {}
-    for d in dirs:
-        by_norm.setdefault(_norm(d), []).append(d)
+    for disp, path in entries:
+        by_norm.setdefault(_norm(os.path.basename(path)), []).append((disp, path))
 
     for cand in candidates:
         hits = by_norm.get(_norm(cand))
         if hits and len(hits) == 1:
-            return os.path.join(root, hits[0]), None
+            return hits[0][1], None
         if hits:
-            return None, f"נמצאו כמה תיקיות עם השם '{cand}' — אחדי או שני שם"
+            names = ", ".join(sorted(h[0] for h in hits)[:4])
+            return None, (f"נמצאו כמה תיקיות עם השם '{cand}' ({names}) — "
+                          "אחדי או שני שם")
 
     # התאמה חלקית — רק אם היא חד-משמעית (תיקייה אחת בלבד מתאימה)
     if not allow_partial:
         return None, None            # המתקשר מנסח את ההערה
-    partial = set()
+    partial = {}
     for cand in candidates:
         n = _norm(cand)
         if len(n) < 4:
             continue
-        for dn, names in by_norm.items():
+        for dn, hits in by_norm.items():
             if n in dn or dn in n:
-                partial.update(names)
+                for disp, path in hits:
+                    partial[path] = disp
     if len(partial) == 1:
-        return os.path.join(root, partial.pop()), None
+        return next(iter(partial)), None
     if len(partial) > 1:
-        names = ", ".join(sorted(partial)[:4])
+        names = ", ".join(sorted(partial.values())[:4])
         return None, f"כמה תיקיות מתאימות חלקית ({names}) — לא ניחשתי"
     return None, ("לא נמצאה תיקיית לקוח מתאימה תחת " + root +
                   " — צרי תיקייה (או הוסיפי צורת כתיב בפורטל)")
@@ -335,7 +350,12 @@ def resolve_target(root, row):
     לכת: זה היה חוסם תיוק תקין אצל היצרן עצמו, שזו בדיוק המטרה."""
     producer = (row.get("producer_name") or "").strip()
     account = (row.get("account_name") or "").strip()
-    indirect = bool(producer) and bool(account) and _norm(producer) != _norm(account)
+    # יצרן עקיף = שם היצרן שונה מהחשבון וגם מכל צורות הכתיב שלו (19/08,
+    # מקרה גדות פי גלילות: "גדות פי גלילות" מול "גדות פי גלילות שותפות
+    # מוגבלת בע"מ" סווג בטעות כיצרן עקיף — והמייל ללימור קרא לו כך).
+    account_forms = {_norm(x) for x in
+                     [account] + list(row.get("account_aliases") or []) if x}
+    indirect = bool(producer) and bool(account_forms) and _norm(producer) not in account_forms
 
     if indirect:
         cdir, note = find_customer_dir(root, [producer])
