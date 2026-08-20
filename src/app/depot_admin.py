@@ -188,6 +188,62 @@ def create_user():
     return jsonify(id=user.id, email=user.email, client_id=client.id), 201
 
 
+def _build_portal_only_notice():
+    """מייל "המעבר לפורטל בלבד" (לימור 20/08/2026) — סוגר את ערוץ המייל
+    המקדים שנשאר פתוח בתקופת ההרצה. הנוסח אושר על ידה 20/08 — אין לשנות
+    בלי אישורה. בכוונה אין בו שום אזכור פיילוט/"ראשונים" (לקוח לא לומד
+    דבר על לקוחות אחרים) ואין קישור ישיר לפורטל — הכניסה דרך האתר בלבד
+    (הכרעת לימור 09/08)."""
+    site_url = "https://eco-oil.co.il"
+    html = f"""<div dir="rtl" style="font-family:Arial,sans-serif;color:#222;">
+<p>שלום רב,</p>
+<p>לפני כשבועיים פתחנו את פורטל הלקוחות של אקו דיפו — ובו טופס
+"הודעה על נכס בדרך אלינו" שמחליף את המייל המקדים.</p>
+<p>בתקופת ההרצה פעלו שני הערוצים במקביל. תקופת ההרצה הסתיימה, ואנו
+עוברים לעבודה מסודרת בערוץ אחד: <b>החל מיום ראשון, 30/08/2026, הודעה
+על נכס בדרך תתקבל דרך הפורטל בלבד, ומיילים מקדימים לא יטופלו עוד.</b></p>
+<p><b>למה זה משתלם גם לכם?</b></p>
+<ul style="line-height:1.8;">
+<li>הטופס קצר — ממלאים אותו בפחות מדקה, מהר יותר מכתיבת מייל.</li>
+<li>הנכס נרשם אצלנו אוטומטית ברגע השליחה — בלי תלות בקריאת מייל,
+בלי טעויות העתקה ובלי "המייל התפספס".</li>
+<li>מזמינים מראש שירותים (שטיפה, אחסנה, ייבוש, תיקונים) ומצרפים
+גיליון בטיחות (MSDS) — הכול באותו טופס.</li>
+<li>כל ההגשות שלכם מתועדות ושמורות לכם במקום אחד.</li>
+</ul>
+<p><b>הכניסה פשוטה מאוד, בלי סיסמאות:</b></p>
+<ol style="line-height:1.8;">
+<li>נכנסים לאתר שלנו: <a href="{site_url}">eco-oil.co.il</a></li>
+<li>בתפריט למעלה: "כניסת לקוחות" ← "לקוחות אקו-דיפו"</li>
+<li>מקלידים את כתובת המייל הזו — ומקבלים למייל קישור כניסה אישי.</li>
+<li>בפורטל לוחצים "הודעה על נכס בדרך אלינו" וממלאים.</li>
+</ol>
+<p>נשמח ללוות אתכם בהגשה הראשונה — שיחת טלפון קצרה של חמש דקות ואתם
+מסודרים לתמיד. אנחנו זמינים בטלפון 054-3232617 או במייל זה.</p>
+<p>תודה על שיתוף הפעולה,<br>צוות אקו דיפו</p></div>"""
+    return "אקו דיפו — ההודעה על נכס בדרך עוברת לפורטל בלבד", html
+
+
+@depot_admin.route("/users/<int:user_id>/portal-only-notice", methods=["POST"])
+@depot_admin_required
+def send_portal_only_notice(user_id):
+    """שליחת מייל "המעבר לפורטל בלבד" לאיש קשר אחד — כפתור בשורת המורשה
+    בכרטיס הלקוח (לימור 20/08). שליחה פרטנית לכל נמען — אין חשיפת כתובות
+    בין חברות; כל שליחה נרשמת ביומן הפעולות."""
+    from .mailer import send_office_email
+
+    user = db.session.get(User, user_id)
+    if user is None or user.role != "eco_depot_client" or not user.email:
+        return jsonify(error="משתמש לא נמצא"), 404
+    client = db.session.get(Client, user.client_id) if user.client_id else None
+    subject, html = _build_portal_only_notice()
+    if not send_office_email(subject=subject, html=html, to=user.email):
+        return jsonify(error="שליחת המייל נכשלה — נסו שוב מאוחר יותר"), 502
+    _log("מייל מעבר לפורטל", f"{user.email} ({client.name if client else '?'})")
+    db.session.commit()
+    return jsonify(ok=True, email=user.email)
+
+
 @depot_admin.route("/users/<int:user_id>", methods=["DELETE"])
 @depot_admin_required
 def delete_user(user_id):
