@@ -53,11 +53,20 @@ def overview():
                .order_by(Client.name).all())
     users = (User.query.filter_by(role="eco_depot_client")
              .order_by(User.client_id, User.id).all())
+    # חותמת "מייל מעבר לפורטל נשלח" (לימור 20/08) — נגזרת מיומן הפעולות,
+    # כך שגם שליחות שבוצעו לפני התוספת מוצגות; שליחה חוזרת = החותמת האחרונה.
+    notice_by_email = {}
+    for row in (AdminActionLog.query
+                .filter_by(division="eco_depot", action="מייל מעבר לפורטל")
+                .order_by(AdminActionLog.at).all()):
+        notice_by_email[row.details.split(" (")[0]] = row.at
     by_client = {}
     for u in users:
+        sent = notice_by_email.get(u.email)
         by_client.setdefault(u.client_id, []).append({
             "id": u.id, "email": u.email,
             "last_login_at": u.last_login_at.isoformat() if u.last_login_at else None,
+            "notice_sent_at": sent.isoformat() if sent else None,
         })
     staff = User.query.filter_by(role="depot_admin").order_by(User.id).all()
     actions = (AdminActionLog.query.filter_by(division="eco_depot")

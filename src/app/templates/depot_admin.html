@@ -242,7 +242,8 @@ function render(){
         h+='<tr><td>'+esc(u.email)+'</td><td>'+fmtDT(u.last_login_at)+'</td>'+
            '<td><button class="btn btn-soft" onclick="sendLink(\''+esc(u.email)+'\')">שלחו קישור כניסה</button> '+
            '<button class="btn btn-soft" title="מייל בנוסח קבוע ומאושר: החל מ-30/08 הודעה על נכס בדרך מתקבלת דרך הפורטל בלבד" onclick="sendPortalOnly('+u.id+',\''+esc(u.email)+'\')">📣 מייל מעבר לפורטל</button> '+
-           '<button class="btn btn-danger" onclick="delUser('+u.id+',\''+esc(u.email)+'\')">הסירו</button></td></tr>';
+           '<button class="btn btn-danger" onclick="delUser('+u.id+',\''+esc(u.email)+'\')">הסירו</button>'+
+           (u.notice_sent_at?'<div class="muted" style="font-size:11.5px;margin-top:3px">📣 מייל המעבר נשלח '+fmtDT(u.notice_sent_at)+'</div>':'')+'</td></tr>';
       });
       h+='</table>';
     } else {
