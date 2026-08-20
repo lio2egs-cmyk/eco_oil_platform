@@ -614,6 +614,35 @@ padding:12px 28px;border-radius:8px;font-weight:bold;">כניסה לפורטל</
         html=html, to=submitter.email)
 
 
+def _notify_customer_declaration_edited(d):
+    """מייל למגיש אחרי עריכת משרד (לימור 20/08) — מודיע שהנוסח תוקן ושאפשר
+    להוריד את הגרסה המעודכנת לחתימה. נשלח רק ביוזמתה, בשאלה אחרי השמירה."""
+    from .mailer import send_office_email
+
+    submitter = db.session.get(User, d.submitted_by_user_id) if d.submitted_by_user_id else None
+    if submitter is None or not submitter.email:
+        return False
+    portal_url = "https://portal.eco-oil.co.il"
+    biz = (d.producer_name or "").strip()
+    html = f"""<div dir="rtl" style="font-family:Arial,sans-serif;color:#222;">
+<p>שלום,</p>
+<p>בהצהרת היצרן של <b>{biz}</b> בוצע תיקון פרטים על ידי משרד אקו-אויל,
+והנוסח המעודכן כבר זמין בפורטל.</p>
+<p><b>אם הדפסתם או הורדתם עותק קודם — אנא השתמשו מעתה בגרסה המעודכנת:</b></p>
+<ol style="line-height:1.8;">
+<li>היכנסו לפורטל והורידו או הדפיסו את המסמך המעודכן.</li>
+<li>חתמו עליו בחתימה ובחותמת של יצרן הפסולת.</li>
+<li>העלו את המסמך החתום בפורטל — אפשר גם צילום ברור מהטלפון.</li>
+</ol>
+<p style="margin:22px 0;">
+<a href="{portal_url}" style="background:#5B9E96;color:#fff;text-decoration:none;
+padding:12px 28px;border-radius:8px;font-weight:bold;">כניסה לפורטל</a></p>
+<p>בברכה,<br>פורטל הלקוחות של אקו-אויל</p></div>"""
+    return send_office_email(
+        subject=f"עדכון במסמך הצהרת יצרן — {biz}",
+        html=html, to=submitter.email)
+
+
 # שדות שמותר למשרד לערוך (לימור 13/08, אחרי שם-כפול של מסד זילבר) —
 # טקסט חופשי בלבד; שדות-בחירה מרשימות מבוקרות נשארים דרך "החזירי לתיקון".
 _ADMIN_EDITABLE_FIELDS = {
@@ -663,6 +692,30 @@ def admin_edit_declaration_fields(decl_id):
     d.notes = f"{d.notes}\n{stamp}" if d.notes else stamp
     db.session.commit()
     return jsonify({"id": d.id, "changed": len(changes)})
+
+
+@ecooil_docs.route("/admin/producer-declarations/<int:decl_id>/notify-edited",
+                   methods=["POST"])
+@jwt_required()
+def admin_notify_declaration_edited(decl_id):
+    """מייל עדכון ללקוח אחרי עריכת משרד (לימור 20/08) — נשלח רק בלחיצה שלה
+    (שאלה אחרי שמירת העריכה), ורק כשההצהרה בתא הלקוח — אחרת אין לו מה להוריד
+    (בהצהרה שרק "הוגשה" מייל השחרור הרגיל כבר יכסה את זה)."""
+    if get_jwt().get("role") != "admin":
+        return jsonify({"error": "admin only"}), 403
+    from .db import ProducerDeclaration
+
+    d = db.session.get(ProducerDeclaration, decl_id)
+    if d is None or d.submitted_by_user_id is None:
+        return jsonify({"error": "not found"}), 404
+    if d.status != "released":
+        return jsonify({"error": "מייל עדכון נשלח רק כשההצהרה בתא הלקוח"}), 409
+    sent = False
+    try:
+        sent = _notify_customer_declaration_edited(d)
+    except Exception as exc:
+        current_app.logger.error("edit notification failed: %s", exc)
+    return jsonify({"id": d.id, "email_sent": sent})
 
 
 @ecooil_docs.route("/admin/producer-declarations/<int:decl_id>/agreement",

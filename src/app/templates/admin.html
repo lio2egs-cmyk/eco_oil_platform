@@ -522,7 +522,16 @@ async function saveDeclEdit(i,id){
     toast(e.error||'שגיאה בשמירת העריכה'); return;
   }
   var res=await r.json();
-  toast(res.changed?('נשמרו '+res.changed+' שינויים ✓'):'לא היו שינויים');
+  /* מייל עדכון ללקוח אחרי עריכה (לימור 20/08) — רק כשההצהרה בתא הלקוח,
+     ורק אחרי אישור בשאלה. בהצהרה שרק "הוגשה" מייל השחרור הרגיל יכסה. */
+  if(res.changed && window.DECLS[i] && window.DECLS[i].status==='released' &&
+     confirm('נשמרו '+res.changed+' שינויים ✓\n\nלשלוח ללקוח מייל עדכון — שההצהרה תוקנה ואפשר להוריד את הגרסה המעודכנת לחתימה?')){
+    var n=await api('/eco-oil/admin/producer-declarations/'+id+'/notify-edited',{method:'POST'});
+    var nr=null; try{ nr=await n.json(); }catch(_){}
+    toast((n&&n.ok&&nr&&nr.email_sent)?'מייל העדכון נשלח ללקוח ✓':'העריכה נשמרה, אבל שליחת המייל נכשלה — עדכני את הלקוח ידנית');
+  }else{
+    toast(res.changed?('נשמרו '+res.changed+' שינויים ✓'):'לא היו שינויים');
+  }
   await loadDeclarations();
 }
 function declDetails(d){
