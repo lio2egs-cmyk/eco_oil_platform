@@ -640,6 +640,7 @@ function render(){
           'onclick="toggleRem('+u.id+','+(rem?1:0)+',\''+esc(u.email)+'\')">'+(rem?'🔔 פועלת':'🔕 כבויה')+'</button>')+'</td>'+
         '<td><button class="btn btn-soft" title="מייל שמסביר ללקוח מה יש בפורטל ואיך נכנסים — לשליחה ראשונה או לתזכורת" onclick="sendInvite('+u.id+',\''+esc(u.email)+'\')">✉ '+(u.invited_at?'הזמנה שוב':'שליחת הזמנה')+'</button> '+
         '<button class="btn btn-soft" onclick="sendLink(\''+esc(u.email)+'\')">שלחי קישור כניסה</button> '+
+        '<button class="btn btn-soft" title="תיקון כתובת המייל של איש הקשר — המשתמש וההיסטוריה שלו נשמרים, רק הכתובת מתחלפת" onclick="editEmail('+u.id+',\''+esc(u.email)+'\')">✏ עריכת מייל</button> '+
         (declOnly?'':'<button class="btn btn-soft" title="משתמש שרואה כמה חברות בפורטל (מתג מעבר) — למשל לאורה עם שתי חברות גדות" onclick="editExtras('+u.id+',\''+esc(u.email)+'\')">חברות נוספות</button> ')+
         '<button class="btn btn-danger" onclick="delUser('+u.id+',\''+esc(u.email)+'\')">הסירי</button></td></tr>';
     }).join('');
@@ -838,6 +839,21 @@ async function sendInvite(uid,email){
   if(!r||!r.ok){ toast('שליחת מייל ההזמנה נכשלה — נסי שוב'); return; }
   toast('מייל הזמנה נשלח אל '+email+' ✓');
   await reload();
+}
+
+/* עריכת מייל של איש קשר (לימור 20/08, אחרי מקרה אסף/פאוורג'ן) — המשתמש
+   נשמר על כל ההיסטוריה שלו; קישורי כניסה ישנים מבוטלים בצד השרת. */
+async function editEmail(uid,email){
+  var nv=prompt('כתובת המייל החדשה עבור '+email+':',email);
+  if(nv===null) return;
+  nv=nv.trim().toLowerCase();
+  if(!nv||nv===email.toLowerCase()) return;
+  if(nv.indexOf('@')<1){ toast('כתובת מייל לא תקינה'); return; }
+  var r=await api('/auth/portal-users/'+uid,{method:'PATCH',body:JSON.stringify({email:nv})});
+  if(!r||!r.ok){ var e={}; try{ e=await r.json(); }catch(_){ } toast(e.error||'עדכון המייל נכשל'); return; }
+  toast('המייל עודכן ל-'+nv+' ✓');
+  await reload();
+  if(confirm('לשלוח מייל הזמנה לפורטל לכתובת החדשה '+nv+'?')) await sendInvite(uid,nv);
 }
 
 async function delUser(uid,email){

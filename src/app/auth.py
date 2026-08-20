@@ -16,6 +16,7 @@ from flask_jwt_extended import (
     get_jwt_identity,
     get_jwt,
 )
+from sqlalchemy import or_
 from werkzeug.security import generate_password_hash, check_password_hash
 from .db import db, User, Client, TokenBlocklist, MagicLinkToken, LoginAuditLog
 
@@ -527,15 +528,34 @@ def list_portal_users():
 @auth.route("/portal-users/<int:user_id>", methods=["PATCH"])
 @admin_required
 def update_portal_user(user_id):
-    """Admin-only: per-user settings. Currently just the opt-in Thursday
-    reminder flag (weekly_reminder) — Limor toggles it in the admin screen
-    for customers who asked for the weekly anchor email."""
+    """Admin-only: per-user settings — the Thursday reminder flag
+    (weekly_reminder), multi-company visibility (extra_client_ids), and
+    email correction (לימור 20/08, אחרי מקרה אסף/פאוורג'ן: כתובת ישנה
+    שהוקלדה בהקמה). עדכון מייל שומר את המשתמש והיסטוריית ההגשות שלו —
+    עדיף על הסרה+הוספה; קישורי כניסה ישנים מבוטלים וההזמנה מתאפסת."""
     user = db.session.get(User, user_id)
     if user is None:
         return jsonify(error="User not found"), 404
     if user.role not in PORTAL_ROLES:
         return jsonify(error="Only portal users can be updated"), 403
     data = request.get_json(silent=True) or {}
+    if "email" in data:
+        new_email = (str(data.get("email") or "")).strip().lower()
+        if not new_email or "@" not in new_email or new_email.startswith("@"):
+            return jsonify(error="כתובת מייל לא תקינה"), 400
+        if new_email != (user.email or "").lower():
+            clash = User.query.filter(
+                or_(User.email == new_email, User.username == new_email),
+                User.id != user.id).first()
+            if clash:
+                return jsonify(error="הכתובת הזו כבר קיימת אצל משתמש אחר"), 409
+            if user.username == user.email:
+                user.username = new_email
+            user.email = new_email
+            # הכתובת הישנה לא נכנסת יותר: קישורי קסם פתוחים מבוטלים,
+            # וההזמנה מתאפסת כדי שהמסך יציע לשלוח הזמנה לכתובת החדשה.
+            MagicLinkToken.query.filter_by(user_id=user.id).delete()
+            user.invited_at = None
     if "weekly_reminder" in data:
         user.weekly_reminder = bool(data["weekly_reminder"])
     if "extra_client_ids" in data:
