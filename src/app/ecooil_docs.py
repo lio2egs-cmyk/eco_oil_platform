@@ -616,7 +616,8 @@ padding:12px 28px;border-radius:8px;font-weight:bold;">כניסה לפורטל</
 
 def _notify_customer_declaration_edited(d):
     """מייל למגיש אחרי עריכת משרד (לימור 20/08) — מודיע שהנוסח תוקן ושאפשר
-    להוריד את הגרסה המעודכנת לחתימה. נשלח רק ביוזמתה, בשאלה אחרי השמירה."""
+    להוריד את הגרסה המעודכנת לחתימה. נשלח רק ביוזמתה, בשאלה אחרי השמירה.
+    הנוסח אושר על ידי לימור 20/08/2026 — אין לשנות בלי אישורה."""
     from .mailer import send_office_email
 
     submitter = db.session.get(User, d.submitted_by_user_id) if d.submitted_by_user_id else None
