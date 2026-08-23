@@ -253,6 +253,36 @@ def send_portal_only_notice(user_id):
     return jsonify(ok=True, email=user.email)
 
 
+@depot_admin.route("/users/<int:user_id>", methods=["PATCH"])
+@depot_admin_required
+def update_user(user_id):
+    """עריכת מייל של איש קשר דיפו (לימור 23/08, בעקבות מקרה אסף/פאוורג'ן
+    בצד האויל) — המשתמש וההיסטוריה שלו נשמרים, רק הכתובת מתחלפת;
+    קישורי כניסה ישנים מבוטלים. כל עריכה נרשמת ביומן הפעולות."""
+    user = db.session.get(User, user_id)
+    if user is None or user.role != "eco_depot_client":
+        return jsonify(error="משתמש לא נמצא"), 404
+    data = request.get_json(silent=True) or {}
+    new_email = (str(data.get("email") or "")).strip().lower()
+    if not new_email or "@" not in new_email or new_email.startswith("@"):
+        return jsonify(error="כתובת מייל לא תקינה"), 400
+    old = user.email
+    if new_email != (old or "").lower():
+        clash = User.query.filter(
+            db.or_(User.email == new_email, User.username == new_email),
+            User.id != user.id).first()
+        if clash:
+            return jsonify(error="הכתובת הזו כבר קיימת אצל משתמש אחר"), 409
+        if user.username == old:
+            user.username = new_email
+        user.email = new_email
+        MagicLinkToken.query.filter_by(user_id=user.id).delete()
+        client = db.session.get(Client, user.client_id) if user.client_id else None
+        _log("עדכון מייל משתמש", f"{old} ← {new_email} ({client.name if client else '?'})")
+        db.session.commit()
+    return jsonify(id=user.id, email=user.email)
+
+
 @depot_admin.route("/users/<int:user_id>", methods=["DELETE"])
 @depot_admin_required
 def delete_user(user_id):

@@ -143,6 +143,21 @@ function showLogin(){
   document.getElementById('app').classList.add('hidden');
 }
 
+/* עריכת מייל של איש קשר (לימור 23/08) — המשתמש נשמר על ההיסטוריה שלו;
+   קישורי כניסה ישנים מבוטלים בצד השרת, והמסך מציע קישור כניסה לכתובת החדשה. */
+async function editDepotEmail(uid,email){
+  var nv=prompt('כתובת המייל החדשה עבור '+email+':',email);
+  if(nv===null) return;
+  nv=nv.trim().toLowerCase();
+  if(!nv||nv===email.toLowerCase()) return;
+  if(nv.indexOf('@')<1){ toast('כתובת מייל לא תקינה'); return; }
+  var r=await api('/depot/admin/users/'+uid,{method:'PATCH',body:JSON.stringify({email:nv})});
+  if(!r||!r.ok){ var e={}; try{ e=await r.json(); }catch(_){ } toast(e.error||'עדכון המייל נכשל'); return; }
+  toast('המייל עודכן ל-'+nv+' ✓');
+  await reload();
+  if(confirm('לשלוח קישור כניסה לכתובת החדשה '+nv+'?')) sendLink(nv);
+}
+
 /* מייל "המעבר לפורטל בלבד" (לימור 20/08) — נוסח קבוע בצד השרת; שליחה
    פרטנית לכל מורשה בנפרד, נרשמת ביומן הפעולות. */
 async function sendPortalOnly(id,email){
@@ -241,6 +256,7 @@ function render(){
       c.users.forEach(function(u){
         h+='<tr><td>'+esc(u.email)+'</td><td>'+fmtDT(u.last_login_at)+'</td>'+
            '<td><button class="btn btn-soft" onclick="sendLink(\''+esc(u.email)+'\')">שלחו קישור כניסה</button> '+
+           '<button class="btn btn-soft" title="תיקון כתובת המייל של איש הקשר — המשתמש וההיסטוריה שלו נשמרים, רק הכתובת מתחלפת" onclick="editDepotEmail('+u.id+',\''+esc(u.email)+'\')">✏ עריכת מייל</button> '+
            '<button class="btn btn-soft" title="מייל בנוסח קבוע ומאושר: החל מ-30/08 הודעה על נכס בדרך מתקבלת דרך הפורטל בלבד" onclick="sendPortalOnly('+u.id+',\''+esc(u.email)+'\')">📣 מייל מעבר לפורטל</button> '+
            '<button class="btn btn-danger" onclick="delUser('+u.id+',\''+esc(u.email)+'\')">הסירו</button>'+
            (u.notice_sent_at?'<div class="muted" style="font-size:11.5px;margin-top:3px">📣 מייל המעבר נשלח '+fmtDT(u.notice_sent_at)+'</div>':'')+'</td></tr>';
