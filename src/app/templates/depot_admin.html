@@ -88,6 +88,11 @@
     <div id="paList" class="muted" style="overflow-x:auto">טוען…</div>
   </div>
 
+  <div class="card">
+    <h3>📄 תעודות שטיפה בפורטל <span class="pill" id="certsCount"></span></h3>
+    <div id="certsList" class="muted" style="overflow-x:auto">טוען…</div>
+  </div>
+
   <div class="card hidden" id="staffCard">
     <h3>צוות המסך <span class="muted" style="font-weight:normal">(ניהול הצוות — רק בכניסת המנהלת הראשית)</span></h3>
     <div id="staffList"></div>
@@ -203,6 +208,28 @@ async function reload(){
   document.getElementById('who').textContent='מחוברים כ: '+DATA.me;
   render(); renderStaff(); renderActions();
   loadPrearrivals();
+  loadCerts();
+}
+
+async function loadCerts(){
+  var r=await api('/depot/admin/certs-overview');
+  if(!r||!r.ok){ document.getElementById('certsList').textContent='שגיאה בטעינת התעודות'; return; }
+  var d=await r.json();
+  var rows=d.folders||[];
+  document.getElementById('certsCount').textContent=d.total?
+    (d.total+' תעודות'+(d.unrecognized?' · '+d.unrecognized+' תיקיות לא מזוהות':'')):'';
+  if(!rows.length){
+    document.getElementById('certsList').innerHTML='<span class="muted">עוד לא הועלו תעודות שטיפה מהשרת. ההעלאה מתבצעת אוטומטית בסבב השעתי.</span>';
+    return;
+  }
+  var h='<table><tr><th>תיקייה בשרת</th><th>חברה בפורטל</th><th>תעודות</th><th>תעודה אחרונה</th></tr>';
+  rows.forEach(function(f){
+    var who=f.client_name?('<b>'+esc(f.client_name)+'</b>')
+      :'<span style="color:#C0564F">⚠ לא מזוהה — התעודות לא מוצגות לאיש. הוסיפו את שם התיקייה כצורת כתיב בכרטיס החברה המתאימה.</span>';
+    h+='<tr><td>'+esc(f.folder)+'</td><td>'+who+'</td><td>'+f.count+'</td><td>'+fmtDT(f.latest)+'</td></tr>';
+  });
+  h+='</table>';
+  document.getElementById('certsList').innerHTML=h;
 }
 
 async function loadPrearrivals(){
@@ -268,6 +295,7 @@ function render(){
     h+='<div class="row" style="margin-top:8px">'+
        '<button class="btn" onclick="addUser('+c.id+',\''+esc(c.name)+'\')">הוסיפו משתמש</button>'+
        '<button class="btn btn-soft" onclick="editAliases('+c.id+')">צורות כתיב</button>'+
+       '<button class="btn btn-soft" title="המסך בדיוק כפי שהלקוח רואה אותו" onclick="window.open(\'/depot/certificates?client_id='+c.id+'\',\'_blank\')">👁 תעודות הלקוח</button>'+
        '</div></div>';
   });
   document.getElementById('list').innerHTML=h;

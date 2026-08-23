@@ -1,0 +1,155 @@
+<!doctype html>
+<html lang="he" dir="rtl"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>תעודות שטיפה — {{ brand }}</title>
+<link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@400;500;600;700&family=Rubik:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root{--bg:#EDE8DC;--teal:#5B9E96;--teal-dark:#4a8a82;--navy:#2F5F59;--fh:'Fredoka',sans-serif;--fb:'Rubik',sans-serif;}
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{font-family:var(--fb);background:var(--bg);direction:rtl;padding:26px 14px;line-height:1.7;color:#222}
+  .card{background:#fff;max-width:880px;margin:0 auto;border-radius:18px;box-shadow:0 10px 40px rgba(0,0,0,.10);padding:34px 30px}
+  h1{font-family:var(--fh);font-weight:600;font-size:22px;color:var(--navy)}
+  .sub{font-size:14px;color:#555;margin-top:6px}
+  .who{background:#EDF3F2;border-radius:10px;padding:10px 14px;margin-top:16px;font-size:14px}
+  .who b{color:var(--teal-dark)}
+  .preview{background:#FFF6D9;border:1.5px solid #E5C558;border-radius:10px;padding:10px 14px;margin-top:14px;font-size:14px;display:none}
+  .filters{display:flex;gap:10px;flex-wrap:wrap;margin-top:20px;align-items:center}
+  .filters input[type=text]{flex:1;min-width:200px;padding:10px 12px;border:1.5px solid #cfd8d6;border-radius:10px;font-family:var(--fb);font-size:14px}
+  .filters select{padding:10px 12px;border:1.5px solid #cfd8d6;border-radius:10px;font-family:var(--fb);font-size:14px;background:#fff}
+  .count{font-size:13px;color:#777;margin-top:10px}
+  .tblwrap{overflow-x:auto;margin-top:8px}
+  table{width:100%;border-collapse:collapse;font-size:14px}
+  th{background:#EDF3F2;color:var(--navy);padding:8px 10px;text-align:right;font-family:var(--fh);font-weight:500;white-space:nowrap}
+  td{padding:8px 10px;border-bottom:1px solid #eee;white-space:nowrap}
+  .tank{font-weight:600;letter-spacing:.4px}
+  .act{display:inline-block;border:1.5px solid var(--teal);color:var(--teal-dark);background:#fff;border-radius:8px;padding:5px 12px;font-family:var(--fb);font-size:13px;cursor:pointer;text-decoration:none;margin-inline-start:6px}
+  .act:hover{background:#EDF3F2}
+  #empty{display:none;text-align:center;color:#666;padding:34px 0;font-size:15px}
+  .back{display:inline-block;margin-top:24px;background:#fff;border:1.5px solid var(--teal);color:var(--teal-dark);border-radius:10px;padding:10px 22px;font-family:var(--fh);font-size:14px;cursor:pointer;text-decoration:none}
+  #loading{text-align:center;color:#777;padding:30px 0}
+</style></head>
+<body>
+  <div class="card">
+    <h1>תעודות השטיפה שלנו</h1>
+    <div class="sub">כל תעודות השטיפה של המכלים שלכם, זמינות לצפייה ולהורדה בכל רגע — במקום לחכות למייל.</div>
+    <div class="who">שלום, <b id="whoName">…</b></div>
+    <div class="preview" id="previewBox">👁 תצוגת מנהלת — כך נראה המסך אצל: <b id="previewName"></b></div>
+
+    <div class="filters">
+      <input type="text" id="q" placeholder="🔍 חיפוש לפי מספר מכל…" oninput="renderRows()">
+      <select id="yearSel" onchange="renderRows()"><option value="">כל השנים</option></select>
+    </div>
+    <div class="count" id="countLine"></div>
+
+    <div class="tblwrap">
+      <table id="tbl" style="display:none">
+        <thead><tr>
+          <th>מספר מכל</th><th>חודש הביקור</th><th>תאריך התעודה</th><th>מסמך</th><th></th>
+        </tr></thead>
+        <tbody id="rows"></tbody>
+      </table>
+    </div>
+    <div id="loading">טוען את התעודות…</div>
+    <div id="empty">עדיין אין תעודות שטיפה להצגה.<br>תעודות חדשות מופיעות כאן אוטומטית לאחר השטיפה.</div>
+
+    <a class="back" href="/portal">חזרה לעמוד הבית</a>
+  </div>
+
+<script>
+if(!localStorage.getItem('eco_access_token')){ location.href='/login'; }
+var ECO_USER={};
+try{ ECO_USER=JSON.parse(localStorage.getItem('eco_user')||'{}'); }catch(e){}
+if(ECO_USER.client_name){ document.getElementById('whoName').textContent=ECO_USER.client_name; }
+
+async function api(url, opts){
+  opts=opts||{}; opts.headers=opts.headers||{};
+  opts.headers['Authorization']='Bearer '+localStorage.getItem('eco_access_token');
+  var r=await fetch(url,opts);
+  if(r.status===401||r.status===422){
+    var rt=localStorage.getItem('eco_refresh_token');
+    if(rt){
+      var rr=await fetch('/auth/refresh',{method:'POST',headers:{'Authorization':'Bearer '+rt}});
+      if(rr.ok){
+        localStorage.setItem('eco_access_token',(await rr.json()).access_token||'');
+        opts.headers['Authorization']='Bearer '+localStorage.getItem('eco_access_token');
+        r=await fetch(url,opts);
+      } else { location.href='/login'; }
+    } else { location.href='/login'; }
+  }
+  return r;
+}
+
+/* מבט-מנהלת (?client_id=) — הלקח מ-17/08: המסך נצפה בעיני הלקוח מהשרת */
+var CLIENT_ID=new URLSearchParams(location.search).get('client_id')||'';
+var CERTS=[];
+var MONTHS=['','ינואר','פברואר','מרץ','אפריל','מאי','יוני','יולי','אוגוסט','ספטמבר','אוקטובר','נובמבר','דצמבר'];
+
+function fmtDate(iso){
+  if(!iso) return '—';
+  var d=new Date(iso);
+  return ('0'+d.getDate()).slice(-2)+'/'+('0'+(d.getMonth()+1)).slice(-2)+'/'+d.getFullYear();
+}
+
+async function load(){
+  var url='/depot/portal/my-certs'+(CLIENT_ID?('?client_id='+CLIENT_ID):'');
+  var r=await api(url);
+  document.getElementById('loading').style.display='none';
+  if(!r.ok){
+    document.getElementById('empty').style.display='block';
+    document.getElementById('empty').textContent='אין הרשאה לצפייה במסך זה.';
+    return;
+  }
+  var data=await r.json();
+  CERTS=data.certs||[];
+  if(data.preview){
+    document.getElementById('previewBox').style.display='block';
+    document.getElementById('previewName').textContent=data.preview.client_name;
+  }
+  var years={};
+  CERTS.forEach(function(c){ if(c.year) years[c.year]=1; });
+  var sel=document.getElementById('yearSel');
+  Object.keys(years).sort().reverse().forEach(function(y){
+    var o=document.createElement('option'); o.value=y; o.textContent=y; sel.appendChild(o);
+  });
+  renderRows();
+}
+
+function renderRows(){
+  var q=(document.getElementById('q').value||'').toUpperCase().replace(/\s/g,'');
+  var y=document.getElementById('yearSel').value;
+  var list=CERTS.filter(function(c){
+    if(y && String(c.year)!==y) return false;
+    if(q && (c.tank||'').toUpperCase().replace(/\s/g,'').indexOf(q)===-1) return false;
+    return true;
+  });
+  var tb=document.getElementById('rows'); tb.innerHTML='';
+  list.forEach(function(c){
+    var tr=document.createElement('tr');
+    var visit=(c.month&&c.year)?(MONTHS[c.month]+' '+c.year):(c.year||'—');
+    tr.innerHTML='<td class="tank">'+(c.tank||'—')+'</td>'+
+      '<td>'+visit+'</td>'+
+      '<td>'+fmtDate(c.file_date)+'</td>'+
+      '<td>'+c.file_name+'</td>'+
+      '<td><button class="act" onclick="openCert('+c.id+',\'view\')">👁 צפייה</button>'+
+      '<button class="act" onclick="openCert('+c.id+',\'download\')">⬇ הורדה</button></td>';
+    tb.appendChild(tr);
+  });
+  document.getElementById('tbl').style.display=list.length?'table':'none';
+  document.getElementById('empty').style.display=(CERTS.length===0)?'block':'none';
+  document.getElementById('countLine').textContent=
+    CERTS.length? ('מוצגות '+list.length+' מתוך '+CERTS.length+' תעודות'):'';
+}
+
+async function openCert(id, mode){
+  var url='/depot/portal/my-certs/'+id+'/download?mode='+(mode==='view'?'view':'save');
+  if(CLIENT_ID) url+='&client_id='+CLIENT_ID;
+  var r=await api(url);
+  if(!r.ok){ alert('הקובץ אינו זמין כרגע — נסו שוב בעוד רגע.'); return; }
+  var data=await r.json();
+  if(mode==='view'){ window.open(data.url,'_blank'); }
+  else { location.href=data.url; }
+}
+
+load();
+</script>
+</body></html>

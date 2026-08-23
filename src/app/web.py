@@ -88,6 +88,15 @@ def depot_prearrival_page():
         division="eco_depot", brand="אקו-דיפו", logo="logo_eco_depot.png")
 
 
+@web.route("/depot/certificates")
+def depot_certs_page():
+    """תעודות השטיפה של לקוח הדיפו (שלב 2 במפת הדרכים, לימור 23/08) —
+    רשימה עם חיפוש לפי מספר מכל, צפייה והורדה. ההרשאה בצד ה-API."""
+    return render_template(
+        "depot_certs.html",
+        division="eco_depot", brand="אקו-דיפו", logo="logo_eco_depot.png")
+
+
 @web.route("/depot-admin")
 def depot_admin_page():
     """מסך ניהול הדיפו (לימור 06/08/2026, אפשרות א) — מסך נפרד מהמסך של

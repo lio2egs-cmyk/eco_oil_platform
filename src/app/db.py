@@ -902,6 +902,29 @@ class DepotFormOptions(db.Model):
     updated_at = db.Column(db.DateTime, default=datetime.utcnow)
 
 
+class DepotWashCert(db.Model):
+    """תעודות שטיפה בפורטל הדיפו (שלב 2 במפת הדרכים — לימור 23/08/2026).
+    כל שורה = קובץ PDF אחד בתיקיות O:\\SHTIFOT\\תעודות שטיפה. הסקריפט השעתי
+    במחשב של לימור סורק (קריאה בלבד, 2026 ואילך — הכרעתה), מעלה ל-B2 ודוחף
+    לכאן. העוגן = תיקיית התיוק (הכרעת 06/08): folder נפתר לכרטיס חברה לפי
+    שם+כתיבים בזמן שאילתה — תיקייה לא מזוהה לא מוצגת לאיש, רק במסך הניהול."""
+    __tablename__ = "depot_wash_certs"
+
+    id = db.Column(db.Integer, primary_key=True)
+    b2_key = db.Column(db.String(500), unique=True, nullable=False, index=True)
+    folder = db.Column(db.String(200), nullable=False, index=True)   # תיקיית הלקוח ברמה העליונה
+    tank = db.Column(db.String(40), index=True)                      # מספר המכל (מהתיקייה/שם הקובץ)
+    year = db.Column(db.Integer, index=True)
+    month = db.Column(db.Integer)                                    # חודש הביקור = חודש הכניסה (חוק 8)
+    file_name = db.Column(db.String(300), nullable=False)
+    file_date = db.Column(db.DateTime, index=True)                   # חותמת הקובץ בדיסק
+    size = db.Column(db.Integer)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+    # הסיכום היומי (הכרעת 23/08): NULL = טרם נכלל בסיכום; ההטענה ההיסטורית
+    # הראשונית מוחתמת מיד כדי שהמייל הראשון לא יספור מאות תעודות ישנות.
+    notified_at = db.Column(db.DateTime)
+
+
 class FieldInstructions(db.Model):
     """Phase-3 instructions engine (Yoav's rules 19/07): per-tank wash type,
     PPE level and material, keyed by tank number. Single row, JSON blob,
