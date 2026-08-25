@@ -219,7 +219,10 @@ def _notify_office(row, client):
 {tr("טלפון חרום", row.emergency_phone)}
 {tr("הערות", row.notes)}
 {tr("MSDS", row.msds_filename or "לא צורף")}
-</table></div>"""
+</table>
+<p style="margin-top:14px"><a href="https://depot.eco-oil.co.il/depot-admin"
+style="background:#5B9E96;color:#fff;padding:9px 18px;border-radius:8px;
+text-decoration:none;font-weight:bold">לצפייה בכל ההגשות — מסך ניהול הדיפו</a></p></div>"""
     send_office_email(subject=f"מידע מקדים חדש — {row.tank_number} ({client.name})",
                       html=html, to="shtifot@eco-oil.co.il")
 
