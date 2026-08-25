@@ -282,6 +282,37 @@ def bridge_certs_digest():
 
 
 # ------------------------------------------------------------ admin side
+@depot_certs.route("/depot/admin/certs-link", methods=["POST"])
+@depot_admin_required
+def certs_link_folder():
+    """פעולה אקטיבית מכרטיס התעודות (לימור 24/08 — "לתת כלים לפתור את
+    התקלה"): חיבור תיקייה לא-מזוהה לחברה בלחיצה — שם התיקייה מתווסף
+    ככתיב לכרטיס, בדיוק כפי שהוא, בלי הקלדה ידנית ובלי טעויות העתקה."""
+    from .depot_admin import _log
+    body = request.get_json(silent=True) or {}
+    folder = (body.get("folder") or "").strip()
+    client_id = body.get("client_id")
+    exists = db.session.query(
+        DepotWashCert.query.filter_by(folder=folder).exists()).scalar()
+    if not folder or not exists:
+        return jsonify(error="תיקייה לא מוכרת"), 404
+    c = db.session.get(Client, client_id or 0)
+    if c is None or c.division != "eco_depot":
+        return jsonify(error="חברה לא נמצאה"), 404
+    keys = {_norm(n) for n in c.billed_names()}
+    if _norm(folder) in keys:
+        return jsonify(ok=True, already=True, client_name=c.name)
+    owner = _folder_client_map().get(_norm(folder))
+    if owner is not None and owner.id != c.id:
+        return jsonify(error=f"התיקייה כבר מחוברת ל{owner.name}"), 409
+    c.billing_aliases = ((c.billing_aliases or "").rstrip()
+                         + ("\n" if c.billing_aliases else "") + folder)
+    db.session.commit()
+    _log("חיבור תיקיית תעודות", f"{folder} ← {c.name}")
+    count = DepotWashCert.query.filter_by(folder=folder).count()
+    return jsonify(ok=True, client_name=c.name, certs=count)
+
+
 @depot_certs.route("/depot/admin/certs-overview", methods=["GET"])
 @depot_admin_required
 def certs_overview():

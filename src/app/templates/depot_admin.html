@@ -245,14 +245,53 @@ async function loadCerts(){
     document.getElementById('certsList').innerHTML='<span class="muted">עוד לא הועלו תעודות שטיפה מהשרת. ההעלאה מתבצעת אוטומטית בסבב השעתי.</span>';
     return;
   }
+  /* תיקייה לא-מזוהה = שורת פעולה (לימור 24/08): בוחרים חברה ומחברים
+     בלחיצה, או פותחים חברה חדשה ישר מהתיקייה — בלי הקלדות ידניות. */
+  var opts='<option value="">בחרו חברה…</option>'+DATA.clients.map(function(c){
+    return '<option value="'+c.id+'">'+esc(c.name)+'</option>'; }).join('');
   var h='<table><tr><th>תיקייה בשרת</th><th>חברה בפורטל</th><th>תעודות</th><th>תעודה אחרונה</th></tr>';
-  rows.forEach(function(f){
+  rows.forEach(function(f,i){
     var who=f.client_name?('<b>'+esc(f.client_name)+'</b>')
-      :'<span style="color:#C0564F">⚠ לא מזוהה — התעודות לא מוצגות לאיש. הוסיפו את שם התיקייה כצורת כתיב בכרטיס החברה המתאימה.</span>';
-    h+='<tr><td>'+esc(f.folder)+'</td><td>'+who+'</td><td>'+f.count+'</td><td>'+fmtDT(f.latest)+'</td></tr>';
+      :'<div style="color:#C0564F;font-size:12.5px">⚠ לא מזוהה — התעודות לא מוצגות לאיש</div>'+
+       '<div class="row" style="margin-top:4px;gap:6px">'+
+       '<select id="lnk'+i+'" style="max-width:190px">'+opts+'</select>'+
+       '<button class="btn btn-soft" onclick="linkFolder('+i+',this)">🔗 חברי</button>'+
+       '<button class="btn btn-soft" title="פותח את טופס ההקמה עם שם התיקייה מוכן" onclick="newFromFolder('+i+')">+ חברה חדשה מהתיקייה</button>'+
+       '</div>';
+    h+='<tr data-folder="'+esc(f.folder)+'" data-idx="'+i+'"><td>'+esc(f.folder)+'</td><td>'+who+'</td><td>'+f.count+'</td><td>'+fmtDT(f.latest)+'</td></tr>';
   });
   h+='</table>';
   document.getElementById('certsList').innerHTML=h;
+}
+
+/* חיבור תיקייה לחברה קיימת — שם התיקייה נשלח לשרת כפי שהוא ומתווסף ככתיב */
+async function linkFolder(i,btn){
+  var sel=document.getElementById('lnk'+i);
+  var cid=sel.value;
+  if(!cid){ toast('בחרו קודם חברה מהרשימה'); return; }
+  var folder=document.querySelector('tr[data-idx="'+i+'"]').getAttribute('data-folder');
+  var cname=sel.options[sel.selectedIndex].text;
+  if(!confirm('לחבר את התיקייה "'+folder+'" לחברה "'+cname+'"?\nכל התעודות בתיקייה יופיעו מיד בפורטל של הלקוח הזה.')) return;
+  btn.disabled=true;
+  var r=await api('/depot/admin/certs-link',{method:'POST',body:JSON.stringify({folder:folder,client_id:parseInt(cid,10)})});
+  btn.disabled=false;
+  if(r&&r.ok){ var d=await r.json();
+    toast('התיקייה חוברה ל-'+d.client_name+' ✓'+(d.certs?' ('+d.certs+' תעודות)':''));
+    await reload();
+  } else { var e={}; try{ e=await r.json(); }catch(_){ } toast(e.error||'החיבור נכשל'); }
+}
+
+/* פתיחת חברה חדשה ישר מהתיקייה — הטופס נפתח ממולא בשם התיקייה */
+function newFromFolder(i){
+  var folder=document.querySelector('tr[data-idx="'+i+'"]').getAttribute('data-folder');
+  /* שם התיקייה נכנס גם לצורות הכתיב — כך גם אם היא משנה את השם לשם
+     הרשמי של החברה, החיבור לתיקייה נשמר */
+  document.getElementById('newName').value=folder;
+  document.getElementById('newAliases').value=folder;
+  document.getElementById('newCard').classList.remove('hidden');
+  document.getElementById('newCard').scrollIntoView({behavior:'smooth'});
+  document.getElementById('newName').focus();
+  toast('שם התיקייה הועתק לטופס — אפשר לשנות לשם הרשמי; החיבור לתיקייה יישמר');
 }
 
 async function loadPrearrivals(){

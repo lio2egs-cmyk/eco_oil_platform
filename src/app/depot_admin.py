@@ -46,12 +46,18 @@ def _depot_client_or_404(client_id):
     return client
 
 
+# חשבון הבדיקה הקבוע (הוקם 09/08) — נשאר פעיל ככלי בדיקה, אך מוסתר מכל
+# תצוגות מסך הניהול (לימור 24/08: "תעלימי מדף הניהול את כל מה שקשור לבדיקות")
+TEST_CLIENT_NAMES = {"בדיקה - פורטל"}
+
+
 @depot_admin.route("/overview", methods=["GET"])
 @depot_admin_required
 def overview():
     """הכל למסך במכה אחת: חברות הדיפו + המשתמשים שלהן, הצוות, ויומן אחרון."""
-    clients = (Client.query.filter_by(division="eco_depot")
-               .order_by(Client.name).all())
+    clients = [c for c in (Client.query.filter_by(division="eco_depot")
+                           .order_by(Client.name).all())
+               if c.name not in TEST_CLIENT_NAMES]
     users = (User.query.filter_by(role="eco_depot_client")
              .order_by(User.client_id, User.id).all())
     # חותמת "מייל מעבר לפורטל נשלח" (לימור 20/08) — נגזרת מיומן הפעולות,
@@ -105,10 +111,11 @@ PREARRIVAL_STATUS_HEB = {
 def prearrivals():
     """הגשות המידע המקדים מהפורטל — תצוגה למשרד (קריאה בלבד).
     קובץ ה-MSDS עצמו לא נטען לרשימה (defer) — רק סימון צורף/לא."""
-    rows = (DepotPreArrival.query
-            .options(defer(DepotPreArrival.msds_data))
-            .order_by(DepotPreArrival.created_at.desc())
-            .limit(100).all())
+    rows = [r for r in (DepotPreArrival.query
+                        .options(defer(DepotPreArrival.msds_data))
+                        .order_by(DepotPreArrival.created_at.desc())
+                        .limit(100).all())
+            if not (r.client and r.client.name in TEST_CLIENT_NAMES)]
     submitters = {u.id: u.email for u in User.query.filter(
         User.id.in_({r.submitted_by_user_id for r in rows if r.submitted_by_user_id})).all()} if rows else {}
     out = []
