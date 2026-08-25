@@ -67,7 +67,12 @@
      רשימת החברות סגורה מאחורי החיפוש (כמו באויל, הכרעת 17/08). -->
 <div class="wrap hidden" id="app">
   <div class="card">
-    <h3>🚛 הגשות מידע מקדים מהפורטל <span class="pill" id="paCount"></span></h3>
+    <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px">
+      <h3 style="margin:0">🚛 הגשות מידע מקדים מהפורטל <span class="pill" id="paCount"></span></h3>
+      <!-- הכפתור מאוזן, בצד שמאל, בקו הכותרת (לימור 24/08 — לא אנכי בקצה הדף) -->
+      <button class="btn" style="margin-inline-start:auto" title="הטופס המקדים בדיוק כפי שהלקוח מקבל אותו"
+        onclick="toggleFormPeek()">👁 הטופס שהלקוח ממלא</button>
+    </div>
     <div id="paList" class="muted" style="overflow-x:auto">טוען…</div>
   </div>
 
@@ -106,12 +111,8 @@
     </div>
   </div>
 
-  <!-- הטופס שהלקוח ממלא — כפתור צף בצד שמאל, נפתח בתיבה (לימור 24/08,
-       בלי דף נפרד; המקבילה של סימניית /declaration באויל) -->
-  <button onclick="toggleFormPeek()" title="הטופס המקדים בדיוק כפי שהלקוח מקבל אותו"
-    style="position:fixed;left:0;top:45%;z-index:8;background:var(--green);color:#fff;border:none;
-    border-radius:0 12px 12px 0;padding:12px 10px;font-size:13.5px;cursor:pointer;
-    writing-mode:vertical-rl;text-orientation:mixed;letter-spacing:1px">👁 הטופס שהלקוח ממלא</button>
+  <!-- תיבת "הטופס שהלקוח ממלא" (לימור 24/08) — נפתחת מהכפתור שבקו כותרת
+       ההגשות; בלי דף נפרד (המקבילה של סימניית /declaration באויל) -->
   <div id="formPeekBox" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:9"
        onclick="if(event.target===this)toggleFormPeek()">
     <div style="position:absolute;left:12px;top:12px;bottom:12px;width:min(700px,94vw);background:#EDE8DC;
