@@ -62,8 +62,15 @@
   </div>
 </div>
 
-<!-- ── המסך ── -->
+<!-- ── המסך ──
+     סדר הכרטיסים (לימור 24/08): ההגשות ראשונות — זו העבודה היומיומית של יעל;
+     רשימת החברות סגורה מאחורי החיפוש (כמו באויל, הכרעת 17/08). -->
 <div class="wrap hidden" id="app">
+  <div class="card">
+    <h3>🚛 הגשות מידע מקדים מהפורטל <span class="pill" id="paCount"></span></h3>
+    <div id="paList" class="muted" style="overflow-x:auto">טוען…</div>
+  </div>
+
   <div class="card hidden" id="newCard">
     <h3>הקמת חברת דיפו חדשה</h3>
     <div class="row"><input type="text" id="newName" placeholder="שם החברה — כפי שמופיע בעמודת גורם מחוייב בקובץ"></div>
@@ -77,15 +84,11 @@
   <div class="card">
     <div class="row">
       <input type="text" id="q" placeholder="חיפוש חברה או מייל" style="max-width:360px" oninput="render()">
+      <button class="btn btn-soft" onclick="toggleShowAll()" id="showAllBtn">הצגת כל החברות</button>
       <span class="muted" id="stats"></span>
       <button class="btn btn-soft" style="margin-inline-start:auto" onclick="toggleNewCard()">+ הקמת חברה חדשה</button>
     </div>
-    <div id="list">טוען…</div>
-  </div>
-
-  <div class="card">
-    <h3>🚛 הגשות מידע מקדים מהפורטל <span class="pill" id="paCount"></span></h3>
-    <div id="paList" class="muted" style="overflow-x:auto">טוען…</div>
+    <div id="list"></div>
   </div>
 
   <div class="card">
@@ -238,8 +241,12 @@ async function loadPrearrivals(){
   var d=await r.json(); renderPrearrivals(d);
 }
 
+var PA_ROWS=[];   /* ההגשות — נשמרות גם לשימוש כרטיסי החברות (לימור 24/08) */
+
 function renderPrearrivals(d){
   var rows=d.prearrivals||[];
+  PA_ROWS=rows;
+  render();       /* רענון כרטיסי החברות עם ההגשות של כל לקוח */
   var c=d.counts||{};
   var open=(c.pending||0)+(c.fetched||0);
   document.getElementById('paCount').textContent=rows.length?
@@ -265,16 +272,51 @@ function renderPrearrivals(d){
 
 function toggleNewCard(){ document.getElementById('newCard').classList.toggle('hidden'); }
 
+/* הרשימה סגורה כברירת מחדל (לימור 24/08, כמו באויל 17/08):
+   הקלדה בחיפוש פותחת מסונן; הכפתור פותח/סוגר את כולן. */
+var SHOW_ALL=false;
+function toggleShowAll(){
+  SHOW_ALL=!SHOW_ALL;
+  document.getElementById('showAllBtn').textContent=SHOW_ALL?'סגירת הרשימה':'הצגת כל החברות';
+  render();
+}
+
+/* ההגשות של לקוח אחד — מוצגות בתוך כרטיס החברה (לימור 24/08) */
+function clientSubmissions(cid){
+  var mine=PA_ROWS.filter(function(p){ return p.client_id===cid; });
+  if(!mine.length)
+    return '<div class="muted" style="font-size:12.5px;margin-top:8px">📥 אין עדיין הגשות מידע מקדים מהלקוח הזה.</div>';
+  var h='<div style="margin-top:8px"><b style="font-size:13px">📥 ההגשות של הלקוח ('+mine.length+')</b>'+
+        '<table style="margin-top:4px"><tr><th>מתי</th><th>מכל</th><th>חומר</th><th>מצב</th></tr>';
+  mine.slice(0,5).forEach(function(p){
+    var st=esc(p.status_heb);
+    if(p.status==='posted') st='<span style="color:#2E7D32">✓ '+st+'</span>';
+    else if(p.status==='error') st='<span style="color:#C0564F">⚠ '+st+'</span>';
+    h+='<tr><td>'+fmtDT(p.created_at)+'</td><td><b>'+esc(p.tank_number)+'</b></td>'+
+       '<td>'+esc(p.material)+'</td><td>'+st+'</td></tr>';
+  });
+  h+='</table>'+(mine.length>5?'<div class="muted" style="font-size:11.5px">מוצגות 5 האחרונות — הרשימה המלאה בכרטיס ההגשות למעלה.</div>':'')+'</div>';
+  return h;
+}
+
 function render(){
   var q=(document.getElementById('q').value||'').trim();
+  var totalUsers=DATA.clients.reduce(function(n,c){ return n+c.users.length; },0);
+  document.getElementById('stats').textContent=DATA.clients.length+' חברות · '+totalUsers+' משתמשים';
+  if(!q && !SHOW_ALL){
+    document.getElementById('list').innerHTML='<span class="muted">מקלידים שם חברה או מייל בחיפוש — או פותחים את כל הרשימה בכפתור.</span>';
+    return;
+  }
   var cs=DATA.clients.filter(function(c){
     if(!q) return true;
     if(c.name.indexOf(q)>=0) return true;
     return c.users.some(function(u){ return u.email.indexOf(q)>=0; });
   });
-  var totalUsers=DATA.clients.reduce(function(n,c){ return n+c.users.length; },0);
-  document.getElementById('stats').textContent=DATA.clients.length+' חברות · '+totalUsers+' משתמשים';
-  if(!cs.length){ document.getElementById('list').innerHTML='<span class="muted">אין עדיין חברות דיפו — פותחים עם הכפתור למעלה.</span>'; return; }
+  if(!cs.length){
+    document.getElementById('list').innerHTML='<span class="muted">'+
+      (DATA.clients.length?'לא נמצאה חברה מתאימה לחיפוש.':'אין עדיין חברות דיפו — פותחים עם הכפתור למעלה.')+'</span>';
+    return;
+  }
   var h='';
   cs.forEach(function(c){
     h+='<div class="client"><div class="name">'+esc(c.name)+'<span class="pill">'+c.users.length+' משתמשים</span></div>';
@@ -292,10 +334,12 @@ function render(){
     } else {
       h+='<div class="muted">אין עדיין משתמשים לחברה זו.</div>';
     }
+    h+=clientSubmissions(c.id);
     h+='<div class="row" style="margin-top:8px">'+
        '<button class="btn" onclick="addUser('+c.id+',\''+esc(c.name)+'\')">הוסיפו משתמש</button>'+
        '<button class="btn btn-soft" onclick="editAliases('+c.id+')">צורות כתיב</button>'+
-       '<button class="btn btn-soft" title="המסך בדיוק כפי שהלקוח רואה אותו" onclick="window.open(\'/depot/certificates?client_id='+c.id+'\',\'_blank\')">👁 תעודות הלקוח</button>'+
+       '<button class="btn btn-soft" title="עמוד הבית של הפורטל בדיוק כפי שהלקוח רואה אותו" onclick="window.open(\'/portal?client_id='+c.id+'\',\'_blank\')">👁 עמוד הבית של הלקוח</button>'+
+       '<button class="btn btn-soft" title="מסך התעודות בדיוק כפי שהלקוח רואה אותו" onclick="window.open(\'/depot/certificates?client_id='+c.id+'\',\'_blank\')">👁 תעודות הלקוח</button>'+
        '</div></div>';
   });
   document.getElementById('list').innerHTML=h;

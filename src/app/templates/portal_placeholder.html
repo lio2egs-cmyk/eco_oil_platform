@@ -57,8 +57,8 @@
     <a class="btn-main" href="/declaration">📄 מילוי הצהרת יצרן</a><br>
     {% endif %}
     {% if division == 'eco_depot' %}
-    <a class="btn-main" href="/depot/prearrival">🚛 הודעה על נכס בדרך אלינו</a><br>
-    <a class="btn-main" href="/depot/certificates">📄 תעודות השטיפה שלנו</a><br>
+    <a class="btn-main" id="depotPaBtn" href="/depot/prearrival">🚛 הודעה על נכס בדרך אלינו</a><br>
+    <a class="btn-main" id="depotCertsBtn" href="/depot/certificates">📄 תעודות השטיפה שלנו</a><br>
     {% endif %}
     <a class="btn" href="#" onclick="logout();return false;">יציאה</a>
   </div>
@@ -221,6 +221,32 @@
         }).join('');
         document.getElementById('fixDocs').style.display='block';
       }
+    }catch(e){}
+  })();
+  /* מבט-מנהלת על עמוד הבית של לקוח דיפו (לימור 24/08) — ?client_id= בחטיבת
+     הדיפו: הבאנר הצהוב + כפתור התעודות נושא את הלקוח; טופס ההגשה שמור ללקוח
+     עצמו, ולכן הכפתור מסביר במקום להיכשל (העיקרון מ-17/08). */
+  (async function(){
+    var certsBtn=document.getElementById('depotCertsBtn');
+    if(!certsBtn) return;                               /* לא חטיבת דיפו */
+    var PCID=new URLSearchParams(location.search).get('client_id');
+    if(!PCID) return;
+    try{
+      var r=await fetch('/depot/portal/my-certs?client_id='+encodeURIComponent(PCID),
+        {headers:{'Authorization':'Bearer '+localStorage.getItem('eco_access_token')}});
+      if(!r.ok) return;
+      var payload=await r.json();
+      if(!payload.preview) return;
+      PREVIEW=payload.preview;
+      var pb=document.getElementById('previewBar');
+      pb.innerHTML='🔍 <b>תצוגת מנהלת</b> — זה בדיוק מה שרואה <b>'+esc0(PREVIEW.client_name)+'</b> '+
+        'כשהוא נכנס לפורטל. שום לחיצה כאן לא משפיעה על הלקוח.';
+      pb.style.display='block';
+      document.getElementById('who').textContent='שלום, '+PREVIEW.client_name;
+      certsBtn.href='/depot/certificates?client_id='+encodeURIComponent(PCID);
+      var pa=document.getElementById('depotPaBtn');
+      if(pa){ pa.onclick=function(ev){ ev.preventDefault();
+        alert('תצוגת מנהלת — את טופס המידע המקדים ממלא הלקוח עצמו.\nההגשות שלו מופיעות בכרטיס החברה במסך הניהול.'); }; }
     }catch(e){}
   })();
   /* העלאת המסמך החתום (09/08) — קובץ סרוק או צילום; בטלפון נפתחת גם המצלמה */

@@ -120,6 +120,7 @@ def prearrivals():
         out.append({
             "id": r.id,
             "created_at": r.created_at.isoformat(),
+            "client_id": r.client_id,
             "client_name": r.client.name if r.client else "?",
             "submitted_by": submitters.get(r.submitted_by_user_id, ""),
             "tank_number": r.tank_number,
