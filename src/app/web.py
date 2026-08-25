@@ -117,7 +117,10 @@ def field_sw():
 
 @web.route("/terminal-admin")
 def terminal_admin_page():
-    return render_template("terminal_admin.html")
+    """בוטל (לימור 24/08): אין דף ניהול למסופונים — דף ניהול אחד בלבד.
+    הכתובת הישנה מפנה לדף הניהול של הפורטל כדי שסימניות ישנות ינחתו נכון.
+    יצירת מפתח לטאבלט חדש = פעולה חד-פעמית מול ה-API בעת הצורך, בלי דף."""
+    return redirect("/depot-admin")
 
 
 @web.route("/terminal")
