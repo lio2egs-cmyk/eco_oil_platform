@@ -306,6 +306,11 @@ def run(api_base, masad_path, dry_run=False):
         ws_log = _com(wb.Worksheets, LOG_SHEET)
         ws_sum = _com(wb.Worksheets, SUMMARY_SHEET)
 
+        # עמודת AB "נקלט על ידי" (לימור 25/08): מוודאים שהכותרת קיימת פעם אחת.
+        # "מטעם" (AA) חוזרת לתפקידה — מי הביא את הלקוח; סימון הפורטל עבר ל-AB.
+        if not str(_com(getattr, ws_log.Cells(1, 28), "Value") or "").strip():
+            _com(setattr, ws_log.Cells(1, 28), "Value", "נקלט על ידי")
+
         for d in decls:
             res = results[d["id"]]
             note_parts = []
@@ -329,8 +334,14 @@ def run(api_base, masad_path, dry_run=False):
                         # גרש מוביל = טקסט מאולץ; בלעדיו אקסל הופך "10/08/2026"
                         # לתאריך בפרשנות אמריקאית (8 באוקטובר!)
                         25: "'" + _fmt_date(d.get("valid_from")),
-                        27: "פורטל",
                     }
+                    # "מטעם" (AA, לימור 25/08): מי הביא את הלקוח — אותו כלל
+                    # כמו עמודת סוג-לקוח בגיליון המסכם: ישיר / שם המוביל /
+                    # ריק+הערה לעקיף שהגיש בעצמו. "פורטל" עבר ל-AB "נקלט על ידי".
+                    aa_val, _aa_note = plan_client_type(d)
+                    if aa_val:
+                        vals[27] = aa_val
+                    vals[28] = "פורטל"
                     _com(setattr, ws_log.Cells(row, 1), "Formula", "=ROW()-1")
                     for col, v in vals.items():
                         if v not in (None, "", "'"):
@@ -340,6 +351,10 @@ def run(api_base, masad_path, dry_run=False):
                         _com(setattr, ws_log.Cells(row, 26), "Value2", _xl_serial(vu))
                     sentinels.append((LOG_SHEET, row, 2, str(d.get("producer_name") or ""),
                                       d["id"], "log"))
+                    if not aa_val:
+                        note_parts.append(
+                            f'בגיליון "{LOG_SHEET}" שורה {row}: השלימי את '
+                            'עמודת "מטעם" (שם המוביל של הלקוח העקיף)')
                     print(f"  #{d['id']} log row {row}: {d['producer_name']} / {d['material_name']}")
 
                 # ---- half 2: the validity summary — update by ח.פ. ----
