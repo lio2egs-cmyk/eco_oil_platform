@@ -311,6 +311,28 @@ def run(api_base, masad_path, dry_run=False):
         if not str(_com(getattr, ws_log.Cells(1, 28), "Value") or "").strip():
             _com(setattr, ws_log.Cells(1, 28), "Value", "נקלט על ידי")
 
+        # אינדקס הגיליון המסכם ל"מטעם" (הכרעת לימור 25/08, מקרה אסתילון/אב-גל):
+        # המקור המוסמך לשיוך הוא עמודת "סוג לקוח" שהיא מתחזקת בגיליון המסכם —
+        # אם החברה כבר שם והעמודה מלאה, מעתיקים אותה; רק בהיעדרה נגזר השיוך
+        # מהחשבון המגיש (plan_client_type). נטען פעם אחת בתחילת הסבב.
+        _sum_last = max(
+            _com(ws_sum.Cells(ws_sum.Rows.Count, 2).End, XL_UP).Row,
+            _com(ws_sum.Cells(ws_sum.Rows.Count, 5).End, XL_UP).Row)
+        _sum_grid = _com(ws_sum.Range,
+                         ws_sum.Cells(2, 1), ws_sum.Cells(_sum_last, 5)).Value
+        _sum_grid = _sum_grid if isinstance(_sum_grid, tuple) else (_sum_grid,)
+        _sum_rows_ix = [(i + 2, r[1], r[2], r[4]) for i, r in enumerate(_sum_grid)]
+        _sum_col_a = {i + 2: str(r[0]).strip() if r[0] else ""
+                      for i, r in enumerate(_sum_grid)}
+
+        def _curated_referrer(d):
+            """עמודת "סוג לקוח" מהגיליון המסכם עבור היצרן — או ריק."""
+            try:
+                target, _n = resolve_summary_row(_sum_rows_ix, d)
+            except Exception:
+                return ""
+            return _sum_col_a.get(target, "") if isinstance(target, int) else ""
+
         for d in decls:
             res = results[d["id"]]
             note_parts = []
@@ -335,10 +357,13 @@ def run(api_base, masad_path, dry_run=False):
                         # לתאריך בפרשנות אמריקאית (8 באוקטובר!)
                         25: "'" + _fmt_date(d.get("valid_from")),
                     }
-                    # "מטעם" (AA, לימור 25/08): מי הביא את הלקוח — אותו כלל
-                    # כמו עמודת סוג-לקוח בגיליון המסכם: ישיר / שם המוביל /
-                    # ריק+הערה לעקיף שהגיש בעצמו. "פורטל" עבר ל-AB "נקלט על ידי".
-                    aa_val, _aa_note = plan_client_type(d)
+                    # "מטעם" (AA, לימור 25/08): קודם מה שרשום בגיליון המסכם
+                    # (המקור המוסמך לשיוך); רק בהיעדרו — ישיר / שם המוביל לפי
+                    # החשבון המגיש; ריק+הערה לעקיף שהגיש בעצמו ואינו במסכם.
+                    # "פורטל" עבר ל-AB "נקלט על ידי".
+                    aa_val = _curated_referrer(d)
+                    if not aa_val:
+                        aa_val, _aa_note = plan_client_type(d)
                     if aa_val:
                         vals[27] = aa_val
                     vals[28] = "פורטל"
