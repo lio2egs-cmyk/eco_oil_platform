@@ -275,7 +275,7 @@ function renderPrearrivals(d){
     document.getElementById('paList').innerHTML='<span class="muted">עוד לא הוגשו טפסי מידע מקדים דרך הפורטל. ברגע שלקוח יגיש — ההגשה תופיע כאן.</span>';
     return;
   }
-  var h='<table><tr><th>מתי הוגש</th><th>חברה</th><th>מכל</th><th>חומר אחרון</th><th>או"ם / Class</th><th>מוביל</th><th>מטרה</th><th>הגעה משוערת</th><th>שירותים</th><th>MSDS</th><th>מצב</th></tr>';
+  var h='<table><tr><th>מתי הוגש</th><th>חברה</th><th>מכל</th><th>חומר אחרון</th><th>או"ם / Class</th><th>מוביל</th><th>מטרה</th><th>הגעה משוערת</th><th>שירותים</th><th>גורם מחוייב (לפי הלקוח)</th><th>MSDS</th><th>מצב</th></tr>';
   rows.forEach(function(p){
     var st=esc(p.status_heb);
     if(p.status==='posted') st='<span style="color:#2E7D32">✓ '+st+'</span>';
@@ -284,7 +284,7 @@ function renderPrearrivals(d){
        (p.submitted_by?'<div class="muted" style="font-size:11.5px">'+esc(p.submitted_by)+'</div>':'')+'</td>'+
        '<td><b>'+esc(p.tank_number)+'</b></td><td>'+esc(p.material)+'</td><td>'+esc(p.un_class)+'</td>'+
        '<td>'+esc(p.carrier||'—')+'</td><td>'+esc(p.purpose)+'</td><td>'+esc(p.expected_date||'—')+'</td>'+
-       '<td>'+esc(p.services||'—')+'</td><td>'+(p.has_msds?'📎 צורף':'—')+'</td><td>'+st+'</td></tr>';
+       '<td>'+esc(p.services||'—')+'</td><td>'+esc(p.payers||'—')+'</td><td>'+(p.has_msds?'📎 צורף':'—')+'</td><td>'+st+'</td></tr>';
   });
   h+='</table>';
   document.getElementById('paList').innerHTML=h;

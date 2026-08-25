@@ -883,6 +883,14 @@ class DepotPreArrival(db.Model):
     msds_size = db.Column(db.Integer)
     msds_data = db.Column(db.LargeBinary)                       # purged on ack
 
+    # "גורם מחוייב" לפי הצהרת הלקוח (לימור 24/08) — 4 הפרמטרים כמו בקובץ.
+    # הצהרה בלבד: זורמת כהערה למשרד (AF דרך צינור ההערות של הגשר), לעולם
+    # לא ישירות לעמודות החיוב — אלה נקבעות במשרד לפי ההסכמים.
+    payer_storage = db.Column(db.String(120))
+    payer_wash = db.Column(db.String(120))
+    payer_extras = db.Column(db.String(120))    # הנפות · תמונות · ואקום
+    payer_repairs = db.Column(db.String(120))   # תיקונים · הובלה
+
     status = db.Column(db.String(20), default="pending", nullable=False, index=True)
     # pending → fetched (bridge downloaded) → posted (צפי row born) | error
     bridge_note = db.Column(db.String(400))

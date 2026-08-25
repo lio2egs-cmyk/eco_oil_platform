@@ -131,6 +131,27 @@
       <div class="err" id="e_services"></div>
     </div>
 
+    <!-- גורם מחוייב (לימור 24/08): אופציה — כפתור שפותח את 4 הפרמטרים כמו
+         בקובץ. הקלדה חופשית בלבד (בלי רשימת חברות — פרטיות בין לקוחות);
+         ההצהרה מועברת למשרד כהערה, החיוב נקבע במשרד לפי ההסכמים. -->
+    <div class="fld" id="f_payers">
+      <button type="button" id="payersBtn" onclick="togglePayers()"
+        style="background:#fff;border:1.5px solid var(--teal);color:var(--teal-dark);border-radius:10px;
+        padding:10px 18px;font-family:var(--fh);font-size:14px;cursor:pointer">➕ גורם מחוייב — מי משלם על מה</button>
+      <div class="hint">לא חובה. פותחים רק אם התשלום מתחלק בין גורמים שונים.</div>
+      <div id="payersBox" style="display:none;margin-top:10px;background:#F7FAF9;border:1.5px solid #cfd8d6;border-radius:10px;padding:14px">
+        <div class="hint" style="margin-bottom:8px">ממלאים רק את מה שרלוונטי — שם החברה המשלמת. הפירוט מועבר לטיפול המשרד שלנו.</div>
+        <label style="font-size:13.5px">אחסנה</label>
+        <input type="text" id="payerStorage" placeholder="מי מחוייב על האחסנה">
+        <label style="font-size:13.5px;margin-top:10px;display:block">שטיפה</label>
+        <input type="text" id="payerWash" placeholder="מי מחוייב על השטיפה">
+        <label style="font-size:13.5px;margin-top:10px;display:block">הנפות · תמונות · ואקום</label>
+        <input type="text" id="payerExtras" placeholder="מי מחוייב על שירותים אלה">
+        <label style="font-size:13.5px;margin-top:10px;display:block">תיקונים · הובלה</label>
+        <input type="text" id="payerRepairs" placeholder="מי מחוייב על תיקונים והובלה">
+      </div>
+    </div>
+
     <div class="fld"><span class="num">10</span>
       <label>מספר אסמכתא פנימי שלכם</label>
       <input type="text" id="iref" placeholder='"מספרנו" — למי שעובד עם מספרי הזמנה פנימיים'>
@@ -268,6 +289,13 @@ async function loadPrev(){
   document.getElementById('prevBox').style.display='block';
 }
 
+function togglePayers(){
+  var box=document.getElementById('payersBox');
+  var open=box.style.display==='none';
+  box.style.display=open?'block':'none';
+  document.getElementById('payersBtn').textContent=open?'▴ גורם מחוייב — מי משלם על מה':'➕ גורם מחוייב — מי משלם על מה';
+}
+
 async function send(){
   if(IS_PREVIEW) return;
   clearErrs();
@@ -291,6 +319,10 @@ async function send(){
   fd.append('svc_repairs',document.getElementById('cbRepair').checked?document.getElementById('repairTxt').value:'');
   fd.append('internal_ref',document.getElementById('iref').value);
   fd.append('emergency_phone',document.getElementById('ephone').value);
+  fd.append('payer_storage',document.getElementById('payerStorage').value);
+  fd.append('payer_wash',document.getElementById('payerWash').value);
+  fd.append('payer_extras',document.getElementById('payerExtras').value);
+  fd.append('payer_repairs',document.getElementById('payerRepairs').value);
   fd.append('notes',document.getElementById('notes').value);
   var f=document.getElementById('msds').files[0];
   if(f) fd.append('msds',f);

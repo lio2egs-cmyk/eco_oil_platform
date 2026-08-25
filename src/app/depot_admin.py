@@ -16,6 +16,7 @@ from sqlalchemy.orm import defer
 from werkzeug.security import generate_password_hash
 
 from .auth import depot_admin_required
+from .depot_portal import _payer_text
 from .db import (db, AdminActionLog, Client, DepotPreArrival, LoginAuditLog,
                  MagicLinkToken, User)
 
@@ -130,6 +131,7 @@ def prearrivals():
             "purpose": r.purpose if r.purpose != "אחר" else (r.purpose_other or "אחר"),
             "expected_date": r.expected_date.strftime("%d/%m/%Y") if r.expected_date else "",
             "services": services,
+            "payers": _payer_text(r) or "",
             "has_msds": bool(r.msds_size),
             "status": r.status,
             "status_heb": PREARRIVAL_STATUS_HEB.get(r.status, r.status),

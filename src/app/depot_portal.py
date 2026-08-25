@@ -154,6 +154,10 @@ def submit_prearrival():
         svc_repairs=svc_repairs[:400] or None,
         internal_ref=(f.get("internal_ref") or "").strip()[:100] or None,
         emergency_phone=(f.get("emergency_phone") or "").strip()[:60] or None,
+        payer_storage=(f.get("payer_storage") or "").strip()[:120] or None,
+        payer_wash=(f.get("payer_wash") or "").strip()[:120] or None,
+        payer_extras=(f.get("payer_extras") or "").strip()[:120] or None,
+        payer_repairs=(f.get("payer_repairs") or "").strip()[:120] or None,
         notes=(f.get("notes") or "").strip()[:400] or None,
         msds_filename=msds_name, msds_mime=msds_mime,
         msds_size=len(msds_bytes) if msds_bytes else None,
@@ -194,6 +198,15 @@ def my_prearrivals():
     } for r in rows])
 
 
+def _payer_text(row, sep=" · "):
+    """הצהרת "גורם מחוייב" של הלקוח כטקסט אחד — רק מה שמולא. ריק = None."""
+    parts = [f"{label} — {val}" for label, val in (
+        ("אחסנה", row.payer_storage), ("שטיפה", row.payer_wash),
+        ("הנפות/תמונות/ואקום", row.payer_extras),
+        ("תיקונים/הובלה", row.payer_repairs)) if val]
+    return sep.join(parts) or None
+
+
 def _notify_office(row, client):
     """מייל פנימי למשרד הדיפו על כל הגשה — טבלה RTL עם מסגרות (כלל העיצוב)."""
     from .mailer import send_office_email
@@ -219,6 +232,7 @@ def _notify_office(row, client):
 {tr("מטרת הכניסה", row.purpose if row.purpose != 'אחר' else row.purpose_other)}
 {tr("תאריך הגעה משוער", row.expected_date.strftime('%d/%m/%Y') if row.expected_date else None)}
 {tr("שירותים מוזמנים", services)}
+{tr("גורם מחוייב (לפי הלקוח)", _payer_text(row))}
 {tr("אסמכתא פנימית", row.internal_ref)}
 {tr("טלפון חרום", row.emergency_phone)}
 {tr("הערות", row.notes)}
@@ -253,7 +267,14 @@ def bridge_pending():
         "svc_dry": r.svc_dry, "svc_vacuum": r.svc_vacuum,
         "svc_photos": r.svc_photos, "svc_repairs": r.svc_repairs,
         "internal_ref": r.internal_ref, "emergency_phone": r.emergency_phone,
-        "notes": r.notes, "has_msds": bool(r.msds_size),
+        # הצהרת גורם-מחוייב זורמת לקובץ דרך צינור ההערות הקיים (AF) —
+        # כך הגשר במחשב של יעל לא נזקק לשום שינוי (הכרעת לימור 24/08:
+        # הערה למשרד, לא כתיבה לעמודות החיוב).
+        "notes": " | ".join(filter(None, [
+            r.notes,
+            ("גורם מחוייב לפי הלקוח: " + _payer_text(r)) if _payer_text(r) else None,
+        ])) or None,
+        "has_msds": bool(r.msds_size),
         "msds_filename": r.msds_filename,
     } for r in rows])
 

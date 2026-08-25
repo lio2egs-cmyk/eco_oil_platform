@@ -141,6 +141,11 @@ def create_app():
             "ALTER TABLE clients ADD COLUMN docs_blocked_reason TEXT",
             # שם קצר לשמות קבצים (18/08)
             "ALTER TABLE clients ADD COLUMN file_short_name VARCHAR(80)",
+            # גורם מחוייב לפי הצהרת הלקוח בטופס המקדים (לימור 24/08)
+            "ALTER TABLE depot_prearrivals ADD COLUMN payer_storage VARCHAR(120)",
+            "ALTER TABLE depot_prearrivals ADD COLUMN payer_wash VARCHAR(120)",
+            "ALTER TABLE depot_prearrivals ADD COLUMN payer_extras VARCHAR(120)",
+            "ALTER TABLE depot_prearrivals ADD COLUMN payer_repairs VARCHAR(120)",
         ):
             try:
                 db.session.execute(db.text(stmt))
