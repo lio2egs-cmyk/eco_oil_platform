@@ -377,6 +377,32 @@ def filing_feed_scan(decl_id):
                     mimetype=d.signed_scan_mime or "application/octet-stream")
 
 
+@ecooil_bridge.route("/filing-feed/reset", methods=["POST"])
+@ecooil_bridge_required
+def filing_feed_reset():
+    """איפוס סימון התיוק — לתיוק-מחדש אחרי שקובץ תויק לתיקייה שגויה ונמחק
+    (מקרה אסתילון 25/08: התיוק רץ לפני שהתיקייה הנכונה נוצרה, נתפס בהתאמה
+    חלקית לתיקייה של חברה אחרת, ולימור מחקה את הקבצים). body:
+    {"agreements": [id...], "scans": [decl_id...]}."""
+    from .db import AgreementDocument, ProducerDeclaration
+    body = request.get_json(silent=True) or {}
+    cleared = {"agreements": 0, "scans": 0}
+    for aid in body.get("agreements") or []:
+        a = db.session.get(AgreementDocument, int(aid))
+        if a is not None and a.number:
+            a.filed_at = None
+            a.file_note = None
+            cleared["agreements"] += 1
+    for did in body.get("scans") or []:
+        d = db.session.get(ProducerDeclaration, int(did))
+        if d is not None:
+            d.scan_filed_at = None
+            d.scan_file_note = None
+            cleared["scans"] += 1
+    db.session.commit()
+    return jsonify(ok=True, **cleared)
+
+
 @ecooil_bridge.route("/filing-feed/ack", methods=["POST"])
 @ecooil_bridge_required
 def filing_feed_ack():
