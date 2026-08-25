@@ -167,9 +167,21 @@
 
 <script>
 if(!localStorage.getItem('eco_access_token')){ location.href='/login'; }
+/* תצוגת מנהלת (לימור 24/08): ?preview=1 — הטופס נפתח בתיבה מתוך מסך הניהול,
+   בדיוק כפי שהלקוח מקבל אותו; השליחה חסומה (וגם השרת מסרב לצוות). */
+var IS_PREVIEW=new URLSearchParams(location.search).get('preview')==='1';
 var ECO_USER={};
 try{ ECO_USER=JSON.parse(localStorage.getItem('eco_user')||'{}'); }catch(e){}
-if(ECO_USER.client_name){ document.getElementById('whoName').textContent=ECO_USER.client_name; }
+if(IS_PREVIEW){
+  document.getElementById('whoName').textContent='תצוגת מנהלת';
+  var pvb=document.createElement('div');
+  pvb.style.cssText='background:#FFF3D6;border:1.5px solid #E8C97A;color:#7a5a10;border-radius:12px;padding:10px 14px;margin-top:14px;font-size:13.5px';
+  pvb.innerHTML='🔍 <b>תצוגת מנהלת</b> — כך בדיוק נראה הטופס אצל הלקוח, כולל הרשימות. שליחה מכאן חסומה.';
+  var card=document.getElementById('formCard');
+  card.insertBefore(pvb, card.children[2]);
+  var sb=document.getElementById('sendBtn');
+  sb.textContent='תצוגת מנהלת — השליחה חסומה'; sb.disabled=true; sb.style.opacity=.55; sb.style.cursor='default';
+} else if(ECO_USER.client_name){ document.getElementById('whoName').textContent=ECO_USER.client_name; }
 
 async function api(url, opts){
   opts=opts||{}; opts.headers=opts.headers||{};
@@ -257,6 +269,7 @@ async function loadPrev(){
 }
 
 async function send(){
+  if(IS_PREVIEW) return;
   clearErrs();
   var btn=document.getElementById('sendBtn');
   var fd=new FormData();
@@ -313,6 +326,6 @@ async function send(){
 
 function resetForm(){ location.reload(); }
 
-loadOptions(); loadPrev();
+loadOptions(); if(!IS_PREVIEW) loadPrev();
 </script>
 </body></html>

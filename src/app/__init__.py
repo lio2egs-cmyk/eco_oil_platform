@@ -216,7 +216,9 @@ def create_app():
     @app.after_request
     def set_security_headers(response):
         response.headers.setdefault("X-Content-Type-Options", "nosniff")
-        response.headers.setdefault("X-Frame-Options", "DENY")
+        # SAMEORIGIN ולא DENY (24/08): תיבת "הטופס שהלקוח ממלא" במסך ניהול
+        # הדיפו מטמיעה את הטופס בתוך הדף — הטמעה מאתרים זרים עדיין חסומה.
+        response.headers.setdefault("X-Frame-Options", "SAMEORIGIN")
         response.headers.setdefault("Referrer-Policy", "strict-origin-when-cross-origin")
         if _request.headers.get("X-Forwarded-Proto", "").lower() == "https" or _request.is_secure:
             response.headers.setdefault(

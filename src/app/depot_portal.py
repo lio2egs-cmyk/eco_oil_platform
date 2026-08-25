@@ -57,7 +57,11 @@ def _depot_client_for_request():
 @jwt_required()
 def form_options():
     if _depot_client_for_request() is None:
-        return jsonify(error="depot customers only"), 403
+        # תצוגת מנהלת (לימור 24/08): הצוות פותח את הטופס בתיבה מתוך מסך
+        # הניהול ורואה אותו עם הרשימות האמיתיות. קריאה בלבד — שליחה נשארת
+        # חסומה לצוות בצד השרת (submit_prearrival בודק לקוח דיפו בלבד).
+        if get_jwt().get("role") not in ("admin", "depot_admin"):
+            return jsonify(error="depot customers only"), 403
     row = DepotFormOptions.query.first()
     data = {}
     if row and row.data:

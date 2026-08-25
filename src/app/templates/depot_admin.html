@@ -106,6 +106,25 @@
     </div>
   </div>
 
+  <!-- הטופס שהלקוח ממלא — כפתור צף בצד שמאל, נפתח בתיבה (לימור 24/08,
+       בלי דף נפרד; המקבילה של סימניית /declaration באויל) -->
+  <button onclick="toggleFormPeek()" title="הטופס המקדים בדיוק כפי שהלקוח מקבל אותו"
+    style="position:fixed;left:0;top:45%;z-index:8;background:var(--green);color:#fff;border:none;
+    border-radius:0 12px 12px 0;padding:12px 10px;font-size:13.5px;cursor:pointer;
+    writing-mode:vertical-rl;text-orientation:mixed;letter-spacing:1px">👁 הטופס שהלקוח ממלא</button>
+  <div id="formPeekBox" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:9"
+       onclick="if(event.target===this)toggleFormPeek()">
+    <div style="position:absolute;left:12px;top:12px;bottom:12px;width:min(700px,94vw);background:#EDE8DC;
+         border-radius:14px;overflow:hidden;display:flex;flex-direction:column;box-shadow:0 12px 40px rgba(0,0,0,.35)">
+      <div style="display:flex;align-items:center;gap:10px;background:var(--dark);color:#fff;padding:10px 16px">
+        <b style="flex:1">👁 טופס המידע המקדים — כפי שהלקוח מקבל אותו</b>
+        <button onclick="toggleFormPeek()" style="background:none;border:1.5px solid #fff;color:#fff;
+          border-radius:8px;padding:4px 14px;cursor:pointer;font-size:14px">סגירה ✕</button>
+      </div>
+      <iframe id="formPeekFrame" style="flex:1;border:0;width:100%;background:#EDE8DC"></iframe>
+    </div>
+  </div>
+
   <div class="card">
     <h3>יומן פעולות <span class="pill" id="actCount"></span></h3>
     <div id="actions" class="muted">טוען…</div>
@@ -271,6 +290,18 @@ function renderPrearrivals(d){
 }
 
 function toggleNewCard(){ document.getElementById('newCard').classList.toggle('hidden'); }
+
+/* תיבת "הטופס שהלקוח ממלא" (לימור 24/08) — הטופס נטען רק בפתיחה הראשונה */
+function toggleFormPeek(){
+  var box=document.getElementById('formPeekBox');
+  var fr=document.getElementById('formPeekFrame');
+  if(box.style.display==='none'){
+    if(!fr.src) fr.src='/depot/prearrival?preview=1';
+    box.style.display='block';
+  } else {
+    box.style.display='none';
+  }
+}
 
 /* הרשימה סגורה כברירת מחדל (לימור 24/08, כמו באויל 17/08):
    הקלדה בחיפוש פותחת מסונן; הכפתור פותח/סוגר את כולן. */
