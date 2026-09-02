@@ -27,7 +27,17 @@
 <body>
   <div class="card">
     <img class="logo" src="{{ url_for('static', filename=logo) }}" alt="{{ brand }}">
-    <div class="state on" id="checking">
+    <!-- הכניסה מתבצעת רק בלחיצה אנושית (לימור 02/09): סורקי אבטחת-מייל
+         פותחים קישורים אוטומטית ושורפים את הקישור החד-פעמי לפני הלקוח
+         (מקרה טנקו/אלירן). סורק פותח דף — אבל לא לוחץ על כפתור. -->
+    <div class="state on" id="ready">
+      <div class="ico ok">🔑</div>
+      <h1>עוד לחיצה אחת ונכנסתם</h1>
+      <div class="msg">לחצו על הכפתור כדי להיכנס לפורטל הלקוחות.</div>
+      <button class="btn" id="goBtn" onclick="doVerify()">כניסה לפורטל</button>
+      <div class="small">הקישור אישי וחד-פעמי, בתוקף לשעה מרגע שנשלח.</div>
+    </div>
+    <div class="state" id="checking">
       <div class="spin"></div>
       <h1>מאמתים את הקישור שלכם…</h1>
       <div class="msg">עוד רגע ונכניס אתכם לפורטל.</div>
@@ -54,12 +64,15 @@
   </div>
 {% raw %}<script>
   function show(s){
-    var ids=['checking','ok','done','bad'];
+    var ids=['ready','checking','ok','done','bad'];
     for(var i=0;i<ids.length;i++){ document.getElementById(ids[i]).classList.toggle('on', ids[i]===s); }
   }
-  (async function(){
-    var token=new URLSearchParams(location.search).get('token');
+  /* האימות רץ רק בלחיצה על הכפתור — לא בטעינת הדף (הגנה מסורקי מייל, 02/09) */
+  var token=new URLSearchParams(location.search).get('token');
+  if(!token){ show('bad'); }
+  async function doVerify(){
     if(!token){ show('bad'); return; }
+    show('checking');
     try{
       var r=await fetch('/auth/verify-magic-link',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({token:token})});
       if(r.ok){
@@ -84,6 +97,6 @@
         show('bad');
       }
     }catch(e){ show('bad'); }
-  })();
+  }
 </script>{% endraw %}
 </body></html>
