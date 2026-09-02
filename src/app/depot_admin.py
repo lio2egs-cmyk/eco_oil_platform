@@ -63,17 +63,24 @@ def overview():
     # חותמת "מייל מעבר לפורטל נשלח" (לימור 20/08) — נגזרת מיומן הפעולות,
     # כך שגם שליחות שבוצעו לפני התוספת מוצגות; שליחה חוזרת = החותמת האחרונה.
     notice_by_email = {}
+    invite_by_email = {}
     for row in (AdminActionLog.query
-                .filter_by(division="eco_depot", action="מייל מעבר לפורטל")
+                .filter(AdminActionLog.division == "eco_depot",
+                        AdminActionLog.action.in_(["מייל מעבר לפורטל",
+                                                   "מייל הזמנה לפורטל"]))
                 .order_by(AdminActionLog.at).all()):
-        notice_by_email[row.details.split(" (")[0]] = row.at
+        target = (notice_by_email if row.action == "מייל מעבר לפורטל"
+                  else invite_by_email)
+        target[row.details.split(" (")[0]] = row.at
     by_client = {}
     for u in users:
         sent = notice_by_email.get(u.email)
+        invited = invite_by_email.get(u.email)
         by_client.setdefault(u.client_id, []).append({
             "id": u.id, "email": u.email,
             "last_login_at": u.last_login_at.isoformat() if u.last_login_at else None,
             "notice_sent_at": sent.isoformat() if sent else None,
+            "invite_sent_at": invited.isoformat() if invited else None,
         })
     staff = User.query.filter_by(role="depot_admin").order_by(User.id).all()
     actions = (AdminActionLog.query.filter_by(division="eco_depot")
@@ -241,6 +248,61 @@ def _build_portal_only_notice():
 מסודרים לתמיד. אנחנו זמינים בטלפון 054-3232617 או במייל זה.</p>
 <p>תודה על שיתוף הפעולה,<br>צוות אקו דיפו</p></div>"""
     return "אקו דיפו — ההודעה על נכס בדרך עוברת לפורטל בלבד", html
+
+
+def _build_depot_invitation():
+    """מייל ההזמנה — פתיחת פורטל הדיפו לכלל הלקוחות (לימור 02/09/2026,
+    "מאושר כמו שהוא"; סעיף 8 בקובץ הנוסחים המאוחד — אין לשנות בלי אישורה).
+    מחליף את נוסח הפיילוט מ-09/08 ("המייל המקדים ממשיך לעבוד" כבר לא נכון):
+    הזמנה + הכרזת פורטל-בלבד מ-01/09 + תעודות השטיפה. בכוונה אין אזכור
+    לקוחות אחרים ואין קישור ישיר לפורטל — כניסה דרך האתר בלבד (הכרעת 09/08)."""
+    site_url = "https://eco-oil.co.il"
+    html = f"""<div dir="rtl" style="font-family:Arial,sans-serif;color:#222;">
+<p>שלום רב,</p>
+<p>אנחנו שמחים לעדכן על שירות חדש: פורטל הלקוחות של אקו דיפו יצא לדרך.</p>
+<p><b>מה יש בו עבורכם?</b></p>
+<ul style="line-height:1.8;">
+<li><b>הודעה על נכס בדרך אלינו</b> — טופס קצר שמחליף את המייל המקדים:
+החומר האחרון, המוביל, שירותים שתרצו להזמין מראש (שטיפה, אחסנה, ייבוש,
+תיקונים) וצירוף גיליון בטיחות (MSDS) — הכול במקום אחד, בפחות מדקה,
+והנכס נרשם אצלנו אוטומטית עוד לפני שהגיע לשער.</li>
+<li><b>תעודות השטיפה שלכם</b> — צפייה והורדה בכל רגע, מסודרות לפי מכל
+ותאריך, כולל חיפוש. כל תעודה חדשה מצטרפת אוטומטית.</li>
+</ul>
+<p><b>חשוב לדעת: החל מ-01/09/2026 הודעה על נכס בדרך מתקבלת דרך הפורטל
+בלבד, ומיילים מקדימים אינם מטופלים עוד.</b></p>
+<p><b>איך נכנסים? (בלי סיסמאות)</b></p>
+<ol style="line-height:1.8;">
+<li>נכנסים לאתר שלנו: <a href="{site_url}">eco-oil.co.il</a></li>
+<li>בתפריט למעלה: "כניסת לקוחות" ← "לקוחות אקו-דיפו"</li>
+<li>מקלידים את כתובת המייל הזו (שאליה קיבלתם את ההודעה) — ומקבלים
+למייל קישור כניסה אישי.</li>
+</ol>
+<p>נשמח ללוות אתכם בהגשה הראשונה — שיחת טלפון קצרה של חמש דקות ואתם
+מסודרים. אנחנו זמינים בטלפון 054-3232617 או במייל זה.</p>
+<p>לכל שאלה אנחנו כאן,<br>צוות אקו דיפו</p></div>"""
+    return ("חדש מאקו דיפו — פורטל לקוחות: הודעה על נכס בדרך + תעודות "
+            "השטיפה שלכם", html)
+
+
+@depot_admin.route("/users/<int:user_id>/invitation", methods=["POST"])
+@depot_admin_required
+def send_invitation(user_id):
+    """שליחת מייל ההזמנה הראשוני לאיש קשר אחד — כפתור בשורת המורשה בכרטיס
+    הלקוח (לימור 02/09, פתיחת הפורטל לכלל הלקוחות בהכרזת יואב). שליחה
+    פרטנית לכל נמען — אין חשיפת כתובות בין חברות; נרשמת ביומן הפעולות."""
+    from .mailer import send_office_email
+
+    user = db.session.get(User, user_id)
+    if user is None or user.role != "eco_depot_client" or not user.email:
+        return jsonify(error="משתמש לא נמצא"), 404
+    client = db.session.get(Client, user.client_id) if user.client_id else None
+    subject, html = _build_depot_invitation()
+    if not send_office_email(subject=subject, html=html, to=user.email):
+        return jsonify(error="שליחת המייל נכשלה — נסו שוב מאוחר יותר"), 502
+    _log("מייל הזמנה לפורטל", f"{user.email} ({client.name if client else '?'})")
+    db.session.commit()
+    return jsonify(ok=True, email=user.email)
 
 
 @depot_admin.route("/users/<int:user_id>/portal-only-notice", methods=["POST"])
