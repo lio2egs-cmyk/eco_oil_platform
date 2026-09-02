@@ -74,6 +74,30 @@ def create_app():
             AgreementDocument, DisposalEvent, DisposalCertificate,
             User, TokenBlocklist, MagicLinkToken, LoginAuditLog,
         )
+        # תיקון עוגן הנכסים (02/09/2026): הגרסה הראשונה של depot_asset_snapshots
+        # נוצרה עם ייחודיות על מס' הביקור לבדו — אבל בקובץ יש מספרים כפולים
+        # מלפני הקפאת המספרים (מכלים שונים חולקים מספר). אם הטבלה הישנה קיימת,
+        # מוחקים אותה לפני create_all והיא נבנית מחדש עם ייחודיות (ביקור, מכל).
+        # בטוח: התוכן = תמונת-מצב שעתית שנדחפת מחדש בכל סבב. רץ פעם אחת בלבד.
+        try:
+            insp = db.inspect(db.engine)
+            if "depot_asset_snapshots" in insp.get_table_names():
+                # מזהים את הסכמה החדשה לפי שם האילוץ; ב-SQLite אילוצים לא
+                # נראים ב-inspector — קוראים את ה-DDL ישירות.
+                if db.engine.dialect.name == "sqlite":
+                    ddl = db.session.execute(db.text(
+                        "SELECT sql FROM sqlite_master WHERE type='table' "
+                        "AND name='depot_asset_snapshots'")).scalar() or ""
+                    has_new = "uq_depot_asset_visit_tank" in ddl
+                else:
+                    has_new = any(
+                        u.get("name") == "uq_depot_asset_visit_tank"
+                        for u in insp.get_unique_constraints("depot_asset_snapshots"))
+                if not has_new:
+                    db.session.execute(db.text("DROP TABLE depot_asset_snapshots"))
+                    db.session.commit()
+        except Exception:
+            db.session.rollback()
         db.create_all()
 
         # Migrate: add parent_client_id to existing clients table

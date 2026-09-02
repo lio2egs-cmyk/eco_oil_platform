@@ -119,14 +119,16 @@ def my_assets():
     # בקשות פתוחות + אחרונות של הלקוח
     reqs = (DepotReleaseRequest.query.filter_by(client_id=client.id)
             .order_by(DepotReleaseRequest.created_at.desc()).limit(50).all())
-    open_by_visit = {}
+    # מפתח הבקשה = (ביקור, מכל) — בקובץ יש מספרי ביקור כפולים מהעבר
+    open_by_key = {}
     for r in reqs:
-        if r.status in OPEN_STATES and r.visit_id not in open_by_visit:
-            open_by_visit[r.visit_id] = r
+        if r.status in OPEN_STATES and (r.visit_id, r.tank) not in open_by_key:
+            open_by_key[(r.visit_id, r.tank)] = r
 
     pushed = max((a.pushed_at for a in rows), default=None)
     out = {
-        "assets": [_asset_dict(a, open_by_visit.get(a.visit_id)) for a in mine],
+        "assets": [_asset_dict(a, open_by_key.get((a.visit_id, a.tank)))
+                   for a in mine],
         "snapshot_at": pushed.isoformat() if pushed else None,
         "requests": [{
             "id": r.id,
@@ -155,15 +157,18 @@ def submit_release_request():
     data = request.get_json(silent=True) or {}
     action = data.get("action")
     visit_id = (str(data.get("visit_id") or "")).strip()
-    if action not in ("release", "cancel") or not visit_id:
+    tank = (str(data.get("tank") or "")).strip()
+    if action not in ("release", "cancel") or not visit_id or not tank:
         return jsonify(error="בקשה לא תקינה"), 400
 
-    a = DepotAssetSnapshot.query.filter_by(visit_id=visit_id).first()
+    # העוגן = (ביקור, מכל): מספרי ביקור כפולים קיימים בקובץ מהעבר
+    a = DepotAssetSnapshot.query.filter_by(visit_id=visit_id, tank=tank).first()
     if a is None or _norm(a.storage_payer) not in _client_payer_keys(client):
         return jsonify(error="הנכס לא נמצא ברשימה שלכם"), 404
 
     open_req = (DepotReleaseRequest.query
                 .filter(DepotReleaseRequest.visit_id == visit_id,
+                        DepotReleaseRequest.tank == tank,
                         DepotReleaseRequest.status.in_(OPEN_STATES)).first())
     if open_req is not None:
         return jsonify(error="כבר יש בקשה פתוחה לנכס הזה — היא בטיפול המשרד"), 409
@@ -256,9 +261,9 @@ def bridge_replace_assets():
         vid = (str(it.get("visit_id") or "")).strip()
         tank = (str(it.get("tank") or "")).strip()
         status = (str(it.get("status") or "")).strip()
-        if not vid or not tank or not status or vid in seen:
+        if not vid or not tank or not status or (vid, tank) in seen:
             continue
-        seen.add(vid)
+        seen.add((vid, tank))
 
         def _d(key):
             v = (it.get(key) or "")

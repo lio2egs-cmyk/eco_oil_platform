@@ -940,9 +940,14 @@ class DepotAssetSnapshot(db.Model):
     בזמן שאילתה לפי "גורם מחוייב אחסנה" מול שם+כתיבים (עוגן הכתיבים,
     כמו התעודות) — ערך לא מזוהה לא מוצג לאף לקוח."""
     __tablename__ = "depot_asset_snapshots"
+    # ⚠ העוגן = מס' ביקור + מכל יחד: בקובץ יש מספרי ביקור כפולים מהעבר
+    # (מלפני הקפאת המספרים 15/07) — מכלים שונים שחולקים מספר. התגלה 02/09
+    # בדחיפה הראשונה (14 מספרים כפולים, 26 מכלים).
+    __table_args__ = (db.UniqueConstraint("visit_id", "tank",
+                                          name="uq_depot_asset_visit_tank"),)
 
     id = db.Column(db.Integer, primary_key=True)
-    visit_id = db.Column(db.String(40), unique=True, nullable=False, index=True)  # מס' ביקור
+    visit_id = db.Column(db.String(40), nullable=False, index=True)  # מס' ביקור
     tank = db.Column(db.String(40), nullable=False, index=True)
     storage_payer = db.Column(db.String(200), index=True)       # גורם מחוייב אחסנה (D) — עוגן השיוך
     status = db.Column(db.String(40), nullable=False)           # הסטטוס בקובץ (I), כלשונו
