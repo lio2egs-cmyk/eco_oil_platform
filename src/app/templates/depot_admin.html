@@ -80,6 +80,9 @@
     <h3>הקמת חברת דיפו חדשה</h3>
     <div class="row"><input type="text" id="newName" placeholder="שם החברה — כפי שמופיע בעמודת גורם מחוייב בקובץ"></div>
     <div class="row"><textarea id="newAliases" placeholder="צורות כתיב נוספות — שורה לכל צורה. אפשר להשאיר ריק."></textarea></div>
+    <!-- מהלך אחד ורציף כמו באויל (לימור 02/09): שם + כתיבים + מיילים + הזמנה -->
+    <div class="row"><textarea id="newEmails" placeholder="מיילים של אנשי הקשר — שורה לכל כתובת. אפשר להשאיר ריק ולהוסיף אחר כך."></textarea></div>
+    <div class="row"><label style="font-size:13px;cursor:pointer"><input type="checkbox" id="newInvite" checked> לשלוח לאנשי הקשר מייל הזמנה לפורטל מיד עם היצירה</label></div>
     <div class="row">
       <button class="btn" onclick="createClient()">צרו חברה</button>
       <button class="btn btn-soft" onclick="toggleNewCard()">סגרו בלי ליצור</button>
@@ -453,14 +456,41 @@ function renderActions(){
   document.getElementById('actions').innerHTML=(DATA.actions||[]).length?h:'עוד לא נרשמו פעולות.';
 }
 
+/* שליחת מייל ההזמנה בלי שאלת אישור — לזרימות שכבר אישרו (הקמה/הוספה) */
+async function sendInviteQuiet(uid){
+  var r=await api('/depot/admin/users/'+uid+'/invitation',{method:'POST'});
+  return !!(r&&r.ok);
+}
+
 async function createClient(){
   var name=document.getElementById('newName').value.trim();
   var aliases=document.getElementById('newAliases').value.trim();
   if(!name){ toast('חסר שם חברה'); return; }
   var r=await api('/depot/admin/clients',{method:'POST',body:JSON.stringify({name:name,billing_aliases:aliases||null})});
   if(!r.ok){ toast((await r.json()).error||'שגיאה'); return; }
-  toast('החברה נוצרה ✓');
+  var cid=(await r.json()).id;
+  /* מהלך אחד ורציף (לימור 02/09, כמו באויל 19/08): גם אנשי הקשר + הזמנות */
+  var emails=document.getElementById('newEmails').value.split('\n').map(function(s){return s.trim();}).filter(Boolean);
+  var doInvite=document.getElementById('newInvite').checked;
+  var added=0, invited=0, problems=[];
+  for(var i=0;i<emails.length;i++){
+    var e=emails[i];
+    var ru=await api('/depot/admin/users',{method:'POST',body:JSON.stringify({email:e,client_id:cid})});
+    if(!ru||!ru.ok){ var er={}; try{ er=await ru.json(); }catch(_){ } problems.push(e+' — '+(er.error||'לא נוסף')); continue; }
+    added++;
+    if(doInvite){
+      var ud=await ru.json();
+      if(await sendInviteQuiet(ud.id)) invited++;
+      else problems.push(e+' — נוסף, אך מייל ההזמנה לא נשלח');
+    }
+  }
+  var msg='החברה נוצרה ✓';
+  if(added) msg+=' · נוספו '+added+' אנשי קשר';
+  if(invited) msg+=' · נשלחו '+invited+' הזמנות';
+  if(problems.length) msg+='\nשימו לב: '+problems.join(' | ');
+  toast(msg);
   document.getElementById('newName').value=''; document.getElementById('newAliases').value='';
+  document.getElementById('newEmails').value='';
   toggleNewCard(); await reload();
 }
 
@@ -470,7 +500,14 @@ async function addUser(cid,name){
   em=em.trim(); if(!em){ toast('לא הוזן מייל'); return; }
   var r=await api('/depot/admin/users',{method:'POST',body:JSON.stringify({email:em,client_id:cid})});
   if(!r.ok){ toast((await r.json()).error||'שגיאה'); return; }
-  toast('המשתמש נוסף ✓ (שליחת קישור — בכפתור שליד המייל)');
+  /* כמו באויל: מציעים מיד את מייל ההזמנה (לימור 02/09) */
+  var nu=await r.json();
+  if(confirm('נוסף ✓\nלשלוח ל-'+em+' מייל הזמנה לפורטל?')){
+    if(await sendInviteQuiet(nu.id)) toast('המשתמש נוסף ומייל ההזמנה נשלח ✓');
+    else toast('המשתמש נוסף, אך שליחת ההזמנה נכשלה — אפשר בכפתור 📨 שליד המייל');
+    await reload(); return;
+  }
+  toast('המשתמש נוסף ✓ (מייל הזמנה — בכפתור 📨 שליד המייל)');
   await reload();
 }
 
