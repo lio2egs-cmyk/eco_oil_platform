@@ -76,6 +76,11 @@
     <div id="paList" class="muted" style="overflow-x:auto">טוען…</div>
   </div>
 
+  <div class="card">
+    <h3>🚚 בקשות שחרור וביטול מהפורטל <span class="pill" id="rrCount"></span></h3>
+    <div id="rrList" class="muted" style="overflow-x:auto">טוען…</div>
+  </div>
+
   <div class="card hidden" id="newCard">
     <h3>הקמת חברת דיפו חדשה</h3>
     <div class="row"><input type="text" id="newName" placeholder="שם החברה — כפי שמופיע בעמודת גורם מחוייב בקובץ"></div>
@@ -243,7 +248,28 @@ async function reload(){
   document.getElementById('who').textContent='מחוברים כ: '+DATA.me;
   render(); renderStaff(); renderActions();
   loadPrearrivals();
+  loadReleaseRequests();
   loadCerts();
+}
+
+/* בקשות שחרור/ביטול מהפורטל (שלב 3 — אישור יואב 02/09). הגשר מעדכן את
+   הקובץ; המסך מציג את המצב, כולל דחיות של בדיקת-האמת (כבר סומן מוכן). */
+async function loadReleaseRequests(){
+  var r=await api('/depot/admin/release-requests');
+  if(!r||!r.ok){ document.getElementById('rrList').textContent='שגיאה בטעינת הבקשות'; return; }
+  var d=await r.json(); var reqs=d.requests||[];
+  document.getElementById('rrCount').textContent=reqs.length?(''+reqs.length+' בקשות'):'';
+  if(!reqs.length){ document.getElementById('rrList').textContent='עוד לא הוגשו בקשות שחרור מהפורטל.'; return; }
+  var h='<table><tr><th>מתי</th><th>לקוח</th><th>מכל</th><th>בקשה</th><th>תאריך איסוף</th><th>מוביל</th><th>הערות הלקוח</th><th>מצב</th></tr>';
+  reqs.forEach(function(q){
+    var cls=q.status==='posted'?'style="color:#2c7a52"':(q.status==='rejected'||q.status==='error')?'style="color:#b3261e"':'';
+    h+='<tr><td>'+fmtDT(q.created_at)+'</td><td><b>'+esc(q.client_name)+'</b></td>'+
+       '<td>'+esc(q.tank)+'</td><td>'+esc(q.action_heb)+'</td>'+
+       '<td>'+esc(q.requested_date||'—')+'</td><td>'+esc(q.carrier||'—')+'</td>'+
+       '<td class="muted">'+esc(q.notes||'')+'</td>'+
+       '<td '+cls+'>'+esc(q.status_heb)+(q.bridge_note?('<div class="muted" style="font-size:11.5px">'+esc(q.bridge_note)+'</div>'):'')+'</td></tr>';
+  });
+  document.getElementById('rrList').innerHTML=h+'</table>';
 }
 
 async function loadCerts(){
@@ -425,6 +451,7 @@ function render(){
        '<button class="btn btn-soft" onclick="editAliases('+c.id+')">צורות כתיב</button>'+
        '<button class="btn btn-soft" title="עמוד הבית של הפורטל בדיוק כפי שהלקוח רואה אותו" onclick="window.open(\'/portal?client_id='+c.id+'\',\'_blank\')">👁 עמוד הבית של הלקוח</button>'+
        '<button class="btn btn-soft" title="מסך התעודות בדיוק כפי שהלקוח רואה אותו" onclick="window.open(\'/depot/certificates?client_id='+c.id+'\',\'_blank\')">👁 תעודות הלקוח</button>'+
+       '<button class="btn btn-soft" title="מסך הנכסים בדיוק כפי שהלקוח רואה אותו" onclick="window.open(\'/depot/assets?client_id='+c.id+'\',\'_blank\')">👁 הנכסים של הלקוח</button>'+
        '</div></div>';
   });
   document.getElementById('list').innerHTML=h;

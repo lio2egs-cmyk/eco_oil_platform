@@ -14,6 +14,7 @@ from .reminders import reminders
 from .depot_admin import depot_admin
 from .depot_portal import depot_portal
 from .depot_certs import depot_certs
+from .depot_assets import depot_assets
 from .db import db
 
 jwt = JWTManager()
@@ -208,6 +209,7 @@ def create_app():
     app.register_blueprint(depot_admin)
     app.register_blueprint(depot_portal)
     app.register_blueprint(depot_certs)
+    app.register_blueprint(depot_assets)
 
     @app.route("/health")
     def health():

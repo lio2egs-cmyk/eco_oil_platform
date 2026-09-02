@@ -58,6 +58,7 @@
     {% endif %}
     {% if division == 'eco_depot' %}
     <a class="btn-main" id="depotPaBtn" href="/depot/prearrival">🚛 הודעה על נכס בדרך אלינו</a><br>
+    <a class="btn-main" id="depotAssetsBtn" href="/depot/assets">📦 הנכסים שלנו באתר</a><br>
     <a class="btn-main" id="depotCertsBtn" href="/depot/certificates">📄 תעודות השטיפה שלנו</a><br>
     {% endif %}
     <a class="btn" href="#" onclick="logout();return false;">יציאה</a>
@@ -244,6 +245,8 @@
       pb.style.display='block';
       document.getElementById('who').textContent='שלום, '+PREVIEW.client_name;
       certsBtn.href='/depot/certificates?client_id='+encodeURIComponent(PCID);
+      var ab=document.getElementById('depotAssetsBtn');
+      if(ab){ ab.href='/depot/assets?client_id='+encodeURIComponent(PCID); }
       var pa=document.getElementById('depotPaBtn');
       if(pa){ pa.onclick=function(ev){ ev.preventDefault();
         alert('תצוגת מנהלת — את טופס המידע המקדים ממלא הלקוח עצמו.\nההגשות שלו מופיעות בכרטיס החברה במסך הניהול.'); }; }

@@ -933,6 +933,53 @@ class DepotWashCert(db.Model):
     notified_at = db.Column(db.DateTime)
 
 
+class DepotAssetSnapshot(db.Model):
+    """"הנכסים שלי אצלכם" (שלב 3 במפת הדרכים — אישור יואב 02/09/2026).
+    תמונת-מצב של הנכסים הנמצאים באתר, מהסבב השעתי במחשב של לימור (קריאה
+    בלבד מעותק של הקובץ החי) — החלפה מלאה בכל דחיפה. השיוך ללקוח נפתר
+    בזמן שאילתה לפי "גורם מחוייב אחסנה" מול שם+כתיבים (עוגן הכתיבים,
+    כמו התעודות) — ערך לא מזוהה לא מוצג לאף לקוח."""
+    __tablename__ = "depot_asset_snapshots"
+
+    id = db.Column(db.Integer, primary_key=True)
+    visit_id = db.Column(db.String(40), unique=True, nullable=False, index=True)  # מס' ביקור
+    tank = db.Column(db.String(40), nullable=False, index=True)
+    storage_payer = db.Column(db.String(200), index=True)       # גורם מחוייב אחסנה (D) — עוגן השיוך
+    status = db.Column(db.String(40), nullable=False)           # הסטטוס בקובץ (I), כלשונו
+    material = db.Column(db.String(200))                        # חומר אחרון (F)
+    arrival_date = db.Column(db.Date)                           # תאריך הגעה (J)
+    est_exit_date = db.Column(db.Date)                          # תאריך משוער ליציאה (AK)
+    pushed_at = db.Column(db.DateTime, nullable=False)          # מתי נדחפה התמונה
+
+
+class DepotReleaseRequest(db.Model):
+    """בקשת שחרור / ביטול שחרור מהפורטל (אישור יואב 02/09/2026, בעקבות
+    שאלת אלירן-טנקו). אותו עיקרון כמו הטופס המקדים: הלקוח מבקש — הגשר של
+    יעל מושך, מעדכן סטטוס בקובץ החי ומאשר. כלל לימור: ביטול אפשרי רק כל
+    עוד העובד לא סימן בטאבלט "מוכן לשחרור"; הגשר בודק שוב ברגע הביצוע."""
+    __tablename__ = "depot_release_requests"
+
+    id = db.Column(db.Integer, primary_key=True)
+    client_id = db.Column(db.Integer, db.ForeignKey("clients.id"), nullable=False, index=True)
+    submitted_by_user_id = db.Column(db.Integer, db.ForeignKey("users.id"))
+    created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False, index=True)
+
+    visit_id = db.Column(db.String(40), nullable=False, index=True)  # מס' הביקור מהתמונה
+    tank = db.Column(db.String(40), nullable=False)
+    action = db.Column(db.String(10), nullable=False)           # release / cancel
+    requested_date = db.Column(db.Date)                         # תאריך איסוף מבוקש (בשחרור)
+    carrier = db.Column(db.String(200))                         # מוביל אוסף (רשות)
+    notes = db.Column(db.String(400))
+
+    # pending → fetched (הגשר משך) → posted (הסטטוס עודכן בקובץ) /
+    # rejected (נפסל בבדיקת-האמת — למשל כבר סומן מוכן) / error
+    status = db.Column(db.String(20), default="pending", nullable=False, index=True)
+    bridge_note = db.Column(db.String(400))
+    posted_at = db.Column(db.DateTime)
+
+    client = db.relationship("Client")
+
+
 class FieldInstructions(db.Model):
     """Phase-3 instructions engine (Yoav's rules 19/07): per-tank wash type,
     PPE level and material, keyed by tank number. Single row, JSON blob,

@@ -97,6 +97,15 @@ def depot_certs_page():
         division="eco_depot", brand="אקו-דיפו", logo="logo_eco_depot.png")
 
 
+@web.route("/depot/assets")
+def depot_assets_page():
+    """"הנכסים שלי אצלכם" (שלב 3 — אישור יואב 02/09): רשימת הנכסים באתר
+    + בקשת שחרור / ביטול שחרור. ההרשאה בצד ה-API."""
+    return render_template(
+        "depot_assets.html",
+        division="eco_depot", brand="אקו-דיפו", logo="logo_eco_depot.png")
+
+
 @web.route("/depot-admin")
 def depot_admin_page():
     """מסך ניהול הדיפו (לימור 06/08/2026, אפשרות א) — מסך נפרד מהמסך של
