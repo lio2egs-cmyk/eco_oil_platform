@@ -53,6 +53,20 @@
       <div style="font-size:13px;color:#3d5c43;margin-bottom:10px">הצהרות שנחתמו ואושרו סופית על ידי אקו-אויל.</div>
       <div id="doneDocsList"></div>
     </div>
+    <!-- דף סיכום למוביל (בקשת לקוחה דרך לימור 03/09): מצב ההצהרות של כל
+         לקוחות החומ"ס — תצוגה קבועה, משלימה את מערך התזכורות ולא מחליפה -->
+    <div id="carrierSummary" style="display:none;margin-top:16px;text-align:right;background:#F4F7F6;border:1.5px solid #C7D8D5;border-radius:12px;padding:14px 16px">
+      <div style="font-family:var(--fh);color:#2F5F59;font-size:15px;margin-bottom:8px">🏭 מצב ההצהרות של הלקוחות שלכם</div>
+      <div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse;font-size:12.5px;background:#fff;border-radius:8px;overflow:hidden">
+        <thead><tr>
+          <th style="background:#5B9E96;color:#fff;padding:6px 9px;text-align:right">יצרן</th>
+          <th style="background:#5B9E96;color:#fff;padding:6px 9px;text-align:right">חומר / זרם</th>
+          <th style="background:#5B9E96;color:#fff;padding:6px 9px;text-align:right">מצב</th>
+          <th style="background:#5B9E96;color:#fff;padding:6px 9px;text-align:right">בתוקף עד</th>
+        </tr></thead>
+        <tbody id="carrierSummaryRows"></tbody>
+      </table></div>
+    </div>
     <a class="btn-main" id="docsBtn" href="/documents">📂 המסמכים שלי</a><br id="docsBtnBr">
     <a class="btn-main" href="/declaration">📄 מילוי הצהרת יצרן</a><br>
     {% endif %}
@@ -124,10 +138,12 @@
          היעילות והפשטות?" — קודם שם המסמך היה קישור בלבד ופס השלבים תפס
          יותר מקום מהפעולה עצמה) */
       function actionBtns(d){
+        /* 03/09 (מקרה תדפיס-הטופס): מזכירה הדפיסה וחתמה על טופס המילוי במקום
+           על המסמך שנוצר. הכפתור אומר עכשיו במפורש שזה "המסמך לחתימה". */
         var dl='<a target="_blank" href="/declaration-doc?id='+d.id+'" '+
-          'style="display:inline-block;background:#fff;border:1.5px solid #5B9E96;color:#2F5F59;'+
+          'style="display:inline-block;background:#5B9E96;color:#fff;border:none;'+
           'border-radius:9px;padding:9px 16px;font-family:var(--fh);font-size:13.5px;'+
-          'text-decoration:none">⬇ הורדה / הדפסה</a>';
+          'text-decoration:none">📄 המסמך לחתימה — הורדה / הדפסה</a>';
         var up=d.has_signed_scan
           ?'<button onclick="uploadScan('+d.id+')" style="background:#fff;border:1.5px solid #C9A227;'+
            'color:#8a5d00;border-radius:9px;padding:9px 16px;font-family:var(--fh);font-size:13.5px;'+
@@ -177,7 +193,9 @@
               :'<div style="font-size:12px;color:#8a8a8a;margin-top:4px">'+
                (d.indirect?'הורידו, החתימו אצל היצרן, והעלו כאן את המסמך החתום.'
                           :'הורידו או הדפיסו, חתמו והחתימו בחותמת, והעלו כאן את המסמך החתום.')+
-               ' סריקה או צילום ברור מהטלפון.</div>')+
+               ' סריקה או צילום ברור מהטלפון.'+
+               '<br><b style="color:#8a5d00">חשוב: חותמים על המסמך שבכפתור הירוק — '+
+               'לא על תדפיס של טופס המילוי.</b></div>')+
             stepBar(d)+
             '</div>';
         }).join('');
@@ -222,6 +240,50 @@
         }).join('');
         document.getElementById('fixDocs').style.display='block';
       }
+      /* דף סיכום למוביל (בקשת לקוחה דרך לימור 03/09): טבלה קבועה של מצב
+         ההצהרות אצל כל לקוחות החומ"ס — מוצגת רק כשלחשבון יש יצרנים עקיפים
+         או יותר מיצרן אחד. הצביעה: ירוק בתוקף · כתום יפוג תוך 60 יום ·
+         אדום פג תוקף. משלימה את מערך התזכורות, לא מחליפה אותו. */
+      (function(){
+        var producers={};
+        ds.forEach(function(d){
+          var k=(d.producer_name||'?')+'||'+(d.business_id||'');
+          (producers[k]=producers[k]||[]).push(d);
+        });
+        var names=Object.keys(producers);
+        var show=names.length>1 || ds.some(function(d){ return d.indirect; });
+        if(!show||!ds.length) return;
+        function parseHe(s){ var p=(s||'').split('/'); return p.length===3?new Date(+p[2],+p[1]-1,+p[0]):null; }
+        function statusCell(d){
+          if(d.status==='approved'){
+            var u=parseHe(d.valid_until), now=new Date();
+            if(u&&u<now) return ['פג תוקף','#9E423C','#FDECEA'];
+            if(u&&(u-now)/86400000<=60) return ['יפוג בקרוב','#8a5d00','#FFF3D6'];
+            return ['בתוקף','#2F6B3A','#EDF7EE'];
+          }
+          if(d.status==='needs_fix') return ['הוחזר לתיקון','#9E423C','#FDECEA'];
+          if(d.status==='released'&&d.has_signed_scan) return ['בבדיקת אקו-אויל','#2F5170','#E4EDF5'];
+          if(d.status==='released') return ['ממתין לחתימה','#8a5d00','#FFF3D6'];
+          return ['בבדיקת נוסח','#2F5170','#E4EDF5'];
+        }
+        var h='';
+        names.sort(function(a,b){ return a.localeCompare(b,'he'); }).forEach(function(k){
+          var list=producers[k];
+          list.forEach(function(d,i){
+            var st=statusCell(d);
+            h+='<tr>'+
+              '<td style="padding:5px 9px;border-bottom:1px solid #E4ECEA;font-weight:'+(i===0?'600':'400')+';color:#2F5F59">'+
+                (i===0?esc(d.producer_name||'')+(d.indirect?' <span style="font-size:10.5px;color:#7a8a88">(עקיף)</span>':''):'')+'</td>'+
+              '<td style="padding:5px 9px;border-bottom:1px solid #E4ECEA">'+esc(d.material_name||'')+'</td>'+
+              '<td style="padding:5px 9px;border-bottom:1px solid #E4ECEA">'+
+                '<span style="background:'+st[2]+';color:'+st[1]+';border-radius:8px;padding:1px 8px;font-size:11.5px;font-weight:600">'+st[0]+'</span></td>'+
+              '<td style="padding:5px 9px;border-bottom:1px solid #E4ECEA;color:#445">'+esc(d.valid_until||'—')+'</td>'+
+              '</tr>';
+          });
+        });
+        document.getElementById('carrierSummaryRows').innerHTML=h;
+        document.getElementById('carrierSummary').style.display='block';
+      })();
     }catch(e){}
   })();
   /* מבט-מנהלת על עמוד הבית של לקוח דיפו (לימור 24/08) — ?client_id= בחטיבת

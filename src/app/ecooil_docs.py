@@ -1073,6 +1073,10 @@ def my_documents():
     base = q  # facets reflect the full scope, not the current filter
     if request.args.get("year"):
         q = q.filter(EcoOilUnloadEvent.year == int(request.args["year"]))
+    if request.args.get("month"):
+        # סינון לפי חודש (בקשת לקוחה דרך לימור 03/09) — משלים את סינון השנה.
+        # עמודת month מגיעה מהריכוז (הגיליונות חודשיים) — תמיד מלאה.
+        q = q.filter(EcoOilUnloadEvent.month == int(request.args["month"]))
     if request.args.get("stream"):
         q = q.filter(EcoOilUnloadEvent.stream_norm == request.args["stream"])
     if request.args.get("q"):
@@ -1172,3 +1176,102 @@ def download(event_id):
         ExpiresIn=PRESIGN_SECONDS,
     )
     return jsonify({"url": url})
+
+
+# תקרת ההורדה המרוכזת — מגן על השרת; הסינון לחודש אחד רחוק מלהגיע אליה.
+BULK_MAX_FILES = 150
+
+
+@ecooil_docs.route("/my-documents/download-all", methods=["GET"])
+@jwt_required()
+def download_all():
+    """הורדה מרוכזת (בקשת לקוחה דרך לימור 03/09): קובץ ZIP אחד עם כל מסמכי
+    הסינון הנוכחי — אישורי פריקה וטופסי מלווה. אותם שערים בדיוק כמו בהורדה
+    הבודדת: חסימת חברה נאכפת, שורות מעוכבות (סנקציה/לא-לפרסם) לא נכללות,
+    ושורות בלי קובץ פשוט מדולגות."""
+    if get_jwt().get("role") == DECLARATION_ONLY_ROLE:
+        return jsonify({"error": "declarations only"}), 403
+    client = _client_for_request()
+    if client is None:
+        return jsonify({"error": "no client"}), 403
+    if client.docs_blocked:
+        return jsonify({"error": "blocked", "message": DOCS_BLOCKED_NOTICE}), 403
+
+    q, _mode = _scoped_query(client)
+    if request.args.get("year"):
+        q = q.filter(EcoOilUnloadEvent.year == int(request.args["year"]))
+    if request.args.get("month"):
+        q = q.filter(EcoOilUnloadEvent.month == int(request.args["month"]))
+    if request.args.get("stream"):
+        q = q.filter(EcoOilUnloadEvent.stream_norm == request.args["stream"])
+    if request.args.get("q"):
+        like = f"%{request.args['q'].strip()}%"
+        q = q.filter(or_(EcoOilUnloadEvent.customer.ilike(like),
+                         EcoOilUnloadEvent.transporter.ilike(like)))
+
+    rows = q.order_by(EcoOilUnloadEvent.event_date.asc(),
+                      EcoOilUnloadEvent.id.asc()).limit(5000).all()
+    files = []  # (key, zip_name)
+    for r in rows:
+        if r.doc_status in WITHHELD_STATUSES:
+            continue
+        stamp = r.event_date.strftime("%Y-%m-%d") if r.event_date else "ללא-תאריך"
+        if r.pdf_key:
+            files.append((r.pdf_key, f"{stamp}_{r.pdf_key.rsplit('/', 1)[-1]}"))
+        if r.manifest_key:
+            files.append((r.manifest_key,
+                          f"{stamp}_{r.manifest_key.rsplit('/', 1)[-1]}"))
+    if not files:
+        return jsonify({"error": "empty",
+                        "message": "אין מסמכים זמינים בסינון הנוכחי"}), 404
+    if len(files) > BULK_MAX_FILES:
+        return jsonify({"error": "too many", "message":
+                        f"הסינון הנוכחי כולל {len(files)} מסמכים — יותר מדי "
+                        f"להורדה אחת (עד {BULK_MAX_FILES}). צמצמו לחודש או "
+                        "לזרם מסוים והורידו בחלקים."}), 413
+
+    for var in ("B2_KEY_ID", "B2_APP_KEY", "B2_BUCKET_CERTS", "B2_ENDPOINT"):
+        if not os.environ.get(var):
+            return jsonify({"error": "storage not configured"}), 503
+    import io
+    import zipfile
+    import boto3
+    from botocore.config import Config
+    s3 = boto3.client(
+        "s3", endpoint_url=f"https://{os.environ['B2_ENDPOINT']}",
+        aws_access_key_id=os.environ["B2_KEY_ID"],
+        aws_secret_access_key=os.environ["B2_APP_KEY"],
+        config=Config(signature_version="s3v4"),
+    )
+    buf = io.BytesIO()
+    seen = set()
+    missing = 0
+    with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED) as zf:
+        for key, name in files:
+            base = name
+            n = 2
+            while name in seen:  # שני קבצים באותו שם — לא דורסים
+                stem, dot, ext = base.rpartition(".")
+                name = f"{stem}_{n}{dot}{ext}" if dot else f"{base}_{n}"
+                n += 1
+            seen.add(name)
+            try:
+                obj = s3.get_object(Bucket=os.environ["B2_BUCKET_CERTS"], Key=key)
+                zf.writestr(name, obj["Body"].read())
+            except Exception:  # קובץ בודד שחסר באחסון לא מפיל את כל החבילה
+                missing += 1
+                current_app.logger.warning("bulk download: missing B2 key %s", key)
+        if missing:
+            zf.writestr("שימו-לב.txt",
+                        f"{missing} מסמכים לא היו זמינים באחסון ולא נכללו.")
+    buf.seek(0)
+
+    parts = ["documents", client.name]
+    if request.args.get("year"):
+        parts.append(request.args["year"])
+    if request.args.get("month"):
+        parts.append(request.args["month"].zfill(2))
+    from urllib.parse import quote
+    fname = quote("_".join(parts) + ".zip")
+    return Response(buf.getvalue(), mimetype="application/zip", headers={
+        "Content-Disposition": f"attachment; filename*=UTF-8''{fname}"})

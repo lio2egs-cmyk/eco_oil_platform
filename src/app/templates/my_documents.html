@@ -67,8 +67,20 @@
   <div class="blocked-banner" id="blockedBanner"></div>
   <div class="filters">
     <select id="fYear"><option value="">כל השנים</option></select>
+    <!-- סינון לפי חודש (בקשת לקוחה דרך לימור 03/09) -->
+    <select id="fMonth">
+      <option value="">כל החודשים</option>
+      <option value="1">ינואר</option><option value="2">פברואר</option>
+      <option value="3">מרץ</option><option value="4">אפריל</option>
+      <option value="5">מאי</option><option value="6">יוני</option>
+      <option value="7">יולי</option><option value="8">אוגוסט</option>
+      <option value="9">ספטמבר</option><option value="10">אוקטובר</option>
+      <option value="11">נובמבר</option><option value="12">דצמבר</option>
+    </select>
     <select id="fStream"><option value="">כל הזרמים</option></select>
     <input type="text" id="fQ" placeholder="חיפוש לפי שם או מוביל…">
+    <!-- הורדה מרוכזת (03/09): כל מסמכי הסינון הנוכחי בקובץ אחד -->
+    <button class="btn" id="btnZip" title="הורדת כל המסמכים שבסינון הנוכחי בקובץ אחד" onclick="dlAll()">⬇ הורדת כל המסוננים</button>
     <span class="count" id="count"></span>
   </div>
   <div id="content"><div class="empty">טוען…</div></div>
@@ -115,17 +127,23 @@ function switchCompany(id){
   CID=String(id);
   // facets (years/streams) belong to the company — rebuild them on switch
   document.getElementById('fYear').innerHTML='<option value="">כל השנים</option>';
+  document.getElementById('fMonth').value='';
   document.getElementById('fStream').innerHTML='<option value="">כל הזרמים</option>';
   document.getElementById('fQ').value='';
   load(true);
 }
 
-async function load(first){
+function filterParams(){
   var p=new URLSearchParams();
-  var y=document.getElementById('fYear').value, s=document.getElementById('fStream').value,
-      q=document.getElementById('fQ').value.trim();
-  if(y)p.set('year',y); if(s)p.set('stream',s); if(q)p.set('q',q);
+  var y=document.getElementById('fYear').value, m=document.getElementById('fMonth').value,
+      s=document.getElementById('fStream').value, q=document.getElementById('fQ').value.trim();
+  if(y)p.set('year',y); if(m)p.set('month',m); if(s)p.set('stream',s); if(q)p.set('q',q);
   if(CID)p.set('client_id',CID);
+  return p;
+}
+
+async function load(first){
+  var p=filterParams();
   var r=await apiGet('/eco-oil/my-documents?'+p.toString());
   if(!r||!r.ok){ document.getElementById('content').innerHTML='<div class="empty">שגיאה בטעינה</div>'; return; }
   var d=await r.json();
@@ -136,6 +154,7 @@ async function load(first){
   var bb=document.getElementById('blockedBanner');
   bb.textContent=d.docs_blocked_notice||'';
   bb.style.display=BLOCKED?'block':'none';
+  document.getElementById('btnZip').style.display=(BLOCKED||!d.rows.length)?'none':'inline-block';
   if(first){
     d.years.forEach(function(v){ var o=document.createElement('option'); o.value=v; o.textContent=v;
       document.getElementById('fYear').appendChild(o); });
@@ -230,6 +249,30 @@ function dlm(id){ dl(id,'manifest'); }
    מהדפדפנים נפתח כצפייה בלי אפשרות שמירה נראית. האחסון כבר מחזיר את
    הקובץ כ-attachment, ולכן לחיצה על קישור רגיל מורידה אותו בלי לנווט
    ובלי לפתוח חלון. */
+/* הורדה מרוכזת (03/09): מבקשים מהשרת ZIP של הסינון הנוכחי ושומרים אותו.
+   הבקשה עם אימות, ולכן מורידים כ-blob ולא בקישור ישיר. */
+async function dlAll(){
+  var b=document.getElementById('btnZip'), old=b.textContent;
+  b.disabled=true; b.textContent='מכינה את הקובץ…';
+  try{
+    var r=await apiGet('/eco-oil/my-documents/download-all?'+filterParams().toString());
+    if(!r||!r.ok){
+      var msg='ההורדה המרוכזת אינה זמינה כרגע';
+      try{ var e=await r.json(); if(e&&e.message) msg=e.message; }catch(_){}
+      alert(msg); return;
+    }
+    var blob=await r.blob();
+    var url=URL.createObjectURL(blob);
+    var y=document.getElementById('fYear').value, m=document.getElementById('fMonth').value;
+    var a=document.createElement('a');
+    a.href=url;
+    a.download='מסמכים'+(y?'_'+y:'')+(m?'_'+(m.length<2?'0'+m:m):'')+'.zip';
+    a.style.display='none';
+    document.body.appendChild(a); a.click();
+    setTimeout(function(){ a.remove(); URL.revokeObjectURL(url); },1000);
+  } finally { b.disabled=false; b.textContent=old; }
+}
+
 function startDownload(url){
   var a=document.createElement('a');
   a.href=url;
@@ -240,7 +283,7 @@ function startDownload(url){
   setTimeout(function(){ a.remove(); },0);
 }
 
-['fYear','fStream'].forEach(function(id){
+['fYear','fMonth','fStream'].forEach(function(id){
   document.getElementById(id).addEventListener('change',function(){load(false);});
 });
 var t=null;
