@@ -54,13 +54,18 @@ auth = Blueprint("auth", __name__, url_prefix="/auth")
 # אותיות לטיניות בלבד, בלי רווחים, בלי שם ובלי תוספות.
 _EMAIL_RE = re.compile(r"^[a-z0-9._%+'\-]+@[a-z0-9.\-]+\.[a-z]{2,}$")
 
+# תווים בלתי-נראים שנדבקים להעתקה מווטסאפ/מייל בעברית (סימני כיווניות,
+# רווחי אפס, BOM) — מקרה נור/מוביל 03/09: הכתובת נראתה נקייה לחלוטין
+# אבל נשא תו כזה ונדחתה. מסירים אותם בשקט במקום להכשיל את לימור.
+_INVISIBLE_RE = re.compile("[​-‏‪-‮⁠﻿]")
+
 EMAIL_FORMAT_ERROR = ("כתובת המייל לא תקינה — יש להקליד את הכתובת בלבד, "
                       "באנגלית, בלי שם ובלי טקסט נוסף (למשל: office@company.co.il)")
 
 
 def clean_portal_email(raw):
     """מנקה ובודק כתובת מייל מממשק ניהול. מחזירה (email, error)."""
-    email = (str(raw or "")).strip().lower()
+    email = _INVISIBLE_RE.sub("", str(raw or "")).replace(" ", " ").strip().lower()
     if not email:
         return None, "חסרה כתובת מייל"
     if not _EMAIL_RE.match(email):

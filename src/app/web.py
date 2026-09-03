@@ -18,6 +18,17 @@ from .declaration_data import STREAMS
 web = Blueprint("web", __name__)
 
 
+@web.after_request
+def _no_cache_html(resp):
+    """דפי המסך תמיד טריים (03/09/2026): לימור קיבלה מסך ניהול ישן מזיכרון
+    הדפדפן שעות אחרי פריסה — התכונות החדשות "לא הופיעו". ה-HTML קטן; מה שכבד
+    (לוגו/תמונות) מוגש בנתיבי static ולא נחסם כאן."""
+    if resp.mimetype == "text/html":
+        resp.headers["Cache-Control"] = "no-cache, no-store, must-revalidate"
+        resp.headers["Pragma"] = "no-cache"
+    return resp
+
+
 def _brand_for_host():
     host = (request.host or "").lower()
     if host.startswith("depot.") or host.startswith("depot"):
