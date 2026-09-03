@@ -296,21 +296,41 @@ def _scoped_query(client):
     if other:
         folder_neutral = or_(folder_neutral,
                              EcoOilUnloadEvent.filed_owner.notin_(other))
-    # תשובות "החיוב צודק" מטבלת הסתירות (לימור 03/09): לצמד שנפסק כך,
-    # עוגן-התיקייה מבוטל — השורה חוזרת להישפט לפי עמודת החיוב בלבד.
-    ruled = [(r.billed_to, r.filed_owner)
-             for r in EcoOilFilingRuling.query.filter_by(decision="billed").all()]
-    pair_match = or_(*[and_(EcoOilUnloadEvent.billed_to == b,
-                            EcoOilUnloadEvent.filed_owner == f)
-                       for b, f in ruled]) if ruled else None
-    if pair_match is not None:
-        folder_neutral = or_(folder_neutral, pair_match)
-    conds = [and_(billed_match, folder_neutral)]
+    # תשובות לימור מטבלת הסתירות (03/09) — הכרעת "למי שייכים האישורים":
+    #   billed — הצמד חוזר להישפט לפי עמודת החיוב בלבד (עוגן-התיקייה מבוטל);
+    #   client — הצמד מוצג אך ורק אצל החברה שנבחרה, ומוסתר מכל השאר.
+    rulings = EcoOilFilingRuling.query.filter(
+        EcoOilFilingRuling.decision.in_(("billed", "client"))).all()
+
+    def _pairs_expr(pairs):
+        if not pairs:
+            return None
+        return or_(*[and_(EcoOilUnloadEvent.billed_to == b,
+                          EcoOilUnloadEvent.filed_owner == f) for b, f in pairs])
+
+    billed_expr = _pairs_expr([(r.billed_to, r.filed_owner)
+                               for r in rulings if r.decision == "billed"])
+    granted_expr = _pairs_expr([(r.billed_to, r.filed_owner)
+                                for r in rulings if r.decision == "client"
+                                and r.client_id == client.id])
+    denied_expr = _pairs_expr([(r.billed_to, r.filed_owner)
+                               for r in rulings if r.decision == "client"
+                               and r.client_id != client.id])
+
+    if billed_expr is not None:
+        folder_neutral = or_(folder_neutral, billed_expr)
+    billed_arm = and_(billed_match, folder_neutral)
+    if denied_expr is not None:
+        billed_arm = and_(billed_arm, not_(denied_expr))
+    conds = [billed_arm]
     if mine:
         mine_cond = EcoOilUnloadEvent.filed_owner.in_(mine)
-        if pair_match is not None:
-            mine_cond = and_(mine_cond, not_(pair_match))
+        for ex in (billed_expr, denied_expr):
+            if ex is not None:
+                mine_cond = and_(mine_cond, not_(ex))
         conds.append(mine_cond)
+    if granted_expr is not None:
+        conds.append(granted_expr)
     scoped = EcoOilUnloadEvent.query.filter(or_(*conds))
     if db.session.query(scoped.exists()).scalar():
         return scoped, "billed"
@@ -413,10 +433,13 @@ def filing_discrepancies():
 
     # תשובות שכבר ניתנו (לימור 03/09) — הקבוצה מסומנת ולא נספרת כפתוחה;
     # במסך היא מוצגת מקופלת עם אפשרות ביטול.
-    rulings = {(r.billed_to, r.filed_owner): r.decision
+    rulings = {(r.billed_to, r.filed_owner): r
                for r in EcoOilFilingRuling.query.all()}
     for g in groups.values():
-        g["ruling"] = rulings.get((g["billed_to"], g["filed_owner"]))
+        r = rulings.get((g["billed_to"], g["filed_owner"]))
+        g["ruling"] = ({"decision": r.decision, "client_id": r.client_id,
+                        "client_name": client_names.get(r.client_id)}
+                       if r else None)
 
     out = sorted(groups.values(),
                  key=lambda g: (0 if g["ruling"] is None else 1,
@@ -453,35 +476,56 @@ def rule_filing_discrepancy():
         return jsonify({"ok": True, "deleted": n})
 
     decision = body.get("decision")
+
+    def _save_ruling(dec, cid=None):
+        r = EcoOilFilingRuling.query.filter_by(
+            billed_to=billed, filed_owner=folder).first()
+        if r is None:
+            r = EcoOilFilingRuling(billed_to=billed, filed_owner=folder)
+            db.session.add(r)
+        r.decision = dec
+        r.client_id = cid
+        r.actor = "מנהלת"
+        r.created_at = datetime.utcnow()
+
     if decision == "link_folder":
+        # תיקייה לא מזוהה: שם התיקייה נוסף ככתיב לחברה שנבחרה. אם החברה
+        # שנבחרה אינה חברת החיוב — הצמד יהפוך ל"סתירה" ברגע שהתיקייה תזוהה,
+        # ולכן נרשמת מיד גם תשובת 'folder' (הבעלים = חברת התיקייה) שסוגרת
+        # את זה מראש. תשובה אחת של לימור = סגירה מלאה.
         client = db.session.get(Client, int(body.get("client_id") or 0))
         if client is None or client.division != "eco_oil":
             return jsonify({"error": "החברה לא נמצאה"}), 404
         seg = [p.strip() for p in folder.split(" / ") if p.strip()][-1]
-        existing = _client_name_map().get(_norm_name(seg))
-        if existing == client.id:
-            return jsonify({"ok": True, "already": True, "alias": seg})
-        if existing is not None:
+        name_map = _client_name_map()
+        existing = name_map.get(_norm_name(seg))
+        if existing is not None and existing != client.id:
             other_c = db.session.get(Client, existing)
             return jsonify({"error": f'הכתיב "{seg}" כבר שייך לחברת '
                                      f'{other_c.name if other_c else existing}'}), 409
-        aliases = [a.strip() for a in (client.billing_aliases or "").splitlines()
-                   if a.strip()]
-        aliases.append(seg)
-        client.billing_aliases = "\n".join(aliases)
+        if existing is None:
+            aliases = [a.strip() for a in (client.billing_aliases or "").splitlines()
+                       if a.strip()]
+            aliases.append(seg)
+            client.billing_aliases = "\n".join(aliases)
+        billed_cid = name_map.get(_norm_name(_billed_core(billed))) if billed else None
+        if billed_cid != client.id:
+            _save_ruling("folder")
         db.session.commit()
         return jsonify({"ok": True, "client_id": client.id, "alias": seg})
 
-    if decision not in ("folder", "billed") or not billed:
+    if decision == "client":
+        # "שייך לחברה אחרת" — הצמד יוצג אצלה בלבד (03/09 ערב)
+        client = db.session.get(Client, int(body.get("client_id") or 0))
+        if client is None or client.division != "eco_oil":
+            return jsonify({"error": "החברה לא נמצאה"}), 404
+        _save_ruling("client", client.id)
+        db.session.commit()
+        return jsonify({"ok": True, "decision": "client", "client_id": client.id})
+
+    if decision not in ("folder", "billed"):
         return jsonify({"error": "bad request"}), 400
-    r = EcoOilFilingRuling.query.filter_by(
-        billed_to=billed, filed_owner=folder).first()
-    if r is None:
-        r = EcoOilFilingRuling(billed_to=billed, filed_owner=folder)
-        db.session.add(r)
-    r.decision = decision
-    r.actor = "מנהלת"
-    r.created_at = datetime.utcnow()
+    _save_ruling(decision)
     db.session.commit()
     return jsonify({"ok": True, "decision": decision})
 

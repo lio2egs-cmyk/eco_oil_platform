@@ -125,6 +125,8 @@ def create_app():
             "ALTER TABLE users ADD COLUMN extra_client_ids VARCHAR(200)",
             "ALTER TABLE users ADD COLUMN invited_at TIMESTAMP",
             "ALTER TABLE users ADD COLUMN contact_name VARCHAR(120)",
+            # תשובת "שייך לחברה אחרת" בסתירות התיוק (לימור 03/09 ערב)
+            "ALTER TABLE ecooil_filing_rulings ADD COLUMN client_id INTEGER REFERENCES clients(id)",
         ):
             try:
                 db.session.execute(db.text(stmt))

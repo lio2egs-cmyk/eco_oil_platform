@@ -919,15 +919,19 @@ class EcoOilFilingRuling(db.Model):
     """תשובת לימור לסתירת תיוק-מול-חיוב (03/09/2026): במקום מייל/תיקון ידני,
     היא עונה ישירות בטבלת הסתירות במסך הניהול. המפתח = הצמד המדויק
     (עמודת החיוב, תיקיית התיוק) — כך התשובה שורדת כל סנכרון שעתי וחלה גם על
-    שורות עתידיות של אותו צמד. decision: 'folder' (התיוק צודק — רק השתקה,
-    התצוגה ממילא לפי התיקייה) / 'billed' (החיוב צודק — התצוגה בפורטל עוקפת
-    את עוגן-התיקייה לצמד הזה בלבד)."""
+    שורות עתידיות של אותו צמד. התשובה עונה על שאלה אחת: למי שייכים האישורים —
+    decision: 'folder' (לחברת התיקייה — התצוגה ממילא לפי התיקייה) /
+    'billed' (לגורם שבעמודת החיוב — עוקף את עוגן-התיקייה לצמד; גורם לא רשום
+    יופיע אוטומטית ברגע שיוקם לו כרטיס, כי שיפוט-החיוב הוא לפי שם+כתיבים) /
+    'client' + client_id (לחברה אחרת שבחרה — הצמד מוצג אצלה בלבד; 03/09 ערב,
+    אחרי משוב ש.צ.פ/עידן וצ.כץ/הגליל: השליטה כולה אצלה)."""
     __tablename__ = "ecooil_filing_rulings"
 
     id = db.Column(db.Integer, primary_key=True)
     billed_to = db.Column(db.Text, nullable=False)
     filed_owner = db.Column(db.Text, nullable=False)
-    decision = db.Column(db.String(20), nullable=False)   # folder / billed
+    decision = db.Column(db.String(20), nullable=False)   # folder / billed / client
+    client_id = db.Column(db.Integer, db.ForeignKey("clients.id"), nullable=True)
     actor = db.Column(db.String(120))
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
