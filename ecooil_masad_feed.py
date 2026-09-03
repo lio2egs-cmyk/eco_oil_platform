@@ -155,7 +155,13 @@ def resolve_summary_row(rows, d):
         # משווים גם מול שם הכרטיס וצורות הכתיב שלו (19/08, גדות פי גלילות:
         # בהצהרה נכתב "גדות פי גלילות" והשורה בגיליון נשאה את השם המלא —
         # רשת-הביטחון החטיאה ונפתחה שורה כפולה).
-        name_keys = _site_keys(d) | _account_forms(d)
+        # אבל לא אצל לקוח עקיף (03/09, מקרה אוניפארם/עלה): שם החשבון הוא
+        # המוביל — חברה אחרת מהיצרן — וההשוואה מולו הפנתה את לימור לשורת
+        # המוביל (368) במקום לפתוח שורה חדשה ליצרן. אצל עקיף משווים רק את
+        # שם/אתר היצרן עצמו.
+        name_keys = _site_keys(d)
+        if d.get("account_type") != "indirect":
+            name_keys = name_keys | _account_forms(d)
         name_hits = [r for r in rows if _norm(r[1]) in name_keys]
         if name_hits:
             return None, (
