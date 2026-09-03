@@ -15,7 +15,7 @@ from flask_jwt_extended import get_jwt, get_jwt_identity
 from sqlalchemy.orm import defer
 from werkzeug.security import generate_password_hash
 
-from .auth import depot_admin_required
+from .auth import depot_admin_required, clean_portal_email
 from .depot_portal import _payer_text
 from .db import (db, AdminActionLog, Client, DepotPreArrival, LoginAuditLog,
                  MagicLinkToken, User)
@@ -196,10 +196,10 @@ def update_client(client_id):
 def create_user():
     """חשבון לקוח דיפו (קסם-קישור, בלי סיסמה) — לחברה של הדיפו בלבד."""
     data = request.get_json(silent=True) or {}
-    email = (data.get("email") or "").strip().lower()
+    email, email_err = clean_portal_email(data.get("email"))
     client_id = data.get("client_id")
-    if not email or "@" not in email:
-        return jsonify(error="חסרה כתובת מייל תקינה"), 400
+    if email_err:
+        return jsonify(error=email_err), 400
     client = _depot_client_or_404(client_id) if client_id else None
     if client is None:
         return jsonify(error="חברה לא נמצאה"), 404
@@ -335,9 +335,9 @@ def update_user(user_id):
     if user is None or user.role != "eco_depot_client":
         return jsonify(error="משתמש לא נמצא"), 404
     data = request.get_json(silent=True) or {}
-    new_email = (str(data.get("email") or "")).strip().lower()
-    if not new_email or "@" not in new_email or new_email.startswith("@"):
-        return jsonify(error="כתובת מייל לא תקינה"), 400
+    new_email, email_err = clean_portal_email(data.get("email"))
+    if email_err:
+        return jsonify(error=email_err), 400
     old = user.email
     if new_email != (old or "").lower():
         clash = User.query.filter(

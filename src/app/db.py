@@ -55,6 +55,10 @@ class User(db.Model):
     role = db.Column(db.String(50), nullable=False)  # admin / eco_oil_client / eco_depot_client / transport_company
     client_id = db.Column(db.Integer, db.ForeignKey("clients.id"), nullable=True)
     email = db.Column(db.String(200), unique=True, nullable=True, index=True)
+    # שם איש הקשר (רשות) — לימור 03/09/2026, אחרי מקרה איריס/עמי-חן: השם
+    # הודבק לתוך שדה המייל ("איריס - office@...") ושירות המייל דחה את הכתובת.
+    # מעכשיו לשם יש מקום משלו, ושדה המייל מקבל כתובת נקייה בלבד.
+    contact_name = db.Column(db.String(120), nullable=True)
     is_active = db.Column(db.Boolean, default=True)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     last_login_at = db.Column(db.DateTime, nullable=True)

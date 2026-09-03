@@ -104,8 +104,14 @@
       <span class="muted">כדי שהמוביל יעודכן אוטומטית כשההסדרה תושלם. אפשר לקבוע גם אחר-כך בכרטיס החברה.</span>
     </div>
     <!-- מהלך אחד ורציף (לימור 19/08): שם + כתיבים + מיילים + הזמנה — בלי
-         לרדוף אחרי הכרטיס אחרי היצירה -->
-    <div class="row"><textarea id="newEmails" placeholder="מיילים של נציגי החברה — שורה לכל נציג (אפשר כמה, כמו בגדות או טמבור). אפשר להשאיר ריק ולהוסיף בכרטיס אחר-כך."></textarea></div>
+         לרדוף אחרי הכרטיס אחרי היצירה.
+         03/09 (מקרה איריס/עמי-חן): לכל נציג שדה שם נפרד (רשות) מעל שדה
+         המייל, כדי שהשם לא יודבק שוב לתוך הכתובת -->
+    <div class="row" style="flex-direction:column;align-items:stretch">
+      <div class="muted" style="font-size:13px;margin-bottom:4px">נציגי החברה — אפשר להשאיר ריק ולהוסיף בכרטיס אחר-כך:</div>
+      <div id="newReps"></div>
+      <button class="btn btn-soft" style="align-self:flex-start" onclick="addRepRow()">+ עוד נציג</button>
+    </div>
     <div class="row"><label style="font-size:13px;cursor:pointer"><input type="checkbox" id="newInvite" checked> לשלוח לנציגים מייל הזמנה לפורטל מיד עם היצירה</label></div>
     <div class="row">
       <button class="btn btn-soft" onclick="checkNew()">בדקי כמה מסמכים נמצאו</button>
@@ -623,14 +629,14 @@ function render(){
   var shown=0, h='';
   CLIENTS.forEach(function(c){
     var users=byClient[c.id]||[];
-    if(q && c.name.indexOf(q)<0 && !users.some(function(u){ return u.email.indexOf(q)>=0; })) return;
+    if(q && c.name.indexOf(q)<0 && !users.some(function(u){ return u.email.indexOf(q)>=0 || (u.contact_name||'').indexOf(q)>=0; })) return;
     shown++;
     var aliases=(c.billing_aliases||'').split('\n').map(function(a){return a.trim();}).filter(Boolean);
     var rows=users.map(function(u){
       var rem=u.weekly_reminder;
       var declOnly=(u.role==='eco_oil_declaration_only');
       var extras=(u.extra_client_ids||[]).map(clientName).join(' · ');
-      return '<tr><td>'+esc(u.email)+
+      return '<tr><td>'+(u.contact_name?'<b>'+esc(u.contact_name)+'</b> · ':'')+esc(u.email)+
         (declOnly?' <span class="pill" title="לקוח עקיף — רואה רק הצהרת יצרן+הסכמה">הצהרות בלבד</span>':'')+
         (u.invited_at?'<div class="muted" style="font-size:12px">✉ הוזמן '+fmtDate(u.invited_at)+'</div>':'')+
         (extras?'<div class="muted" style="font-size:12px">רואה גם: '+esc(extras)+'</div>':'')+
@@ -641,6 +647,7 @@ function render(){
         '<td><button class="btn btn-soft" title="מייל שמסביר ללקוח מה יש בפורטל ואיך נכנסים — לשליחה ראשונה או לתזכורת" onclick="sendInvite('+u.id+',\''+esc(u.email)+'\')">✉ '+(u.invited_at?'הזמנה שוב':'שליחת הזמנה')+'</button> '+
         '<button class="btn btn-soft" onclick="sendLink(\''+esc(u.email)+'\')">שלחי קישור כניסה</button> '+
         '<button class="btn btn-soft" title="תיקון כתובת המייל של איש הקשר — המשתמש וההיסטוריה שלו נשמרים, רק הכתובת מתחלפת" onclick="editEmail('+u.id+',\''+esc(u.email)+'\')">✏ עריכת מייל</button> '+
+        '<button class="btn btn-soft" title="שם איש הקשר (רשות) — מוצג לצד המייל" onclick="editName('+u.id+',\''+esc(u.contact_name||'')+'\',\''+esc(u.email)+'\')">👤 שם</button> '+
         (declOnly?'':'<button class="btn btn-soft" title="משתמש שרואה כמה חברות בפורטל (מתג מעבר) — למשל לאורה עם שתי חברות גדות" onclick="editExtras('+u.id+',\''+esc(u.email)+'\')">חברות נוספות</button> ')+
         '<button class="btn btn-danger" onclick="delUser('+u.id+',\''+esc(u.email)+'\')">הסירי</button></td></tr>';
     }).join('');
@@ -732,7 +739,49 @@ async function checkNew(){
 function toggleNewCard(){
   var c=document.getElementById('newCard');
   c.classList.toggle('hidden');
-  if(!c.classList.contains('hidden')){ typeHint(); document.getElementById('newName').focus(); }
+  if(!c.classList.contains('hidden')){
+    typeHint();
+    if(!document.querySelector('#newReps .repbox')) addRepRow();
+    document.getElementById('newName').focus();
+  }
+}
+
+/* נציג = שם (רשות) + מייל, בשדות נפרדים (לימור 03/09, מקרה איריס/עמי-חן) */
+function addRepRow(){
+  var d=document.createElement('div');
+  d.className='repbox';
+  d.style.cssText='border:1px dashed var(--line);border-radius:8px;padding:8px 10px;margin-bottom:8px;max-width:420px';
+  d.innerHTML='<input class="rep-name" placeholder="שם איש הקשר (רשות — אפשר להשאיר ריק)" '+
+      'style="display:block;width:100%;box-sizing:border-box;padding:6px 10px;border:1px solid var(--line);border-radius:8px;font-size:13px;margin-bottom:6px">'+
+    '<input class="rep-email" dir="ltr" placeholder="כתובת המייל בלבד — בלי שם ובלי תוספות" '+
+      'style="display:block;width:100%;box-sizing:border-box;padding:6px 10px;border:1px solid var(--line);border-radius:8px;font-size:13px;text-align:left">';
+  document.getElementById('newReps').appendChild(d);
+}
+function resetRepRows(){
+  document.getElementById('newReps').innerHTML='';
+  addRepRow();
+}
+
+/* בדיקת כתובת קפדנית — אותה בדיקה שהשרת עושה. הלקח מ-03/09: "יש @" לא מספיק */
+function cleanEmail(raw){
+  var e=(raw||'').trim().toLowerCase();
+  if(!e) return {email:null};
+  if(!/^[a-z0-9._%+'\-]+@[a-z0-9.\-]+\.[a-z]{2,}$/.test(e))
+    return {err:'הכתובת "'+raw.trim()+'" לא תקינה — יש להקליד רק את המייל עצמו, באנגלית, בלי שם, רווחים או עברית'};
+  return {email:e};
+}
+/* קריאת הנציגים מהכרטיס: מדלגת על קופסאות ריקות, עוצרת על שם בלי מייל */
+function collectReps(){
+  var reps=[], err=null;
+  document.querySelectorAll('#newReps .repbox').forEach(function(b){
+    if(err) return;
+    var name=b.querySelector('.rep-name').value.trim();
+    var c=cleanEmail(b.querySelector('.rep-email').value);
+    if(c.err){ err=c.err; return; }
+    if(!c.email){ if(name) err='לנציג "'+name+'" לא מולאה כתובת מייל'; return; }
+    reps.push({name:name,email:c.email});
+  });
+  return {reps:reps,err:err};
 }
 function transporterOptions(exceptId,selectedId){
   /* מועמדים למוביל אחראי: חברות אקו-אויל שאינן עקיפות ואינן החברה עצמה */
@@ -774,10 +823,9 @@ async function createClient(){
   var ctype=document.getElementById('newType').value;
   if(!name){ toast('מלאי את שם החברה'); return; }
   if(CLIENTS.some(function(c){ return c.name===name; })){ toast('חברה בשם הזה כבר קיימת'); return; }
-  var emails=document.getElementById('newEmails').value.split('\n')
-    .map(function(a){return a.trim().toLowerCase();}).filter(Boolean);
-  var bad=emails.filter(function(e){ return e.indexOf('@')<1; });
-  if(bad.length){ toast('כתובת מייל לא תקינה: '+bad[0]); return; }
+  var col=collectReps();
+  if(col.err){ toast(col.err); return; }
+  var reps=col.reps;
   var doInvite=document.getElementById('newInvite').checked;
   var parentSel=document.getElementById('newParent');
   var parentId=(ctype==='indirect'&&parentSel&&parentSel.value)?parseInt(parentSel.value):null;
@@ -787,12 +835,12 @@ async function createClient(){
   var cid=(await r.json()).client_id;
   var role=(ctype==='indirect')?'eco_oil_declaration_only':'eco_oil_client';
   var added=0, invited=0, problems=[];
-  for(var i=0;i<emails.length;i++){
-    var e=emails[i];
+  for(var i=0;i<reps.length;i++){
+    var e=reps[i].email;
     var ru=await api('/auth/portal-users',{method:'POST',
-      body:JSON.stringify({email:e,role:role,client_id:cid})});
+      body:JSON.stringify({email:e,contact_name:reps[i].name||null,role:role,client_id:cid})});
     if(ru&&ru.status===409){ problems.push(e+' — המייל כבר רשום במערכת'); continue; }
-    if(!ru||!ru.ok){ problems.push(e+' — שגיאה בהוספה'); continue; }
+    if(!ru||!ru.ok){ var eb={}; try{ eb=await ru.json(); }catch(_){ } problems.push(e+' — '+(eb.error||'שגיאה בהוספה')); continue; }
     added++;
     if(doInvite){
       var ud=await ru.json();
@@ -801,7 +849,7 @@ async function createClient(){
     }
   }
   document.getElementById('newName').value=''; document.getElementById('newAliases').value='';
-  document.getElementById('newEmails').value=''; document.getElementById('newCheck').innerHTML='';
+  resetRepRows(); document.getElementById('newCheck').innerHTML='';
   document.getElementById('newCard').classList.add('hidden');
   await reload();
   /* פתיחת הכרטיס: החיפוש מסונן לשם החדש, כך שהכרטיס לבדו מוצג מולה */
@@ -815,16 +863,21 @@ async function createClient(){
 }
 
 async function addUser(cid,cname,declOnly){
-  var email=prompt(declOnly
-    ?'משתמש "הצהרות בלבד" (לקוח עקיף של מוביל, החלטת 05/08) — רואה רק הצהרת יצרן+הסכמה, בלי אישורי פריקה.\n\nהמייל של איש הקשר במפעל "'+cname+'":'
-    :'המייל של איש הקשר בחברת "'+cname+'":');
+  /* 03/09 (מקרה איריס/עמי-חן): קודם שם (רשות), אחר-כך מייל נקי בלבד */
+  var cn=prompt((declOnly
+    ?'משתמש "הצהרות בלבד" (לקוח עקיף של מוביל, החלטת 05/08) — רואה רק הצהרת יצרן+הסכמה, בלי אישורי פריקה.\n\n'
+    :'')+'שם איש הקשר ב"'+cname+'" (רשות — אפשר להשאיר ריק וללחוץ אישור):','');
+  if(cn===null) return;
+  cn=cn.trim();
+  var email=prompt('כתובת המייל של '+(cn||'איש הקשר')+' — רק הכתובת עצמה, בלי שם ובלי תוספות:');
   if(!email) return;
-  email=email.trim().toLowerCase();
-  if(email.indexOf('@')<1){ toast('כתובת מייל לא תקינה'); return; }
+  var c=cleanEmail(email);
+  if(c.err||!c.email){ toast(c.err||'כתובת מייל לא תקינה'); return; }
+  email=c.email;
   var r=await api('/auth/portal-users',{method:'POST',
-    body:JSON.stringify({email:email,role:declOnly?'eco_oil_declaration_only':'eco_oil_client',client_id:cid})});
+    body:JSON.stringify({email:email,contact_name:cn||null,role:declOnly?'eco_oil_declaration_only':'eco_oil_client',client_id:cid})});
   if(r&&r.status===409){ toast('המייל הזה כבר רשום במערכת'); return; }
-  if(!r||!r.ok){ toast('שגיאה בהוספת המשתמש'); return; }
+  if(!r||!r.ok){ var eb={}; try{ eb=await r.json(); }catch(_){ } toast(eb.error||'שגיאה בהוספת המשתמש'); return; }
   var ud=await r.json();
   if(confirm('נוסף ✓\nלשלוח ל-'+email+' מייל הזמנה לפורטל?')){
     await sendInvite(ud.id,email);
@@ -843,12 +896,24 @@ async function sendInvite(uid,email){
 
 /* עריכת מייל של איש קשר (לימור 20/08, אחרי מקרה אסף/פאוורג'ן) — המשתמש
    נשמר על כל ההיסטוריה שלו; קישורי כניסה ישנים מבוטלים בצד השרת. */
-async function editEmail(uid,email){
-  var nv=prompt('כתובת המייל החדשה עבור '+email+':',email);
+async function editName(uid,cur,email){
+  var nv=prompt('שם איש הקשר עבור '+email+' (ריק = מחיקת השם):',cur||'');
   if(nv===null) return;
-  nv=nv.trim().toLowerCase();
+  nv=nv.trim();
+  if(nv===(cur||'')) return;
+  var r=await api('/auth/portal-users/'+uid,{method:'PATCH',body:JSON.stringify({contact_name:nv})});
+  if(!r||!r.ok){ toast('עדכון השם נכשל'); return; }
+  toast(nv?('השם עודכן ל-'+nv+' ✓'):'השם הוסר ✓');
+  await reload();
+}
+
+async function editEmail(uid,email){
+  var nv=prompt('כתובת המייל החדשה עבור '+email+' — רק הכתובת עצמה, בלי שם ובלי תוספות:',email);
+  if(nv===null) return;
+  var c=cleanEmail(nv);
+  if(c.err){ toast(c.err); return; }
+  nv=c.email;
   if(!nv||nv===email.toLowerCase()) return;
-  if(nv.indexOf('@')<1){ toast('כתובת מייל לא תקינה'); return; }
   var r=await api('/auth/portal-users/'+uid,{method:'PATCH',body:JSON.stringify({email:nv})});
   if(!r||!r.ok){ var e={}; try{ e=await r.json(); }catch(_){ } toast(e.error||'עדכון המייל נכשל'); return; }
   toast('המייל עודכן ל-'+nv+' ✓');

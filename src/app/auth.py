@@ -1,5 +1,6 @@
 from functools import wraps
 import hashlib
+import re
 import secrets
 import os
 import smtplib
@@ -46,6 +47,25 @@ def _rate_limited(bucket, limit, window_seconds):
     return False
 
 auth = Blueprint("auth", __name__, url_prefix="/auth")
+
+# הלקח ממקרה איריס/עמי-חן (03/09/2026): לימור הדביקה "איריס - office@..."
+# לשדה המייל, הבדיקה הישנה (יש @) העבירה את זה, ושירות המייל דחה את השליחה
+# עם 422. מכאן: כל כתובת שנקלטת בממשקי הניהול עוברת את הבדיקה הזו —
+# אותיות לטיניות בלבד, בלי רווחים, בלי שם ובלי תוספות.
+_EMAIL_RE = re.compile(r"^[a-z0-9._%+'\-]+@[a-z0-9.\-]+\.[a-z]{2,}$")
+
+EMAIL_FORMAT_ERROR = ("כתובת המייל לא תקינה — יש להקליד את הכתובת בלבד, "
+                      "באנגלית, בלי שם ובלי טקסט נוסף (למשל: office@company.co.il)")
+
+
+def clean_portal_email(raw):
+    """מנקה ובודק כתובת מייל מממשק ניהול. מחזירה (email, error)."""
+    email = (str(raw or "")).strip().lower()
+    if not email:
+        return None, "חסרה כתובת מייל"
+    if not _EMAIL_RE.match(email):
+        return None, EMAIL_FORMAT_ERROR
+    return email, None
 
 # eco_oil_declaration_only (לימור 05/08): לקוח עקיף — יצרן של מוביל שמקבל
 # כניסה רק לאזור הצהרת יצרן+הסכמה. בלי אישורי פריקה ובלי טופסי מלווה.
@@ -416,12 +436,14 @@ def change_password():
 def create_portal_user():
     """Admin-only: create a passwordless portal user that logs in via magic link only."""
     data = request.get_json(silent=True) or {}
-    email = data.get("email", "").strip().lower()
+    email, email_err = clean_portal_email(data.get("email"))
     role = data.get("role", "").strip()
     client_id = data.get("client_id")
+    # שם איש הקשר — רשות (לימור 03/09): נשמר בנפרד כדי שלא יודבק לשדה המייל
+    contact_name = (str(data.get("contact_name") or "")).strip()[:120] or None
 
-    if not email or "@" not in email:
-        return jsonify(error="Valid email is required"), 400
+    if email_err:
+        return jsonify(error=email_err), 400
 
     if role not in PORTAL_ROLES:
         return jsonify(error=f"role must be one of: {', '.join(sorted(PORTAL_ROLES))}"), 400
@@ -442,6 +464,7 @@ def create_portal_user():
     user = User(
         username=email,
         email=email,
+        contact_name=contact_name,
         password_hash=generate_password_hash(secrets.token_hex(32)),  # unguessable, blocks password login
         role=role,
         client_id=client_id,
@@ -452,6 +475,7 @@ def create_portal_user():
     return jsonify(
         id=user.id,
         email=user.email,
+        contact_name=user.contact_name,
         role=user.role,
         client_id=user.client_id,
         client_name=client.name,
@@ -516,7 +540,8 @@ def list_portal_users():
              .order_by(User.client_id, User.id).all())
     clients = {c.id: c.name for c in Client.query.all()}
     return jsonify(users=[{
-        "id": u.id, "email": u.email, "role": u.role,
+        "id": u.id, "email": u.email, "contact_name": u.contact_name,
+        "role": u.role,
         "client_id": u.client_id, "client_name": clients.get(u.client_id),
         "last_login_at": u.last_login_at.isoformat() if u.last_login_at else None,
         "invited_at": u.invited_at.isoformat() if u.invited_at else None,
@@ -539,10 +564,13 @@ def update_portal_user(user_id):
     if user.role not in PORTAL_ROLES:
         return jsonify(error="Only portal users can be updated"), 403
     data = request.get_json(silent=True) or {}
+    if "contact_name" in data:
+        # שם איש הקשר (רשות, לימור 03/09) — מחרוזת ריקה מוחקת את השם
+        user.contact_name = (str(data.get("contact_name") or "")).strip()[:120] or None
     if "email" in data:
-        new_email = (str(data.get("email") or "")).strip().lower()
-        if not new_email or "@" not in new_email or new_email.startswith("@"):
-            return jsonify(error="כתובת מייל לא תקינה"), 400
+        new_email, email_err = clean_portal_email(data.get("email"))
+        if email_err:
+            return jsonify(error=email_err), 400
         if new_email != (user.email or "").lower():
             clash = User.query.filter(
                 or_(User.email == new_email, User.username == new_email),
@@ -577,7 +605,7 @@ def update_portal_user(user_id):
                 clean.append(i)
         user.extra_client_ids = ",".join(str(i) for i in clean) or None
     db.session.commit()
-    return jsonify(id=user.id, email=user.email,
+    return jsonify(id=user.id, email=user.email, contact_name=user.contact_name,
                    weekly_reminder=bool(user.weekly_reminder),
                    extra_client_ids=[i for i in user.allowed_client_ids()
                                      if i != user.client_id]), 200
