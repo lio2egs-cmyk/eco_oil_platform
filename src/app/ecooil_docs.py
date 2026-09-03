@@ -950,10 +950,20 @@ def my_declaration_docs():
         # ולא יחפש כפתור העלאה שאינו שלו (לימור 17/08)
         row["indirect"] = d.client_id not in own
         rows.append(row)
-    # כלל הלקוחות הרשומים תחת החשבון (לימור 03/09): טבלת הסיכום למוביל
-    # מציגה גם יצרן עקיף רשום שאין לו אף הצהרה — "שתמיד יהיו לו מול העיניים".
+    # לקוחות החומ"ס הרשומים תחת החשבון (לימור 03/09, תיקון אותו יום: רק
+    # חומ"ס — לא כלל הלקוחות! לקוח רשום לצרכי מסמכים בלבד לא זקוק למעקב
+    # פגות-תוקף). חומ"ס = יש לו הצהרה כלשהי במערכת, או חשבון "הצהרות בלבד"
+    # שנפתח לו. חומ"ס בלי אף הצהרה עדיין מוצג — שורת "אין הצהרה" בטבלה.
+    homs_ids = {cid for (cid,) in
+                ProducerDeclaration.query.with_entities(ProducerDeclaration.client_id)
+                .filter(ProducerDeclaration.client_id.in_(allowed)).distinct().all()}
+    homs_ids |= {uid for (uid,) in
+                 User.query.with_entities(User.client_id)
+                 .filter(User.client_id.in_(allowed),
+                         User.role == "eco_oil_declaration_only").distinct().all()}
     scope_companies = [{"id": cid, "name": cname}
-                      for cid, cname in clients.items() if cid not in own]
+                      for cid, cname in clients.items()
+                      if cid not in own and cid in homs_ids]
     return jsonify({"declarations": rows, "preview": preview,
                     "scope_companies": scope_companies})
 
