@@ -903,6 +903,18 @@ class DepotPreArrival(db.Model):
     client = db.relationship("Client")
 
 
+class EcoOilValiditySnapshot(db.Model):
+    """תמונת גיליון ח.פ.-היתר-תוקף מהמסד (לימור 03/09/2026): מקור האמת לרשימת
+    לקוחות החומ"ס של כל מוביל הוא עמודת "סוג לקוח" בגיליון — לא הצהרות הענן.
+    שורה יחידה, JSON, נדחפת ע"י הגשר בסבב השעתי (ecooil_validity_push.py) —
+    המשרד נשאר מקור האמת; הענן רק מציג. rows: [{referrer,name,hp,streams}]."""
+    __tablename__ = "ecooil_validity_snapshot"
+
+    id = db.Column(db.Integer, primary_key=True)
+    data = db.Column(db.Text)
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+
 class DepotFormOptions(db.Model):
     """רשימות הבחירה של טופס המידע המקדים — חומרים (מהמסד) + מובילים
     (CARRIER_OPTIONS, חוק 47ג). שורה יחידה, JSON, נדחפת ע"י הגשר בכל סבב —

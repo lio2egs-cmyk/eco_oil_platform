@@ -210,6 +210,31 @@ def status():
 # (כפילות ח.פ., אין ח.פ.) לא נכתבת — מתריעים ולא מנחשים.
 # ---------------------------------------------------------------------------
 
+@ecooil_bridge.route("/validity-snapshot", methods=["POST"])
+@ecooil_bridge_required
+def validity_snapshot():
+    """תמונת גיליון ח.פ.-היתר-תוקף (לימור 03/09): הגשר דוחף בכל סבב את כל
+    שורות הגיליון — סוג לקוח (המוביל המביא), שם, ח.פ. ותאריכי תוקף לזרמים.
+    שורה יחידה בענן; הפורטל גוזר ממנה את "מצב ההצהרות של הלקוחות שלכם"."""
+    import json as _json
+    from .db import EcoOilValiditySnapshot
+
+    payload = request.get_json(silent=True) or {}
+    rows = payload.get("rows")
+    if not isinstance(rows, list):
+        return jsonify(error="rows list required"), 400
+    if len(rows) > 20000:
+        return jsonify(error="too many rows"), 413
+    snap = EcoOilValiditySnapshot.query.first()
+    if snap is None:
+        snap = EcoOilValiditySnapshot()
+        db.session.add(snap)
+    snap.data = _json.dumps({"rows": rows}, ensure_ascii=False)
+    snap.updated_at = datetime.utcnow()
+    db.session.commit()
+    return jsonify(ok=True, rows=len(rows))
+
+
 @ecooil_bridge.route("/masad-feed", methods=["GET"])
 @ecooil_bridge_required
 def masad_feed_pending():

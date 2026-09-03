@@ -898,6 +898,41 @@ def _notify_transporter_agreement_issued(d, agreement, emails):
     return sent
 
 
+def _homs_clients_for_account(account_clients):
+    """שורות גיליון ח.פ.-היתר-תוקף ששייכות לחשבון (לימור 03/09): שורה שייכת
+    כשעמודת "סוג לקוח" שלה — שם המוביל המביא, לרוב בכתיב מקוצר ("צ. כץ") —
+    תואמת את שם הכרטיס או אחת מצורות הכתיב שלו: שוויון מנורמל, או שכל מילות
+    המוביל מופיעות בשם הכרטיס (מקוצר מול מלא). "ישיר" וריק לעולם לא נחשבים."""
+    import json as _json
+    from .db import EcoOilValiditySnapshot
+
+    snap = EcoOilValiditySnapshot.query.first()
+    if snap is None or not snap.data:
+        return []
+    try:
+        sheet_rows = _json.loads(snap.data).get("rows", [])
+    except Exception:
+        return []
+    keys, word_sets = set(), []
+    for c in account_clients:
+        for n in [c.name] + [a.strip() for a in (c.billing_aliases or "").splitlines()
+                             if a.strip()]:
+            nn = _norm_name(n)
+            if nn:
+                keys.add(nn)
+                word_sets.append(set(nn.split()))
+    out = []
+    for r in sheet_rows:
+        ref = _norm_name(r.get("referrer"))
+        if not ref or ref == "ישיר":
+            continue
+        ref_words = set(ref.split())
+        if ref in keys or any(ref_words <= ws for ws in word_sets):
+            out.append({"name": r.get("name"), "streams": r.get("streams") or {}})
+    out.sort(key=lambda x: (x.get("name") or ""))
+    return out
+
+
 @ecooil_docs.route("/portal/my-declaration-docs", methods=["GET"])
 @jwt_required()
 def my_declaration_docs():
@@ -950,22 +985,13 @@ def my_declaration_docs():
         # ולא יחפש כפתור העלאה שאינו שלו (לימור 17/08)
         row["indirect"] = d.client_id not in own
         rows.append(row)
-    # לקוחות החומ"ס הרשומים תחת החשבון (לימור 03/09, תיקון אותו יום: רק
-    # חומ"ס — לא כלל הלקוחות! לקוח רשום לצרכי מסמכים בלבד לא זקוק למעקב
-    # פגות-תוקף). חומ"ס = יש לו הצהרה כלשהי במערכת, או חשבון "הצהרות בלבד"
-    # שנפתח לו. חומ"ס בלי אף הצהרה עדיין מוצג — שורת "אין הצהרה" בטבלה.
-    homs_ids = {cid for (cid,) in
-                ProducerDeclaration.query.with_entities(ProducerDeclaration.client_id)
-                .filter(ProducerDeclaration.client_id.in_(allowed)).distinct().all()}
-    homs_ids |= {uid for (uid,) in
-                 User.query.with_entities(User.client_id)
-                 .filter(User.client_id.in_(allowed),
-                         User.role == "eco_oil_declaration_only").distinct().all()}
-    scope_companies = [{"id": cid, "name": cname}
-                      for cid, cname in clients.items()
-                      if cid not in own and cid in homs_ids]
+    # רשימת לקוחות החומ"ס של החשבון (לימור 03/09, ההגדרה הסופית אחרי שני
+    # ניסיונות): מקור האמת הוא גיליון ח.פ.-היתר-תוקף במסד — עמודת "סוג לקוח"
+    # אומרת מי המוביל שמביא את הלקוח. הגשר דוחף תמונת-מצב שעתית; כאן מסננים
+    # את שורות הגיליון ששייכות לחשבון המחובר.
+    account_clients = list(Client.query.filter(Client.id.in_(own)).all())
     return jsonify({"declarations": rows, "preview": preview,
-                    "scope_companies": scope_companies})
+                    "homs_clients": _homs_clients_for_account(account_clients)})
 
 
 @ecooil_docs.route("/portal/my-declaration-docs/<int:decl_id>/signed-scan",
