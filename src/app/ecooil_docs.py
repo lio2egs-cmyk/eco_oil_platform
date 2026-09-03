@@ -950,7 +950,12 @@ def my_declaration_docs():
         # ולא יחפש כפתור העלאה שאינו שלו (לימור 17/08)
         row["indirect"] = d.client_id not in own
         rows.append(row)
-    return jsonify({"declarations": rows, "preview": preview})
+    # כלל הלקוחות הרשומים תחת החשבון (לימור 03/09): טבלת הסיכום למוביל
+    # מציגה גם יצרן עקיף רשום שאין לו אף הצהרה — "שתמיד יהיו לו מול העיניים".
+    scope_companies = [{"id": cid, "name": cname}
+                      for cid, cname in clients.items() if cid not in own]
+    return jsonify({"declarations": rows, "preview": preview,
+                    "scope_companies": scope_companies})
 
 
 @ecooil_docs.route("/portal/my-declaration-docs/<int:decl_id>/signed-scan",

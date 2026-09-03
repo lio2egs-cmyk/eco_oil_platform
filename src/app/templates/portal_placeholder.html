@@ -26,13 +26,16 @@
     <div id="previewBar" style="display:none;background:#FFF3D6;border:1.5px solid #E8C97A;color:#7a5a10;
          border-radius:12px;padding:10px 14px;margin-bottom:14px;font-size:13.5px;text-align:right"></div>
     <div class="who" id="who"></div>
-    <div class="msg">התחברתם בהצלחה. 🎉<br>הפורטל בבנייה — בקרוב יופיעו כאן ההצהרות, הטפסים והמסמכים שלכם.</div>
+    <!-- "הפורטל בבנייה" הוסר 03/09 (לימור): הפורטל פעיל ועובד -->
+    <div class="msg">התחברתם בהצלחה. 🎉</div>
     {% if division == 'eco_oil' %}
     <!-- מסמכים שלימור שחררה לחתימה (03/08) — מוצג רק כשיש כאלה -->
     <div id="signDocs" style="display:none;margin-top:22px;text-align:right;background:#FFF7E8;border:1.5px solid #E8C97A;border-radius:12px;padding:14px 16px">
-      <div style="font-family:var(--fh);color:#8a5d00;font-size:15px;margin-bottom:6px">📄 מסמכים מוכנים לחתימה — נדרשת פעולה שלכם</div>
+      <!-- נוסח 03/09 (לימור): כותרת עם מילת פעולה "נדרש" — מצב שדורש טיפול,
+           לא אמירה חיובית; וסוף התהליך = קבלת מסמך ההסכמה -->
+      <div style="font-family:var(--fh);color:#8a5d00;font-size:15px;margin-bottom:6px">📄 מסמכים שנדרשת השלמת תהליך מצדכם</div>
       <div style="font-size:13px;color:#6b5a2e;margin-bottom:10px">יש להוריד או להדפיס, לחתום ולהחתים בחותמת העסק, ולהעלות כאן את המסמך החתום.<br>
-      <b>שימו לב: אישור הנוסח אינו סוף התהליך</b> — ההצהרה תיכנס לתוקף רק לאחר החזרת המסמך החתום והאישור הסופי של אקו-אויל.</div>
+      <b>שימו לב: התהליך יושלם רק כאשר יתקבל אצלכם מסמך ההסכמה לקליטת הפסולת מאקו-אויל</b> — כל עוד לא קיבלתם אותו, התהליך טרם הסתיים.</div>
       <div id="signDocsList"></div>
     </div>
     <!-- הצהרות שהוגשו וממתינות לבדיקת הנוסח (12/08) — פס-השלבים מוצג מהרגע הראשון -->
@@ -47,17 +50,12 @@
       <div style="font-size:13px;color:#7a3b35;margin-bottom:10px">אקו-אויל החזירה את ההצהרה עם הערות — לחיצה פותחת את הטופס ממולא, לתיקון ושליחה מחדש.</div>
       <div id="fixDocsList"></div>
     </div>
-    <!-- הצהרות שאושרו סופית (09/08) — אחרי סריקה חתומה + אישור אקו-אויל -->
-    <div id="doneDocs" style="display:none;margin-top:16px;text-align:right;background:#EDF7EE;border:1.5px solid #9CC9A1;border-radius:12px;padding:14px 16px">
-      <div style="font-family:var(--fh);color:#2F6B3A;font-size:15px;margin-bottom:6px">✅ הצהרות בתוקף</div>
-      <div style="font-size:13px;color:#3d5c43;margin-bottom:10px">הצהרות שנחתמו ואושרו סופית על ידי אקו-אויל.</div>
-      <div id="doneDocsList"></div>
-    </div>
-    <!-- דף סיכום למוביל (בקשת לקוחה דרך לימור 03/09): מצב ההצהרות של כל
-         לקוחות החומ"ס — תצוגה קבועה, משלימה את מערך התזכורות ולא מחליפה -->
-    <div id="carrierSummary" style="display:none;margin-top:16px;text-align:right;background:#F4F7F6;border:1.5px solid #C7D8D5;border-radius:12px;padding:14px 16px">
+    <!-- טבלת מצב הלקוחות (בקשת לקוחה דרך לימור 03/09; סדר ונראות לפי הערותיה
+         03/09 אחה"צ): קודם הטבלה הפשוטה של כלל הלקוחות — כמו טבלת הסתירות
+         בדף הניהול, בלי תיבה מקיפה — ורק אחריה תיבת ההצהרות שהוסדרו בפורטל -->
+    <div id="carrierSummary" style="display:none;margin-top:18px;text-align:right">
       <div style="font-family:var(--fh);color:#2F5F59;font-size:15px;margin-bottom:8px">🏭 מצב ההצהרות של הלקוחות שלכם</div>
-      <div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse;font-size:12.5px;background:#fff;border-radius:8px;overflow:hidden">
+      <div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse;font-size:12.5px;background:#fff;border-radius:8px;overflow:hidden;box-shadow:0 1px 4px rgba(0,0,0,.07)">
         <thead><tr>
           <th style="background:#5B9E96;color:#fff;padding:6px 9px;text-align:right">יצרן</th>
           <th style="background:#5B9E96;color:#fff;padding:6px 9px;text-align:right">חומר / זרם</th>
@@ -67,7 +65,14 @@
         <tbody id="carrierSummaryRows"></tbody>
       </table></div>
     </div>
-    <a class="btn-main" id="docsBtn" href="/documents">📂 המסמכים שלי</a><br id="docsBtnBr">
+    <!-- הצהרות שאושרו סופית (09/08) — אחרי סריקה חתומה + אישור אקו-אויל -->
+    <div id="doneDocs" style="display:none;margin-top:16px;text-align:right;background:#EDF7EE;border:1.5px solid #9CC9A1;border-radius:12px;padding:14px 16px">
+      <!-- שם התיבה שונה 03/09 (לימור) — בידול מטבלת מצב-הלקוחות שמעליה -->
+      <div style="font-family:var(--fh);color:#2F6B3A;font-size:15px;margin-bottom:6px">✅ הצהרות שהסדרתם דרך הפורטל</div>
+      <div style="font-size:13px;color:#3d5c43;margin-bottom:10px">הצהרות שנחתמו ואושרו סופית על ידי אקו-אויל.</div>
+      <div id="doneDocsList"></div>
+    </div>
+    <a class="btn-main" id="docsBtn" href="/documents">📂 אישורי פריקה</a><br id="docsBtnBr">
     <a class="btn-main" href="/declaration">📄 מילוי הצהרת יצרן</a><br>
     {% endif %}
     {% if division == 'eco_depot' %}
@@ -218,7 +223,8 @@
             '<span style="color:#8a8a8a;font-size:12px"> · בתוקף עד '+esc(d.valid_until||'')+'</span>'+
             (d.has_signed_scan?' · <a href="#" onclick="viewMyScan('+d.id+');return false;" style="font-size:12.5px;color:#2F5F59">המסמך החתום</a>':'')+
             stepBar(d)+
-            (d.agreement?'<div style="font-size:12.5px;margin-top:4px"><a target="_blank" href="/agreement-doc?id='+d.agreement.id+'" style="color:#2F6B3A;font-weight:600">📜 מסמך ההסכמה לקליטת הפסולת (מס\' '+d.agreement.number+')</a></div>':'')+
+            /* גודל זהה להצהרה עצמה (לימור 03/09) — שני המסמכים שווי-חשיבות */
+            (d.agreement?'<div style="margin-top:4px"><a target="_blank" href="/agreement-doc?id='+d.agreement.id+'" style="color:#2F6B3A;font-weight:600;text-decoration:underline">📜 מסמך ההסכמה לקליטת הפסולת (מס\' '+d.agreement.number+')</a></div>':'')+
             '</div>';
         }).join('');
         document.getElementById('doneDocs').style.display='block';
@@ -240,19 +246,19 @@
         }).join('');
         document.getElementById('fixDocs').style.display='block';
       }
-      /* דף סיכום למוביל (בקשת לקוחה דרך לימור 03/09): טבלה קבועה של מצב
-         ההצהרות אצל כל לקוחות החומ"ס — מוצגת רק כשלחשבון יש יצרנים עקיפים
-         או יותר מיצרן אחד. הצביעה: ירוק בתוקף · כתום יפוג תוך 60 יום ·
-         אדום פג תוקף. משלימה את מערך התזכורות, לא מחליפה אותו. */
+      /* טבלת מצב הלקוחות (בקשת לקוחה דרך לימור 03/09, נראות לפי הערותיה):
+         כלל הלקוחות הרשומים תחת החשבון — כולל מי שאין לו אף הצהרה (שורת
+         "אין הצהרה" אדומה, שיהיה מול העיניים) — ובנוסף יצרנים שהוצהרו תחת
+         החשבון עצמו. הצביעה: ירוק בתוקף · כתום יפוג תוך 60 יום · אדום פג.
+         משלימה את מערך התזכורות, לא מחליפה אותו. */
       (function(){
-        var producers={};
+        var scope=payload.scope_companies||[];
+        var ownProducers={};
         ds.forEach(function(d){
-          var k=(d.producer_name||'?')+'||'+(d.business_id||'');
-          (producers[k]=producers[k]||[]).push(d);
+          if(!d.indirect){ var k=(d.producer_name||'?'); (ownProducers[k]=ownProducers[k]||[]).push(d); }
         });
-        var names=Object.keys(producers);
-        var show=names.length>1 || ds.some(function(d){ return d.indirect; });
-        if(!show||!ds.length) return;
+        var show=scope.length>0 || Object.keys(ownProducers).length>1;
+        if(!show) return;
         function parseHe(s){ var p=(s||'').split('/'); return p.length===3?new Date(+p[2],+p[1]-1,+p[0]):null; }
         function statusCell(d){
           if(d.status==='approved'){
@@ -266,21 +272,34 @@
           if(d.status==='released') return ['ממתין לחתימה','#8a5d00','#FFF3D6'];
           return ['בבדיקת נוסח','#2F5170','#E4EDF5'];
         }
+        function tr(name,material,st,until,first){
+          return '<tr>'+
+            '<td style="padding:5px 9px;border-bottom:1px solid #E4ECEA;font-weight:'+(first?'600':'400')+';color:#2F5F59">'+name+'</td>'+
+            '<td style="padding:5px 9px;border-bottom:1px solid #E4ECEA">'+esc(material||'')+'</td>'+
+            '<td style="padding:5px 9px;border-bottom:1px solid #E4ECEA">'+
+              '<span style="background:'+st[2]+';color:'+st[1]+';border-radius:8px;padding:1px 8px;font-size:11.5px;font-weight:600">'+st[0]+'</span></td>'+
+            '<td style="padding:5px 9px;border-bottom:1px solid #E4ECEA;color:#445">'+esc(until||'—')+'</td></tr>';
+        }
         var h='';
-        names.sort(function(a,b){ return a.localeCompare(b,'he'); }).forEach(function(k){
-          var list=producers[k];
-          list.forEach(function(d,i){
-            var st=statusCell(d);
-            h+='<tr>'+
-              '<td style="padding:5px 9px;border-bottom:1px solid #E4ECEA;font-weight:'+(i===0?'600':'400')+';color:#2F5F59">'+
-                (i===0?esc(d.producer_name||'')+(d.indirect?' <span style="font-size:10.5px;color:#7a8a88">(עקיף)</span>':''):'')+'</td>'+
-              '<td style="padding:5px 9px;border-bottom:1px solid #E4ECEA">'+esc(d.material_name||'')+'</td>'+
-              '<td style="padding:5px 9px;border-bottom:1px solid #E4ECEA">'+
-                '<span style="background:'+st[2]+';color:'+st[1]+';border-radius:8px;padding:1px 8px;font-size:11.5px;font-weight:600">'+st[0]+'</span></td>'+
-              '<td style="padding:5px 9px;border-bottom:1px solid #E4ECEA;color:#445">'+esc(d.valid_until||'—')+'</td>'+
-              '</tr>';
+        /* קודם הלקוחות הרשומים (הכרטיסים) — גם בלי הצהרות */
+        scope.slice().sort(function(a,b){ return (a.name||'').localeCompare(b.name||'','he'); })
+          .forEach(function(c){
+            var list=ds.filter(function(d){ return d.client_id===c.id; });
+            if(!list.length){
+              h+=tr(esc(c.name),'—',['אין הצהרה','#9E423C','#FDECEA'],'—',true);
+              return;
+            }
+            list.forEach(function(d,i){
+              h+=tr(i===0?esc(d.producer_name||c.name):'',d.material_name,statusCell(d),d.valid_until,i===0);
+            });
           });
-        });
+        /* ואז יצרנים שהוצהרו תחת החשבון עצמו (בלי כרטיס משלהם) */
+        Object.keys(ownProducers).sort(function(a,b){ return a.localeCompare(b,'he'); })
+          .forEach(function(k){
+            ownProducers[k].forEach(function(d,i){
+              h+=tr(i===0?esc(d.producer_name||''):'',d.material_name,statusCell(d),d.valid_until,i===0);
+            });
+          });
         document.getElementById('carrierSummaryRows').innerHTML=h;
         document.getElementById('carrierSummary').style.display='block';
       })();
