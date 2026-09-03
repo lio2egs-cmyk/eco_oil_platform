@@ -12,9 +12,9 @@ import re
 from datetime import datetime
 from flask import Blueprint, Response, current_app, jsonify, request
 from flask_jwt_extended import jwt_required, get_jwt, get_jwt_identity
-from sqlalchemy import and_, func, or_
+from sqlalchemy import and_, func, not_, or_
 
-from .db import db, Client, User, EcoOilUnloadEvent
+from .db import db, Client, User, EcoOilUnloadEvent, EcoOilFilingRuling
 
 ecooil_docs = Blueprint("ecooil_docs", __name__, url_prefix="/eco-oil")
 
@@ -296,9 +296,21 @@ def _scoped_query(client):
     if other:
         folder_neutral = or_(folder_neutral,
                              EcoOilUnloadEvent.filed_owner.notin_(other))
+    # תשובות "החיוב צודק" מטבלת הסתירות (לימור 03/09): לצמד שנפסק כך,
+    # עוגן-התיקייה מבוטל — השורה חוזרת להישפט לפי עמודת החיוב בלבד.
+    ruled = [(r.billed_to, r.filed_owner)
+             for r in EcoOilFilingRuling.query.filter_by(decision="billed").all()]
+    pair_match = or_(*[and_(EcoOilUnloadEvent.billed_to == b,
+                            EcoOilUnloadEvent.filed_owner == f)
+                       for b, f in ruled]) if ruled else None
+    if pair_match is not None:
+        folder_neutral = or_(folder_neutral, pair_match)
     conds = [and_(billed_match, folder_neutral)]
     if mine:
-        conds.append(EcoOilUnloadEvent.filed_owner.in_(mine))
+        mine_cond = EcoOilUnloadEvent.filed_owner.in_(mine)
+        if pair_match is not None:
+            mine_cond = and_(mine_cond, not_(pair_match))
+        conds.append(mine_cond)
     scoped = EcoOilUnloadEvent.query.filter(or_(*conds))
     if db.session.query(scoped.exists()).scalar():
         return scoped, "billed"
@@ -399,13 +411,79 @@ def filing_discrepancies():
             g["sample"] = {"date": d, "code": r.code, "customer": r.customer,
                            "transporter": r.transporter}
 
+    # תשובות שכבר ניתנו (לימור 03/09) — הקבוצה מסומנת ולא נספרת כפתוחה;
+    # במסך היא מוצגת מקופלת עם אפשרות ביטול.
+    rulings = {(r.billed_to, r.filed_owner): r.decision
+               for r in EcoOilFilingRuling.query.all()}
+    for g in groups.values():
+        g["ruling"] = rulings.get((g["billed_to"], g["filed_owner"]))
+
     out = sorted(groups.values(),
-                 key=lambda g: ({"conflict": 0, "pulled_by_folder": 1,
+                 key=lambda g: (0 if g["ruling"] is None else 1,
+                                {"conflict": 0, "pulled_by_folder": 1,
                                  "unrecognized_folder": 2}[g["kind"]], -g["count"]))
     counts = {}
     for g in out:
-        counts[g["kind"]] = counts.get(g["kind"], 0) + g["count"]
+        if g["ruling"] is None:
+            counts[g["kind"]] = counts.get(g["kind"], 0) + g["count"]
     return jsonify({"groups": out, "row_counts": counts})
+
+
+@ecooil_docs.route("/admin/filing-discrepancies/rule", methods=["POST", "DELETE"])
+@jwt_required()
+def rule_filing_discrepancy():
+    """תשובת המנהלת לסתירה, ישירות מהטבלה (לימור 03/09/2026):
+    decision='folder' — התיוק צודק (השתקה; התצוגה ממילא לפי התיקייה);
+    decision='billed' — עמודת החיוב צודקת (עוקף את עוגן-התיקייה לצמד הזה);
+    decision='link_folder' + client_id — תיקייה לא מזוהה שייכת לחברה: שם
+    התיקייה נוסף ככתיב בכרטיס (דפוס חיבור-התיקיות מהדיפו) והסתירה נעלמת.
+    DELETE עם אותו צמד — ביטול התשובה."""
+    if get_jwt().get("role") != "admin":
+        return jsonify({"error": "admin only"}), 403
+    body = request.get_json(silent=True) or {}
+    billed = str(body.get("billed_to") or "")
+    folder = str(body.get("filed_owner") or "")
+    if not folder:
+        return jsonify({"error": "filed_owner required"}), 400
+
+    if request.method == "DELETE":
+        n = EcoOilFilingRuling.query.filter_by(
+            billed_to=billed, filed_owner=folder).delete()
+        db.session.commit()
+        return jsonify({"ok": True, "deleted": n})
+
+    decision = body.get("decision")
+    if decision == "link_folder":
+        client = db.session.get(Client, int(body.get("client_id") or 0))
+        if client is None or client.division != "eco_oil":
+            return jsonify({"error": "החברה לא נמצאה"}), 404
+        seg = [p.strip() for p in folder.split(" / ") if p.strip()][-1]
+        existing = _client_name_map().get(_norm_name(seg))
+        if existing == client.id:
+            return jsonify({"ok": True, "already": True, "alias": seg})
+        if existing is not None:
+            other_c = db.session.get(Client, existing)
+            return jsonify({"error": f'הכתיב "{seg}" כבר שייך לחברת '
+                                     f'{other_c.name if other_c else existing}'}), 409
+        aliases = [a.strip() for a in (client.billing_aliases or "").splitlines()
+                   if a.strip()]
+        aliases.append(seg)
+        client.billing_aliases = "\n".join(aliases)
+        db.session.commit()
+        return jsonify({"ok": True, "client_id": client.id, "alias": seg})
+
+    if decision not in ("folder", "billed") or not billed:
+        return jsonify({"error": "bad request"}), 400
+    r = EcoOilFilingRuling.query.filter_by(
+        billed_to=billed, filed_owner=folder).first()
+    if r is None:
+        r = EcoOilFilingRuling(billed_to=billed, filed_owner=folder)
+        db.session.add(r)
+    r.decision = decision
+    r.actor = "מנהלת"
+    r.created_at = datetime.utcnow()
+    db.session.commit()
+    return jsonify({"ok": True, "decision": decision})
 
 
 def _decl_dict(d, clients, users):

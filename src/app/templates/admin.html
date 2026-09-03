@@ -271,17 +271,79 @@ async function loadDiscrepancies(){
      שתיראה גם כשהבלוק סגור (17/08). */
   cnt.classList.toggle('pill-alert', conflicts>0);
   if(!gs.length){ box.innerHTML='<span class="ok">אין סתירות — התיוק ועמודת החיוב מסכימים בכל השורות המשויכות לחברות רשומות.</span>'; return; }
-  var h='<table><tr><th>מה קורה</th><th>עמודת החיוב אומרת</th><th>הקובץ מתויק בתיקייה</th>'+
-        '<th>מי רואה בפורטל</th><th>שורות</th><th>הכי עדכני</th><th>דוגמה</th></tr>';
-  gs.forEach(function(g){
-    var sees=g.kind==='unrecognized_folder'?esc(g.billed_client)+' (לפי חיוב)':esc(g.folder_client)+' (לפי תיוק)';
-    var ex=g.sample?esc((g.sample.date||'')+' · '+(g.sample.customer||'')+(g.sample.code?' · '+g.sample.code:'')):'';
-    h+='<tr><td>'+discKind(g.kind)+'</td><td>'+esc(g.billed_to||'—')+'</td>'+
-       '<td>'+esc(g.filed_owner)+'</td><td>'+sees+'</td>'+
-       '<td>'+g.count+'</td><td>'+esc(g.latest_date||'')+'</td><td class="muted">'+ex+'</td></tr>';
-  });
-  box.innerHTML=h+'</table>'+
-    '<p class="muted" style="margin-top:8px">תיקון "תיקייה לא מזוהה": הוסיפי את שם התיקייה כצורת כתיב נוספת בכרטיס החברה. תיקון סתירה של ממש: ודאי שהתיוק נכון — ואם כן, עדכני את עמודת החיוב בריכוז.</p>';
+  DISC_GROUPS=gs;
+  var open=gs.filter(function(g){ return !g.ruling; });
+  var ruled=gs.filter(function(g){ return g.ruling; });
+  var h='';
+  if(open.length){
+    h+='<table><tr><th>מה קורה</th><th>עמודת החיוב אומרת</th><th>הקובץ מתויק בתיקייה</th>'+
+       '<th>מי רואה בפורטל</th><th>שורות</th><th>הכי עדכני</th><th>דוגמה</th><th>התשובה שלך</th></tr>';
+    open.forEach(function(g,i){
+      var sees=g.kind==='unrecognized_folder'?esc(g.billed_client)+' (לפי חיוב)':esc(g.folder_client)+' (לפי תיוק)';
+      var ex=g.sample?esc((g.sample.date||'')+' · '+(g.sample.customer||'')+(g.sample.code?' · '+g.sample.code:'')):'';
+      h+='<tr><td>'+discKind(g.kind)+'</td><td>'+esc(g.billed_to||'—')+'</td>'+
+         '<td>'+esc(g.filed_owner)+'</td><td>'+sees+'</td>'+
+         '<td>'+g.count+'</td><td>'+esc(g.latest_date||'')+'</td><td class="muted">'+ex+'</td>'+
+         '<td>'+discAnswerCell(g,gs.indexOf(g))+'</td></tr>';
+    });
+    h+='</table>';
+  } else {
+    h+='<span class="ok">כל הסתירות נענו ✓ — התשובות שלך למטה, ואפשר לבטל כל אחת.</span>';
+  }
+  if(ruled.length){
+    h+='<p class="muted" style="margin:10px 0 4px">✔ סתירות שכבר ענית עליהן ('+ruled.length+'):</p><table>'+
+       '<tr><th>עמודת החיוב</th><th>התיקייה</th><th>התשובה</th><th></th></tr>';
+    ruled.forEach(function(g){
+      var ans=g.ruling==='billed'?'עמודת החיוב צודקת — מוצג אצל '+esc(g.billed_client||g.billed_to)
+                                 :'התיוק צודק — מוצג אצל '+esc(g.folder_client||'');
+      h+='<tr><td>'+esc(g.billed_to||'—')+'</td><td>'+esc(g.filed_owner)+'</td>'+
+         '<td>'+ans+'</td>'+
+         '<td><button class="btn btn-soft" onclick="discUndo('+gs.indexOf(g)+')">↩ ביטול התשובה</button></td></tr>';
+    });
+    h+='</table>';
+  }
+  box.innerHTML=h;
+}
+
+/* תשובה ישירה לסתירה (לימור 03/09): רשימה נפתחת + כפתור בתוך הטבלה —
+   המערכת מקבלת ממנה את ההכרעה במקום שתצטרך לתקן בריכוז/בכרטיסים ידנית. */
+var DISC_GROUPS=[];
+function discAnswerCell(g,i){
+  var sel='<select id="discSel-'+i+'" style="padding:5px 8px;border:1px solid var(--line);border-radius:7px;font-size:12.5px;max-width:230px">';
+  if(g.kind==='unrecognized_folder'){
+    /* התיקייה של מי? ברירת המחדל: חברת החיוב. הבחירה מוסיפה את שם
+       התיקייה ככתיב בכרטיס — בלי הקלדה. */
+    CLIENTS.slice().sort(function(a,b){ return a.name.localeCompare(b.name,'he'); })
+      .forEach(function(c){
+        sel+='<option value="link:'+c.id+'"'+(c.name===g.billed_client?' selected':'')+'>התיקייה שייכת ל: '+esc(c.name)+'</option>';
+      });
+  } else {
+    sel+='<option value="folder">התיוק צודק — של '+esc(g.folder_client||'')+'</option>';
+    if(g.kind==='conflict')
+      sel+='<option value="billed">עמודת החיוב צודקת — של '+esc(g.billed_client||'')+'</option>';
+  }
+  sel+='</select>';
+  return sel+' <button class="btn" style="padding:5px 10px;font-size:12.5px" onclick="discAnswer('+i+')">אשרי</button>';
+}
+async function discAnswer(i){
+  var g=DISC_GROUPS[i];
+  var v=document.getElementById('discSel-'+i).value;
+  var body={billed_to:g.billed_to,filed_owner:g.filed_owner};
+  if(v.indexOf('link:')===0){ body.decision='link_folder'; body.client_id=parseInt(v.slice(5)); }
+  else body.decision=v;
+  var r=await api('/eco-oil/admin/filing-discrepancies/rule',{method:'POST',body:JSON.stringify(body)});
+  if(!r||!r.ok){ var e={}; try{ e=await r.json(); }catch(_){ } toast(e.error||'שמירת התשובה נכשלה'); return; }
+  var d=await r.json();
+  toast(d.alias?('שם התיקייה "'+d.alias+'" נוסף ככתיב בכרטיס ✓'):'התשובה נשמרה ✓ — המערכת תפעל לפיה');
+  await loadDiscrepancies();
+}
+async function discUndo(i){
+  var g=DISC_GROUPS[i];
+  var r=await api('/eco-oil/admin/filing-discrepancies/rule',{method:'DELETE',
+    body:JSON.stringify({billed_to:g.billed_to,filed_owner:g.filed_owner})});
+  if(!r||!r.ok){ toast('הביטול נכשל'); return; }
+  toast('התשובה בוטלה — הסתירה חזרה לרשימה');
+  await loadDiscrepancies();
 }
 
 /* ── הצהרות יצרן מהפורטל (צפייה בלבד בשלב זה) ── */

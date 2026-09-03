@@ -915,6 +915,23 @@ class EcoOilValiditySnapshot(db.Model):
     updated_at = db.Column(db.DateTime, default=datetime.utcnow)
 
 
+class EcoOilFilingRuling(db.Model):
+    """תשובת לימור לסתירת תיוק-מול-חיוב (03/09/2026): במקום מייל/תיקון ידני,
+    היא עונה ישירות בטבלת הסתירות במסך הניהול. המפתח = הצמד המדויק
+    (עמודת החיוב, תיקיית התיוק) — כך התשובה שורדת כל סנכרון שעתי וחלה גם על
+    שורות עתידיות של אותו צמד. decision: 'folder' (התיוק צודק — רק השתקה,
+    התצוגה ממילא לפי התיקייה) / 'billed' (החיוב צודק — התצוגה בפורטל עוקפת
+    את עוגן-התיקייה לצמד הזה בלבד)."""
+    __tablename__ = "ecooil_filing_rulings"
+
+    id = db.Column(db.Integer, primary_key=True)
+    billed_to = db.Column(db.Text, nullable=False)
+    filed_owner = db.Column(db.Text, nullable=False)
+    decision = db.Column(db.String(20), nullable=False)   # folder / billed
+    actor = db.Column(db.String(120))
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+
 class DepotFormOptions(db.Model):
     """רשימות הבחירה של טופס המידע המקדים — חומרים (מהמסד) + מובילים
     (CARRIER_OPTIONS, חוק 47ג). שורה יחידה, JSON, נדחפת ע"י הגשר בכל סבב —
