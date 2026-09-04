@@ -39,8 +39,11 @@ ONSITE = {"בדרך להיכנס", "באחסון", "בטיפול שטיפה", "�
           "הכנה לשחרור", "מוכן לשחרור"}
 
 # אינדקסים (0-based) לפי כותרות הגיליון: A מס' ביקור, B מכל, D גורם מחוייב
-# אחסנה, F חומר אחרון, I סטטוס, J תאריך הגעה, AK תאריך משוער ליציאה
-COL = dict(visit=0, tank=1, payer=3, material=5, status=8, arrival=9, est_exit=36)
+# אחסנה, F חומר אחרון, I סטטוס, J תאריך הגעה, R תאריך כניסה לאחסון (חלק
+# מהשורות ממולאות רק בה — לימור 04/09: 90 שורות הוצגו "—" בפורטל בגללה),
+# AK תאריך משוער ליציאה
+COL = dict(visit=0, tank=1, payer=3, material=5, status=8, arrival=9,
+           storage_entry=17, est_exit=36)
 
 
 def _iso_date(v):
@@ -85,7 +88,8 @@ def read_snapshot():
                 "storage_payer": (str(row[COL["payer"]] or "")).strip(),
                 "status": status,
                 "material": (str(row[COL["material"]] or "")).strip(),
-                "arrival_date": _iso_date(row[COL["arrival"]]),
+                "arrival_date": _iso_date(row[COL["arrival"]])
+                                or _iso_date(row[COL["storage_entry"]]),
                 "est_exit_date": _iso_date(row[COL["est_exit"]]),
             })
         return items
