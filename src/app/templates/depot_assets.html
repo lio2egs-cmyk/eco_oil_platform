@@ -44,6 +44,39 @@
   .btn:hover{background:var(--teal-dark)}
   .btn.soft{background:#fff;color:var(--teal-dark);border:1.5px solid var(--teal)}
   #toast{position:fixed;bottom:22px;right:50%;transform:translateX(50%);background:var(--navy);color:#fff;border-radius:10px;padding:11px 20px;font-size:14px;display:none;z-index:30}
+  /* ── פס "מה קרה אצלכם" (המסך המשולב — אישור יואב 04/09/2026) ── */
+  .feed{background:#F4F8F7;border:1.5px solid #d8e6e3;border-radius:14px;padding:14px 18px;margin-top:18px;display:none}
+  .feed-head{display:flex;align-items:center;gap:10px;flex-wrap:wrap;cursor:pointer}
+  .feed-title{font-family:var(--fh);font-weight:500;font-size:15.5px;color:var(--navy)}
+  .chip{display:inline-block;background:#fff;border:1.5px solid #cfe0dd;border-radius:9px;padding:2px 11px;font-size:13px;color:#333}
+  .chip b{color:var(--teal-dark)}
+  .feed-toggle{margin-inline-start:auto;font-size:13px;color:var(--teal-dark);border:1.5px solid var(--teal);border-radius:8px;background:#fff;padding:4px 12px;cursor:pointer;font-family:var(--fb)}
+  .feed-body{margin-top:12px;display:none}
+  .feed-body.open{display:block}
+  .feed table{width:100%;border-collapse:collapse;font-size:13.5px;background:#fff;border-radius:10px;overflow:hidden}
+  .feed th{background:#EDF3F2;color:var(--navy);padding:6px 10px;text-align:right;font-family:var(--fh);font-weight:500}
+  .feed td{padding:6px 10px;border-bottom:1px solid #eef2f1;white-space:nowrap}
+  .ev{display:inline-block;border-radius:8px;padding:1px 10px;font-size:12.5px}
+  .ev.entry{background:#dff3e8;color:#2c7a52}
+  .ev.wash{background:#e3edfb;color:#2a5c9c}
+  .ev.cert{background:#f3e8fb;color:#7a3f9c}
+  .ev.exit{background:#f7e6e0;color:#a04b28}
+  .mini{display:inline-block;border:1.5px solid var(--teal);color:var(--teal-dark);background:#fff;border-radius:8px;padding:2px 10px;font-size:12.5px;cursor:pointer;margin-inline-start:6px}
+  /* ── ציר הזמן של נכס ── */
+  tr.asset{cursor:pointer}
+  tr.asset:hover td{background:#fafcfb}
+  .arrow{display:inline-block;transition:transform .15s;color:var(--teal-dark);font-size:12px;margin-inline-end:6px}
+  tr.asset.open .arrow{transform:rotate(90deg)}
+  tr.tl-row{display:none}
+  tr.tl-row.open{display:table-row}
+  tr.tl-row>td{background:#F9FBFA;border-bottom:1px solid #e4ecea;padding:14px 22px 16px;white-space:normal}
+  .tl-title{font-family:var(--fh);font-size:14px;color:var(--navy);margin-bottom:10px}
+  .tl{position:relative;margin-inline-start:8px;padding-inline-start:22px;border-inline-start:2.5px solid #cfe0dd}
+  .tl-item{position:relative;padding-bottom:12px;font-size:13.5px}
+  .tl-item:last-child{padding-bottom:2px}
+  .tl-dot{position:absolute;inset-inline-start:-31px;top:5px;width:13px;height:13px;border-radius:50%;background:#fff;border:3px solid var(--teal)}
+  .tl-item.now .tl-dot{background:var(--teal)}
+  .tl-when{color:#777;font-size:12.5px;margin-inline-start:8px}
 </style></head>
 <body>
   <div class="card">
@@ -52,6 +85,21 @@
     <div class="who">שלום, <b id="whoName">…</b></div>
     <div class="preview" id="previewBox">👁 תצוגת מנהלת — כך נראה המסך אצל: <b id="previewName"></b></div>
     <div class="snap" id="snapLine"></div>
+
+    <!-- פס "מה קרה אצלכם" — היום ואתמול-שלשום (המסך המשולב, 04/09/2026) -->
+    <div class="feed" id="feed">
+      <div class="feed-head" onclick="toggleFeed()">
+        <span class="feed-title">🗞 מה קרה אצלכם בימים האחרונים</span>
+        <span id="feedChips"></span>
+        <button class="feed-toggle" id="feedBtn" type="button">לפירוט ▾</button>
+      </div>
+      <div class="feed-body" id="feedBody">
+        <table>
+          <thead><tr><th>מתי</th><th>מכל</th><th>מה קרה</th><th></th></tr></thead>
+          <tbody id="feedRows"></tbody>
+        </table>
+      </div>
+    </div>
 
     <div class="filters">
       <input type="text" id="q" placeholder="🔍 חיפוש לפי מספר מכל…" oninput="renderRows()">
@@ -153,7 +201,55 @@ async function load(){
       ('0'+d.getHours()).slice(-2)+':'+('0'+d.getMinutes()).slice(-2);
   }
   renderRows();
+  renderFeed(data.feed||null);
   renderReqs(data.requests||[]);
+}
+
+/* ── פס "מה קרה אצלכם" ── */
+var EV_ICON={entry:'📥',wash:'🧼',cert:'📄',exit:'🚚'};
+function renderFeed(feed){
+  var box=document.getElementById('feed');
+  if(!feed || !(feed.events||[]).length){ box.style.display='none'; return; }
+  var s=feed.summary||{}, chips='';
+  if(s.entry) chips+='<span class="chip"><b>'+s.entry+'</b> כניסות</span> ';
+  if(s.wash) chips+='<span class="chip"><b>'+s.wash+'</b> שטיפות</span> ';
+  if(s.exit) chips+='<span class="chip"><b>'+s.exit+'</b> יציאות</span> ';
+  if(s.cert) chips+='<span class="chip"><b>'+s.cert+'</b> תעודות חדשות</span> ';
+  document.getElementById('feedChips').innerHTML=chips;
+  var tb=document.getElementById('feedRows'); tb.innerHTML='';
+  (feed.events||[]).forEach(function(e){
+    var extra=e.cert_id?('<span class="mini" onclick="openCert('+e.cert_id+',\'view\',event)">צפייה</span>'+
+      '<span class="mini" onclick="openCert('+e.cert_id+',\'save\',event)">הורדה</span>'):'';
+    var tr=document.createElement('tr');
+    tr.innerHTML='<td>'+esc(e.day)+(e.time?(' '+esc(e.time)):'')+'</td>'+
+      '<td class="tank">'+esc(e.tank||'—')+'</td>'+
+      '<td><span class="ev '+esc(e.kind)+'">'+(EV_ICON[e.kind]||'')+' '+esc(e.label)+'</span></td>'+
+      '<td>'+extra+'</td>';
+    tb.appendChild(tr);
+  });
+  box.style.display='block';
+}
+function toggleFeed(){
+  var b=document.getElementById('feedBody');
+  b.classList.toggle('open');
+  document.getElementById('feedBtn').textContent=b.classList.contains('open')?'סגירה ▴':'לפירוט ▾';
+}
+
+/* ── תעודות: צפייה/הורדה דרך נקודת הקצה הקיימת של מסך התעודות ── */
+async function openCert(id, mode, ev){
+  if(ev){ ev.stopPropagation(); }
+  var url='/depot/portal/my-certs/'+id+'/download?mode='+(mode==='view'?'view':'save')+
+          (CLIENT_ID?('&client_id='+CLIENT_ID):'');
+  var r=await api(url);
+  var d={}; try{ d=await r.json(); }catch(e){}
+  if(r.ok && d.url){ window.open(d.url,'_blank'); }
+  else{ toast(d.error||'הקובץ לא זמין כרגע — נסו שוב'); }
+}
+
+function toggleTl(row,id){
+  row.classList.toggle('open');
+  var t=document.getElementById(id);
+  if(t){ t.classList.toggle('open'); }
 }
 
 function stClass(st){
@@ -168,24 +264,42 @@ function renderRows(){
     return !q || (a.tank||'').toUpperCase().replace(/\s/g,'').indexOf(q)!==-1;
   });
   var tb=document.getElementById('rows'); tb.innerHTML='';
-  list.forEach(function(a){
+  list.forEach(function(a,idx){
     var acts='';
     if(a.request){
       acts='<span class="muted">'+esc(a.request.status)+'</span>';
     } else if(a.can_release){
-      acts='<button class="act" onclick="openDlg(\''+esc(a.visit_id)+'\',\''+esc(a.tank)+'\')">🚚 בקשו שחרור</button>';
+      acts='<button class="act" onclick="event.stopPropagation();openDlg(\''+esc(a.visit_id)+'\',\''+esc(a.tank)+'\')">🚚 בקשו שחרור</button>';
     } else if(a.can_cancel){
-      acts='<button class="act warn" onclick="cancelRelease(\''+esc(a.visit_id)+'\',\''+esc(a.tank)+'\')">↩ בטלו שחרור</button>';
+      acts='<button class="act warn" onclick="event.stopPropagation();cancelRelease(\''+esc(a.visit_id)+'\',\''+esc(a.tank)+'\')">↩ בטלו שחרור</button>';
     } else if(a.note){
       acts='<span class="muted">'+esc(a.note)+'</span>';
     }
     var tr=document.createElement('tr');
-    tr.innerHTML='<td class="tank">'+esc(a.tank)+'</td>'+
+    tr.className='asset';
+    tr.onclick=function(){ toggleTl(tr,'tl_'+idx); };
+    tr.innerHTML='<td><span class="arrow">▶</span><span class="tank">'+esc(a.tank)+'</span></td>'+
       '<td>'+esc(a.material||'—')+'</td>'+
       '<td>'+(a.arrival_date||'—')+'</td>'+
       '<td><span class="'+stClass(a.status)+'">'+esc(a.status)+'</span></td>'+
       '<td>'+acts+'</td>';
     tb.appendChild(tr);
+
+    /* ציר הזמן של הנכס — נפתח בלחיצה על השורה */
+    var items='';
+    (a.timeline||[]).forEach(function(t){
+      var when=(t.date?esc(t.date):'')+(t.time?(' · '+esc(t.time)):'');
+      var extra=t.cert_id?('<span class="mini" onclick="openCert('+t.cert_id+',\'view\',event)">צפייה</span>'+
+        '<span class="mini" onclick="openCert('+t.cert_id+',\'save\',event)">הורדה</span>'):'';
+      items+='<div class="tl-item'+(t.kind==='now'?' now':'')+'"><span class="tl-dot"></span>'+
+        (EV_ICON[t.kind]||(t.kind==='now'?'📦':'')||'')+' <b>'+esc(t.label)+'</b>'+
+        (when?('<span class="tl-when">'+when+'</span>'):'')+extra+'</div>';
+    });
+    var tlr=document.createElement('tr');
+    tlr.className='tl-row'; tlr.id='tl_'+idx;
+    tlr.innerHTML='<td colspan="5"><div class="tl-title">📜 מה עבר על המכל אצלנו</div>'+
+      '<div class="tl">'+items+'</div></td>';
+    tb.appendChild(tlr);
   });
   document.getElementById('tbl').style.display=list.length?'table':'none';
   document.getElementById('empty').style.display=(ASSETS.length===0)?'block':'none';

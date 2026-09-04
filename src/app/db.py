@@ -989,9 +989,17 @@ class DepotAssetSnapshot(db.Model):
     storage_payer = db.Column(db.String(200), index=True)       # גורם מחוייב אחסנה (D) — עוגן השיוך
     status = db.Column(db.String(40), nullable=False)           # הסטטוס בקובץ (I), כלשונו
     material = db.Column(db.String(200))                        # חומר אחרון (F)
-    arrival_date = db.Column(db.Date)                           # תאריך הגעה (J)
+    arrival_date = db.Column(db.Date)                           # תאריך הגעה (J, ובהיעדרה R)
     est_exit_date = db.Column(db.Date)                          # תאריך משוער ליציאה (AK)
     pushed_at = db.Column(db.DateTime, nullable=False)          # מתי נדחפה התמונה
+    # המסך המשולב — פס "מה קרה אצלכם" + ציר זמן לנכס (אישור יואב 04/09/2026).
+    # שעות כמחרוזות HH:MM בכוונה (לקח עיוות אזור-הזמן של pywin32, 04/09).
+    entry_time = db.Column(db.String(5))                        # שעת כניסה לאחסון (AI)
+    wash_date = db.Column(db.Date)                              # תאריך שטיפה (L)
+    wash_time = db.Column(db.String(5))                         # שעת שטיפה (M)
+    exit_date = db.Column(db.Date)                              # יציאה (S ואם ריק K) — רק ביציאות טריות
+    exit_time = db.Column(db.String(5))                         # שעת יציאה (AJ)
+    exited = db.Column(db.Boolean, default=False, nullable=False)  # יציאה טרייה: בפס האירועים, לא בטבלה
 
 
 class DepotReleaseRequest(db.Model):

@@ -174,6 +174,13 @@ def create_app():
             "ALTER TABLE depot_prearrivals ADD COLUMN payer_wash VARCHAR(120)",
             "ALTER TABLE depot_prearrivals ADD COLUMN payer_extras VARCHAR(120)",
             "ALTER TABLE depot_prearrivals ADD COLUMN payer_repairs VARCHAR(120)",
+            # המסך המשולב: פס אירועים + ציר זמן לנכס (אישור יואב 04/09)
+            "ALTER TABLE depot_asset_snapshots ADD COLUMN entry_time VARCHAR(5)",
+            "ALTER TABLE depot_asset_snapshots ADD COLUMN wash_date DATE",
+            "ALTER TABLE depot_asset_snapshots ADD COLUMN wash_time VARCHAR(5)",
+            "ALTER TABLE depot_asset_snapshots ADD COLUMN exit_date DATE",
+            "ALTER TABLE depot_asset_snapshots ADD COLUMN exit_time VARCHAR(5)",
+            "ALTER TABLE depot_asset_snapshots ADD COLUMN exited BOOLEAN DEFAULT FALSE",
         ):
             try:
                 db.session.execute(db.text(stmt))

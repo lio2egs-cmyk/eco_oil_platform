@@ -15,17 +15,20 @@
 בלבד מעותק). השיוך ללקוח = "גורם מחוייב אחסנה" מול שם+כתיבים (עוגן
 הכתיבים, כמו התעודות) — ערך לא מזוהה לא מוצג לאף לקוח.
 """
-from datetime import date, datetime
+import re
+from datetime import date, datetime, timedelta
 
 from flask import Blueprint, current_app, jsonify, request
 from flask_jwt_extended import get_jwt, get_jwt_identity, jwt_required
 
 from .auth import depot_admin_required
-from .db import db, Client, DepotAssetSnapshot, DepotReleaseRequest, User
-from .depot_certs import _folder_client_map, _norm
+from .db import db, Client, DepotAssetSnapshot, DepotReleaseRequest, DepotWashCert, User
+from .depot_certs import _client_folders, _folder_client_map, _norm
 from .depot_portal import _depot_client_for_request
 from .ecooil_bridge import ecooil_bridge_required
 from .field import bridge_required
+
+_HM_RE = re.compile(r"^\d{2}:\d{2}$")
 
 depot_assets = Blueprint("depot_assets", __name__)
 
@@ -75,7 +78,7 @@ def _client_for_view():
     return client, preview
 
 
-def _asset_dict(a, open_req):
+def _asset_dict(a, open_req, certs=None):
     can_release = a.status == "באחסון" and open_req is None
     can_cancel = a.status == "הכנה לשחרור" and open_req is None
     note = None
@@ -91,6 +94,8 @@ def _asset_dict(a, open_req):
         "can_release": can_release,
         "can_cancel": can_cancel,
         "note": note,
+        # ציר הזמן של הנכס (המסך המשולב — אישור יואב 04/09/2026)
+        "timeline": _timeline(a, open_req, certs or []),
     }
     if open_req is not None:
         d["request"] = {
@@ -100,6 +105,95 @@ def _asset_dict(a, open_req):
             "created_at": open_req.created_at.isoformat(),
         }
     return d
+
+
+def _dmy(d):
+    return d.strftime("%d/%m/%Y") if d else None
+
+
+def _timeline(a, open_req, certs):
+    """הסיפור של הנכס, מהכניסה עד עכשיו — לתצוגת ציר-הזמן במסך."""
+    steps = []
+    if a.arrival_date:
+        steps.append({"kind": "entry", "label": "נכנס לאחסנה",
+                      "date": _dmy(a.arrival_date), "time": a.entry_time})
+    if a.wash_date:
+        steps.append({"kind": "wash", "label": "עבר שטיפה",
+                      "date": _dmy(a.wash_date), "time": a.wash_time})
+    for c in certs:
+        steps.append({"kind": "cert", "label": "תעודת שטיפה הופקה",
+                      "date": _dmy(c.file_date.date()) if c.file_date else None,
+                      "time": None, "cert_id": c.id})
+    if open_req is not None and open_req.action == "release":
+        steps.append({"kind": "release", "label": "ביקשתם שחרור",
+                      "date": _dmy(open_req.requested_date), "time": None})
+    steps.append({"kind": "now", "label": STATUS_HEB.get(a.status, a.status),
+                  "date": None, "time": None})
+    return steps
+
+
+def _asset_certs(assets, folders):
+    """תעודות לכל נכס: התאמה לפי מכל + תיקייה של הלקוח + תאריך התעודה
+    מהביקור הזה (מיום ההגעה ואילך; בלי תאריך הגעה — מיום השטיפה)."""
+    tanks = {a.tank for a in assets}
+    if not tanks or not folders:
+        return {}
+    rows = (DepotWashCert.query
+            .filter(DepotWashCert.folder.in_(folders),
+                    DepotWashCert.tank.in_(tanks))
+            .order_by(DepotWashCert.file_date).all())
+    out = {}
+    for a in assets:
+        base = a.arrival_date or a.wash_date
+        if base is None:
+            continue
+        cut = base - timedelta(days=1)
+        mine = [c for c in rows
+                if c.tank == a.tank and c.file_date and c.file_date.date() >= cut]
+        if mine:
+            out[(a.visit_id, a.tank)] = mine
+    return out
+
+
+def _events_feed(rows, cert_rows, today):
+    """פס "מה קרה אצלכם" — אירועי היום ואתמול-שלשום מכל הנכסים (כולל
+    יציאות טריות שכבר אינן בטבלה) + תעודות חדשות."""
+    cut = today - timedelta(days=2)
+    events = []
+
+    def _label(d):
+        if d == today:
+            return "היום"
+        if d == today - timedelta(days=1):
+            return "אתמול"
+        return d.strftime("%d/%m")
+
+    for a in rows:
+        if a.arrival_date and a.arrival_date >= cut:
+            events.append({"kind": "entry", "label": "כניסה לאחסנה",
+                           "tank": a.tank, "day": _label(a.arrival_date),
+                           "date": a.arrival_date, "time": a.entry_time})
+        if a.wash_date and a.wash_date >= cut:
+            events.append({"kind": "wash", "label": "שטיפה",
+                           "tank": a.tank, "day": _label(a.wash_date),
+                           "date": a.wash_date, "time": a.wash_time})
+        if a.exited and a.exit_date and a.exit_date >= cut:
+            events.append({"kind": "exit", "label": "יציאה מהאתר",
+                           "tank": a.tank, "day": _label(a.exit_date),
+                           "date": a.exit_date, "time": a.exit_time})
+    for c in cert_rows:
+        if c.file_date and c.file_date.date() >= cut:
+            events.append({"kind": "cert", "label": "תעודת שטיפה חדשה",
+                           "tank": c.tank or "", "day": _label(c.file_date.date()),
+                           "date": c.file_date.date(), "time": None,
+                           "cert_id": c.id})
+    events.sort(key=lambda e: (e["date"], e["time"] or ""), reverse=True)
+    for e in events:
+        e["date"] = e["date"].isoformat()
+    summary = {}
+    for e in events:
+        summary[e["kind"]] = summary.get(e["kind"], 0) + 1
+    return {"events": events[:40], "summary": summary}
 
 
 # ------------------------------------------------------------ customer side
@@ -114,7 +208,9 @@ def my_assets():
     rows = (DepotAssetSnapshot.query
             .order_by(DepotAssetSnapshot.arrival_date.desc().nullslast(),
                       DepotAssetSnapshot.id.desc()).all())
-    mine = [a for a in rows if _norm(a.storage_payer) in keys]
+    mine_all = [a for a in rows if _norm(a.storage_payer) in keys]
+    # יציאות טריות: מוצגות בפס האירועים בלבד, לא בטבלת הנכסים
+    mine = [a for a in mine_all if not a.exited]
 
     # בקשות פתוחות + אחרונות של הלקוח
     reqs = (DepotReleaseRequest.query.filter_by(client_id=client.id)
@@ -125,10 +221,24 @@ def my_assets():
         if r.status in OPEN_STATES and (r.visit_id, r.tank) not in open_by_key:
             open_by_key[(r.visit_id, r.tank)] = r
 
+    # תעודות הלקוח — לציר הזמן ולפס האירועים (המסך המשולב, 04/09)
+    folders = _client_folders(client)
+    certs_by_asset = _asset_certs(mine, folders)
+    today_il = (datetime.utcnow() + timedelta(hours=3)).date()
+    recent_certs = []
+    if folders:
+        cert_cut = datetime.combine(today_il - timedelta(days=2), datetime.min.time())
+        recent_certs = (DepotWashCert.query
+                        .filter(DepotWashCert.folder.in_(folders),
+                                DepotWashCert.file_date >= cert_cut)
+                        .all())
+
     pushed = max((a.pushed_at for a in rows), default=None)
     out = {
-        "assets": [_asset_dict(a, open_by_key.get((a.visit_id, a.tank)))
+        "assets": [_asset_dict(a, open_by_key.get((a.visit_id, a.tank)),
+                               certs_by_asset.get((a.visit_id, a.tank)))
                    for a in mine],
+        "feed": _events_feed(mine_all, recent_certs, today_il),
         "snapshot_at": pushed.isoformat() if pushed else None,
         "requests": [{
             "id": r.id,
@@ -272,6 +382,10 @@ def bridge_replace_assets():
             except ValueError:
                 return None
 
+        def _t(key):
+            v = str(it.get(key) or "").strip()
+            return v[:5] if _HM_RE.match(v) else None
+
         db.session.add(DepotAssetSnapshot(
             visit_id=vid[:40], tank=tank[:40],
             storage_payer=(str(it.get("storage_payer") or "")).strip()[:200] or None,
@@ -279,6 +393,12 @@ def bridge_replace_assets():
             material=(str(it.get("material") or "")).strip()[:200] or None,
             arrival_date=_d("arrival_date"),
             est_exit_date=_d("est_exit_date"),
+            entry_time=_t("entry_time"),
+            wash_date=_d("wash_date"),
+            wash_time=_t("wash_time"),
+            exit_date=_d("exit_date"),
+            exit_time=_t("exit_time"),
+            exited=bool(it.get("exited")),
             pushed_at=now,
         ))
         added += 1

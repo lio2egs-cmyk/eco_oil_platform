@@ -39,11 +39,17 @@ ONSITE = {"בדרך להיכנס", "באחסון", "בטיפול שטיפה", "�
           "הכנה לשחרור", "מוכן לשחרור"}
 
 # אינדקסים (0-based) לפי כותרות הגיליון: A מס' ביקור, B מכל, D גורם מחוייב
-# אחסנה, F חומר אחרון, I סטטוס, J תאריך הגעה, R תאריך כניסה לאחסון (חלק
-# מהשורות ממולאות רק בה — לימור 04/09: 90 שורות הוצגו "—" בפורטל בגללה),
-# AK תאריך משוער ליציאה
+# אחסנה, F חומר אחרון, I סטטוס, J תאריך הגעה, K יציאה מהאתר, L תאריך שטיפה,
+# M שעת שטיפה, R תאריך כניסה לאחסון (חלק מהשורות ממולאות רק בה — לימור
+# 04/09: 90 שורות הוצגו "—" בפורטל בגללה), S יציאה מאחסון, AI שעת כניסה,
+# AJ שעת יציאה, AK תאריך משוער ליציאה
 COL = dict(visit=0, tank=1, payer=3, material=5, status=8, arrival=9,
-           storage_entry=17, est_exit=36)
+           site_exit=10, wash_date=11, wash_time=12, storage_entry=17,
+           storage_exit=18, entry_time=34, exit_time=35, est_exit=36)
+
+# יציאות טריות נכללות בתמונה (מסומנות exited) כדי שפס "מה קרה אצלכם"
+# בפורטל יוכל להציג גם אירועי יציאה — המסך המשולב, אישור יואב 04/09/2026.
+EXIT_LOOKBACK_DAYS = 4
 
 
 def _iso_date(v):
@@ -51,6 +57,15 @@ def _iso_date(v):
         return v.date().isoformat()
     if isinstance(v, date):
         return v.isoformat()
+    return None
+
+
+def _hm(v):
+    """שעה כמחרוזת HH:MM — בכוונה לא אובייקט זמן (לקח עיוות אזור-הזמן 04/09)."""
+    if isinstance(v, datetime):
+        return v.strftime("%H:%M")
+    if hasattr(v, "hour") and hasattr(v, "minute"):
+        return "%02d:%02d" % (v.hour, v.minute)
     return None
 
 
@@ -72,11 +87,16 @@ def read_snapshot():
 
     wb = openpyxl.load_workbook(tmp, data_only=True, read_only=True)
     try:
+        from datetime import timedelta
+        exit_cut = (date.today() - timedelta(days=EXIT_LOOKBACK_DAYS)).isoformat()
         ws = wb[SHEET]
         items = []
         for row in ws.iter_rows(min_row=2, max_col=40, values_only=True):
             status = (str(row[COL["status"]] or "")).strip()
-            if status not in ONSITE:
+            exit_date = (_iso_date(row[COL["storage_exit"]])
+                         or _iso_date(row[COL["site_exit"]]))
+            onsite = status in ONSITE
+            if not onsite and not (exit_date and exit_date >= exit_cut):
                 continue
             vid = (str(row[COL["visit"]] or "")).strip()
             tank = (str(row[COL["tank"]] or "")).strip()
@@ -91,6 +111,12 @@ def read_snapshot():
                 "arrival_date": _iso_date(row[COL["arrival"]])
                                 or _iso_date(row[COL["storage_entry"]]),
                 "est_exit_date": _iso_date(row[COL["est_exit"]]),
+                "entry_time": _hm(row[COL["entry_time"]]),
+                "wash_date": _iso_date(row[COL["wash_date"]]),
+                "wash_time": _hm(row[COL["wash_time"]]),
+                "exit_date": exit_date if not onsite else None,
+                "exit_time": _hm(row[COL["exit_time"]]) if not onsite else None,
+                "exited": not onsite,
             })
         return items
     finally:
