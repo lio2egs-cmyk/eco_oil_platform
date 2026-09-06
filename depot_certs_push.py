@@ -38,7 +38,15 @@ os.environ.pop("DATABASE_URL", None)
 import requests
 
 SRC = r"O:\SHTIFOT\תעודות שטיפה"
+# העץ החדש (עידן הטאבלטים, מ-07/2026): הגשר מתייק תעודות ותמונות תחת
+# לקוחות\{לקוח}\{שנה}\{חודש}\שטיפה\{טנק}. הבאג שתוקן 06/09/2026: הסורק
+# ראה רק את העץ הישן — תעודות מיולי ואילך לא הגיעו לפורטל כלל.
+SRC_NEW = r"O:\SHTIFOT\מערכת ניהול אקו דיפו\לקוחות"
+# מהעץ החדש נקלטים רק 07/2026 ואילך — יוני ואחורה מגיעים מהעץ הישן,
+# כך אין תעודה שנרשמת פעמיים משני העצים.
+NEW_TREE_FROM = (2026, 7)
 KEY_PREFIX = "depotcerts/"
+KEY_PREFIX_NEW = KEY_PREFIX + "לקוחות/"
 MIN_YEAR = 2026
 # תיקיות ברמה העליונה שאינן תיקיית-לקוח
 EXCLUDE_TOP = {"_כל התעודות שהופקו", "אקסלים 2025", "ספקים לא פעילים"}
@@ -129,6 +137,54 @@ def scan():
                 items.append({
                     "path": p,
                     "b2_key": KEY_PREFIX + rel,
+                    "folder": top,
+                    "tank": find_tank(rel_parts, fname),
+                    "year": year,
+                    "month": month,
+                    "file_name": fname,
+                    "file_date": datetime.fromtimestamp(st.st_mtime).isoformat(timespec="seconds"),
+                    "size": st.st_size,
+                })
+    return items
+
+
+def scan_new():
+    """העץ החדש: PDF-ים בתוך תת-תיקיית "שטיפה" בלבד (דוחות ברמת החודש,
+    "דוחות יומיים", MSDS ותיקונים — בחוץ), מ-NEW_TREE_FROM ואילך."""
+    items = []
+    if not os.path.isdir(SRC_NEW):
+        return items
+    for top in sorted(os.listdir(SRC_NEW)):
+        top_path = os.path.join(SRC_NEW, top)
+        if not os.path.isdir(top_path) or top.startswith("~"):
+            continue
+        for root, dirs, files in os.walk(top_path):
+            rel_parts = os.path.relpath(root, top_path).split(os.sep)
+            if "שטיפה" not in rel_parts:
+                continue
+            year = month = None
+            for i, seg in enumerate(rel_parts):
+                if YEAR_RE.match(seg):
+                    year = int(seg)
+                    if i + 1 < len(rel_parts) and MONTH_RE.match(rel_parts[i + 1]):
+                        mo = int(rel_parts[i + 1])
+                        if 1 <= mo <= 12:
+                            month = mo
+                    break
+            if year is None or month is None or (year, month) < NEW_TREE_FROM:
+                continue
+            for fname in files:
+                if not fname.lower().endswith(".pdf"):
+                    continue
+                p = os.path.join(root, fname)
+                try:
+                    st = os.stat(p)
+                except OSError:
+                    continue
+                rel = os.path.relpath(p, SRC_NEW).replace("\\", "/")
+                items.append({
+                    "path": p,
+                    "b2_key": KEY_PREFIX_NEW + rel,
                     "folder": top,
                     "tank": find_tank(rel_parts, fname),
                     "year": year,
@@ -235,7 +291,7 @@ def main():
         print(f"source folder unreachable: {SRC} — skipping this cycle")
         return 0
 
-    items = scan()
+    items = scan() + scan_new()
     manifest = load_manifest()
     upload(items, manifest, dry_run=args.dry_run, limit=args.limit)
     push(items, manifest, args.api_base, token,
