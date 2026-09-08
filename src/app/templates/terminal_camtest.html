@@ -1,0 +1,177 @@
+<!doctype html>
+<html lang="he" dir="rtl"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>בדיקת מצלמה — אקו-דיפו</title>
+<style>
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{font-family:'Segoe UI',Arial,sans-serif;background:#161b1a;color:#f2f2f2;direction:rtl;padding:18px 14px 40px;line-height:1.6}
+  h1{font-size:22px;color:#8fd3cb}
+  .sub{font-size:14px;color:#aaa;margin-top:4px}
+  .bigbtn{display:block;width:100%;margin-top:18px;background:#5B9E96;color:#fff;border:none;border-radius:14px;padding:16px;font-size:20px;font-weight:600;cursor:pointer}
+  .bigbtn:disabled{background:#3a4a48;color:#889}
+  #verdict{display:none;margin-top:18px;border-radius:14px;padding:14px 16px;font-size:18px;font-weight:600}
+  #verdict.good{background:#123d24;border:2px solid #2c9a52;color:#8fe6ae}
+  #verdict.maybe{background:#3d3312;border:2px solid #c9a227;color:#f0d777}
+  #verdict.bad{background:#3d1512;border:2px solid #b0452c;color:#f0a08c}
+  .card{background:#20302d;border:1.5px solid #35514d;border-radius:12px;padding:12px 14px;margin-top:12px;font-size:15px}
+  .card b{color:#8fd3cb}
+  .card .tech{font-size:12px;color:#7f948f;word-break:break-all;margin-top:4px}
+  #lensBtns{display:flex;gap:10px;flex-wrap:wrap;margin-top:16px}
+  #lensBtns button{flex:1;min-width:110px;background:#2a2a2a;color:#fff;border:1.5px solid #5B9E96;border-radius:12px;padding:12px 8px;font-size:16px;cursor:pointer}
+  #lensBtns button.on{background:#1d8a3a;border-color:#1d8a3a}
+  #viewWrap{display:none;margin-top:12px;border-radius:14px;overflow:hidden;background:#000;position:relative}
+  #camVideo{width:100%;display:block;max-height:52vh;object-fit:contain;background:#000}
+  #viewLabel{position:absolute;top:8px;right:10px;background:rgba(0,0,0,.65);border-radius:9px;padding:3px 12px;font-size:14px}
+  .note{margin-top:16px;background:#20302d;border-radius:12px;padding:12px 14px;font-size:15px;color:#cde;display:none}
+  #err{display:none;margin-top:16px;background:#3d1512;border:2px solid #b0452c;border-radius:12px;padding:12px 14px;font-size:16px;color:#f0a08c}
+  #ua{font-size:11px;color:#5f716d;margin-top:22px;word-break:break-all}
+</style></head>
+<body>
+  <h1>📷 בדיקת מצלמה — אבחון עדשות</h1>
+  <div class="sub">הבדיקה רק קוראת מה המכשיר יודע לתת. היא לא משנה שום דבר ולא שומרת תמונות.</div>
+
+  <button class="bigbtn" id="goBtn" onclick="runTest()">▶ התחלת הבדיקה</button>
+  <div id="err"></div>
+  <div id="verdict"></div>
+  <div id="cards"></div>
+
+  <div id="lensBtns"></div>
+  <div id="viewWrap">
+    <span id="viewLabel"></span>
+    <video id="camVideo" autoplay playsinline muted></video>
+  </div>
+  <div class="note" id="note">👆 עברו בין העדשות למעלה והשוו: איזו עדשה מראה שטח רחב יותר?<br>
+  בסיום — <b>צלמו את המסך הזה ושלחו למשרד</b> (צילום מסך, או תמונה של המסך בטלפון).</div>
+
+  <div id="ua"></div>
+
+<script>
+var CAMS=[], curStream=null;
+
+function esc(s){ return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;'); }
+
+function showErr(msg){
+  var e=document.getElementById('err');
+  e.style.display='block'; e.innerHTML=msg;
+}
+
+async function probe(dev){
+  /* פותחים כל עדשה לרגע, קוראים את היכולות וסוגרים */
+  var out={id:dev.deviceId, label:dev.label||'', facing:'?', zoomMin:null, zoomMax:null,
+           torch:false, w:null, h:null, ok:false};
+  try{
+    var s=await navigator.mediaDevices.getUserMedia({
+      video:{deviceId:{exact:dev.deviceId}, width:{ideal:4096}, height:{ideal:3072}}, audio:false});
+    var t=s.getVideoTracks()[0];
+    var st=t.getSettings?t.getSettings():{};
+    var caps=t.getCapabilities?t.getCapabilities():{};
+    out.facing=st.facingMode||caps.facingMode&&caps.facingMode[0]||'?';
+    if(caps.zoom){ out.zoomMin=caps.zoom.min; out.zoomMax=caps.zoom.max; }
+    out.torch=!!caps.torch;
+    out.w=(caps.width&&caps.width.max)||st.width||null;
+    out.h=(caps.height&&caps.height.max)||st.height||null;
+    out.ok=true;
+    s.getTracks().forEach(function(x){ x.stop(); });
+  }catch(e){ out.err=String(e&&e.name||e); }
+  return out;
+}
+
+function facingHeb(f){
+  if(f==='environment') return 'אחורית';
+  if(f==='user') return 'קדמית';
+  return 'לא ידוע';
+}
+
+async function runTest(){
+  var btn=document.getElementById('goBtn');
+  btn.disabled=true; btn.textContent='בודקת…';
+  document.getElementById('err').style.display='none';
+  document.getElementById('ua').textContent=navigator.userAgent;
+  try{
+    /* בקשת הרשאה ראשונה — בלעדיה אין שמות מכשירים */
+    var s0=await navigator.mediaDevices.getUserMedia({video:true, audio:false});
+    s0.getTracks().forEach(function(x){ x.stop(); });
+  }catch(e){
+    btn.disabled=false; btn.textContent='▶ התחלת הבדיקה שוב';
+    showErr('❌ הדפדפן לא קיבל הרשאה למצלמה ('+esc(e&&e.name||e)+').<br>יש לאשר את בקשת ההרשאה שקופצת, או לבדוק בהגדרות האתר שהמצלמה מותרת.');
+    return;
+  }
+  var devs=[];
+  try{ devs=(await navigator.mediaDevices.enumerateDevices()).filter(function(d){ return d.kind==='videoinput'; }); }
+  catch(e){}
+  CAMS=[];
+  for(var i=0;i<devs.length;i++){ CAMS.push(await probe(devs[i])); }
+
+  /* כרטיס לכל עדשה */
+  var cards=document.getElementById('cards'); cards.innerHTML='';
+  CAMS.forEach(function(c,i){
+    var d=document.createElement('div'); d.className='card';
+    if(!c.ok){
+      d.innerHTML='<b>מצלמה '+(i+1)+'</b> — לא נפתחה ('+esc(c.err||'?')+')'+
+        '<div class="tech">'+esc(c.label)+'</div>';
+    }else{
+      var zoom=(c.zoomMin!=null)?('מ-'+c.zoomMin+'x עד '+c.zoomMax+'x'):'המכשיר לא חושף שליטת זום';
+      d.innerHTML='<b>מצלמה '+(i+1)+'</b> — '+facingHeb(c.facing)+
+        '<br>טווח זום: <b>'+zoom+'</b>'+
+        '<br>פנס: '+(c.torch?'יש':'אין')+(c.w?(' · רזולוציה מרבית: '+c.w+'×'+c.h):'')+
+        '<div class="tech">'+esc(c.label)+'</div>';
+    }
+    cards.appendChild(d);
+  });
+
+  /* השורה התחתונה */
+  var back=CAMS.filter(function(c){ return c.ok && c.facing==='environment'; });
+  var wideZoom=back.some(function(c){ return c.zoomMin!=null && c.zoomMin<1; });
+  var v=document.getElementById('verdict');
+  v.style.display='block';
+  if(wideZoom){
+    v.className='good';
+    v.textContent='✅ יש זום-אאוט אמיתי! מצלמה אחורית מדווחת זום מתחת ל-1x — אפשר להרחיב את התמונה בתוכנה.';
+  }else if(back.length>=2){
+    v.className='maybe';
+    v.textContent='🟡 נמצאו '+back.length+' עדשות אחוריות. עברו ביניהן בתצוגה למטה — אם אחת מראה שטח רחב יותר, יש פתרון.';
+  }else if(back.length===1){
+    v.className='bad';
+    v.textContent='❌ המכשיר חושף עדשה אחורית אחת בלבד, בלי זום מתחת ל-1x — כנראה שאין פתרון תוכנה להרחבת התמונה.';
+  }else{
+    v.className='bad';
+    v.textContent='❌ לא נמצאה מצלמה אחורית פעילה.';
+  }
+
+  /* כפתורי תצוגה חיה להשוואה */
+  var lb=document.getElementById('lensBtns'); lb.innerHTML='';
+  CAMS.forEach(function(c,i){
+    if(!c.ok) return;
+    var b=document.createElement('button');
+    b.textContent='מצלמה '+(i+1)+' ('+facingHeb(c.facing)+')';
+    b.onclick=function(){ openLens(i,b); };
+    lb.appendChild(b);
+  });
+  if(lb.children.length){ document.getElementById('note').style.display='block'; }
+  btn.textContent='🔁 בדיקה חוזרת'; btn.disabled=false;
+}
+
+async function openLens(i, btn){
+  if(curStream){ curStream.getTracks().forEach(function(x){ x.stop(); }); curStream=null; }
+  var c=CAMS[i];
+  try{
+    curStream=await navigator.mediaDevices.getUserMedia({
+      video:{deviceId:{exact:c.id}, width:{ideal:1920}, height:{ideal:1440}}, audio:false});
+    var t=curStream.getVideoTracks()[0];
+    /* פותחים על הזום הכי רחב שהעדשה מאפשרת */
+    if(c.zoomMin!=null && t.applyConstraints){
+      try{ await t.applyConstraints({advanced:[{zoom:c.zoomMin}]}); }catch(e){}
+    }
+    document.getElementById('camVideo').srcObject=curStream;
+    document.getElementById('viewWrap').style.display='block';
+    document.getElementById('viewLabel').textContent='מצלמה '+(i+1)+
+      (c.zoomMin!=null?(' · זום '+c.zoomMin+'x'):'');
+    var bs=document.getElementById('lensBtns').children;
+    for(var k=0;k<bs.length;k++){ bs[k].className=''; }
+    btn.className='on';
+  }catch(e){
+    showErr('העדשה לא נפתחה לתצוגה ('+esc(e&&e.name||e)+') — נסו שוב.');
+  }
+}
+</script>
+</body></html>

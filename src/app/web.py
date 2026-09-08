@@ -143,6 +143,14 @@ def terminal_admin_page():
     return redirect("/depot-admin")
 
 
+@web.route("/terminal-camtest")
+def terminal_camtest_page():
+    """אבחון מצלמת הטאבלט (לימור 08/09) — דף עצמאי שקורא אילו עדשות וטווחי
+    זום המכשיר חושף לדפדפן, עם תצוגה חיה להשוואה. שלב האבחון שלפני כל שינוי
+    במצלמת המסופון (בעיית הזום-אאוט); לא כותב לשרת דבר."""
+    return render_template("terminal_camtest.html")
+
+
 @web.route("/terminal")
 @web.route("/terminal/<flow>")
 def field_terminal(flow=None):
