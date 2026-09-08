@@ -970,6 +970,24 @@ class DepotWashCert(db.Model):
     notified_at = db.Column(db.DateTime)
 
 
+class DepotDailyReport(db.Model):
+    """דוח הפעילות היומי (אקסל) בפורטל הדיפו — בקשת לקוחות הפריוריטי
+    (טנקו/הי טנק, 08/09/2026): הקובץ שהפורטל מגיש הוא בדיוק הקובץ שהמחולל
+    הקיים (gen_daily_pdf.py) מפיק ומתייק ב-לקוחות\\{לקוח}\\שנה\\חודש\\דוחות
+    יומיים — אחד-לאחד, כדי שהפריוריטי של הלקוח ימשיך לקרוא אותו בלי שינוי.
+    הגשר השעתי מעלה ל-B2 ורושם כאן; העוגן = תיקיית הלקוח (כמו התעודות)."""
+    __tablename__ = "depot_daily_reports"
+
+    id = db.Column(db.Integer, primary_key=True)
+    b2_key = db.Column(db.String(500), unique=True, nullable=False, index=True)
+    folder = db.Column(db.String(200), nullable=False, index=True)   # תיקיית הלקוח ברמה העליונה
+    report_date = db.Column(db.Date, index=True)                     # היום שהדוח מסכם (משם הקובץ)
+    file_name = db.Column(db.String(300), nullable=False)
+    file_date = db.Column(db.DateTime)                               # חותמת הקובץ בדיסק
+    size = db.Column(db.Integer)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+
+
 class DepotAssetSnapshot(db.Model):
     """"הנכסים שלי אצלכם" (שלב 3 במפת הדרכים — אישור יואב 02/09/2026).
     תמונת-מצב של הנכסים הנמצאים באתר, מהסבב השעתי במחשב של לימור (קריאה

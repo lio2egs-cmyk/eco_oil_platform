@@ -103,6 +103,17 @@
       </div>
     </div>
 
+    <!-- הדוח היומי לאקסל (בקשת לקוחות הפריוריטי — לימור 08/09/2026):
+         בדיוק אותו קובץ שהמשרד מפיק ומתייק, להורדה עצמית ולטעינה לפריוריטי -->
+    <div class="feed" id="dailyBox">
+      <div class="feed-head" style="cursor:default">
+        <span class="feed-title">📊 הדוח היומי — קובץ אקסל</span>
+        <span class="muted">אותו פורמט בדיוק כמו הדוח שנשלח עד היום (מתאים לטעינה לפריוריטי)</span>
+        <select id="dailySel" style="margin-inline-start:auto;padding:5px 10px;border:1.5px solid #cfd8d6;border-radius:8px;font-family:var(--fb);font-size:13px"></select>
+        <button class="feed-toggle" type="button" onclick="downloadDaily()">⬇ הורדה</button>
+      </div>
+    </div>
+
     <div class="filters">
       <input type="text" id="q" placeholder="🔍 חיפוש לפי מספר מכל…" oninput="renderRows()">
     </div>
@@ -205,6 +216,39 @@ async function load(){
   renderRows();
   renderFeed(data.feed||null);
   renderReqs(data.requests||[]);
+  loadDaily();
+}
+
+/* ── הדוח היומי לאקסל (בקשת לקוחות הפריוריטי, 08/09/2026) ── */
+function heDate(iso){
+  var p=(iso||'').split('-');
+  return p.length===3 ? (p[2]+'/'+p[1]+'/'+p[0]) : iso;
+}
+async function loadDaily(){
+  try{
+    var r=await api('/depot/portal/my-daily-reports'+(CLIENT_ID?('?client_id='+CLIENT_ID):''));
+    if(!r.ok) return;
+    var d=await r.json();
+    var reps=d.reports||[];
+    if(!reps.length) return;
+    var sel=document.getElementById('dailySel'); sel.innerHTML='';
+    reps.forEach(function(rep){
+      var o=document.createElement('option');
+      o.value=rep.id;
+      o.textContent='דוח ליום '+heDate(rep.report_date);
+      sel.appendChild(o);
+    });
+    document.getElementById('dailyBox').style.display='block';
+  }catch(e){}
+}
+async function downloadDaily(){
+  var id=document.getElementById('dailySel').value;
+  if(!id) return;
+  var r=await api('/depot/portal/my-daily-reports/'+id+'/download'+
+                  (CLIENT_ID?('?client_id='+CLIENT_ID):''));
+  var d={}; try{ d=await r.json(); }catch(e){}
+  if(r.ok && d.url){ window.open(d.url,'_blank'); }
+  else{ toast(d.error||'הקובץ לא זמין כרגע — נסו שוב'); }
 }
 
 /* ── פס "מה קרה אצלכם" ── */
