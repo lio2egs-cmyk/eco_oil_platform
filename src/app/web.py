@@ -143,6 +143,14 @@ def terminal_admin_page():
     return redirect("/depot-admin")
 
 
+@web.route("/phone-cam")
+def phone_cam_page():
+    """דף הצילום שנפתח בטלפון העובד אחרי סריקת ה-QR מהטאבלט (אישור לימור
+    08/09 — שטיפה+תיקונים בלבד). בלי התחברות: הטוקן שבקישור הוא ההרשאה,
+    והוא נבדק ב-API (פג אחרי חצי שעה)."""
+    return render_template("phone_cam.html")
+
+
 @web.route("/terminal-camtest")
 def terminal_camtest_page():
     """אבחון מצלמת הטאבלט (לימור 08/09) — דף עצמאי שקורא אילו עדשות וטווחי

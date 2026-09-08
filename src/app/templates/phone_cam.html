@@ -1,0 +1,94 @@
+<!doctype html>
+<html lang="he" dir="rtl"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>צילום לטאבלט — אקו-דיפו</title>
+<style>
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{font-family:'Segoe UI',Arial,sans-serif;background:#161b1a;color:#f2f2f2;direction:rtl;padding:20px 16px 40px;line-height:1.6;text-align:center}
+  h1{font-size:21px;color:#8fd3cb}
+  .ctx{margin-top:10px;background:#20302d;border:1.5px solid #35514d;border-radius:12px;padding:12px;font-size:19px}
+  .ctx b{color:#8fd3cb;letter-spacing:.5px}
+  .bigbtn{display:block;width:100%;margin-top:22px;background:#c62828;color:#fff;border:none;border-radius:16px;padding:22px;font-size:24px;font-weight:700;cursor:pointer}
+  .bigbtn:disabled{background:#3a4a48;color:#889}
+  #count{margin-top:16px;font-size:20px;font-weight:600;color:#8fe6ae;display:none}
+  #thumbs{display:flex;flex-wrap:wrap;gap:8px;justify-content:center;margin-top:14px}
+  #thumbs img{width:84px;height:84px;object-fit:cover;border-radius:10px;border:2px solid #2c9a52}
+  #thumbs .up{opacity:.45;border-color:#c9a227}
+  #msg{display:none;margin-top:16px;border-radius:12px;padding:12px 14px;font-size:17px}
+  #msg.err{background:#3d1512;border:2px solid #b0452c;color:#f0a08c}
+  #msg.info{background:#20302d;border:1.5px solid #35514d;color:#cde}
+  .done{margin-top:22px;font-size:15px;color:#9fb5b0;display:none}
+</style></head>
+<body>
+  <h1>📱 צילום לטאבלט — אקו-דיפו</h1>
+  <div class="ctx" id="ctx">בודקת את הקישור…</div>
+
+  <button class="bigbtn" id="shootBtn" onclick="fileInput.click()" disabled>📷 צילום</button>
+  <input type="file" id="fileInput" accept="image/*" capture="environment" multiple hidden>
+
+  <div id="count"></div>
+  <div id="thumbs"></div>
+  <div id="msg"></div>
+  <div class="done" id="doneNote">כל תמונה עוברת לטאבלט מיד אחרי הצילום.<br>בסיום — פשוט סוגרים את הדף וממשיכים בטאבלט.</div>
+
+<script>
+var TOKEN=new URLSearchParams(location.search).get('t')||'';
+var fileInput=document.getElementById('fileInput');
+var TOTAL=0, MAXP=12;
+
+function msg(kind, text){
+  var m=document.getElementById('msg');
+  if(!text){ m.style.display='none'; return; }
+  m.className=kind; m.style.display='block'; m.textContent=text;
+}
+
+function setCount(){
+  var c=document.getElementById('count');
+  c.style.display=TOTAL?'block':'none';
+  c.textContent='✅ נשלחו '+TOTAL+' תמונות לטאבלט';
+}
+
+async function init(){
+  if(!TOKEN){ msg('err','הקישור חסר — סרקו שוב את הקוד מהטאבלט.'); return; }
+  var r;
+  try{ r=await fetch('/field/api/phone/'+encodeURIComponent(TOKEN)+'/info'); }
+  catch(e){ msg('err','אין קליטה כרגע — נסו לרענן את הדף.'); return; }
+  if(r.status===410){ msg('err','⌛ הקישור פג. חיזרו לטאבלט, פתחו שוב "צילום מהטלפון" וסרקו קוד חדש.'); return; }
+  if(!r.ok){ msg('err','הקישור לא מוכר — סרקו שוב את הקוד מהטאבלט.'); return; }
+  var d=await r.json();
+  TOTAL=d.uploaded||0; MAXP=d.max_photos||12;
+  document.getElementById('ctx').innerHTML=d.flow_heb+(d.tank?(' — מכל <b>'+d.tank+'</b>'):'');
+  document.getElementById('shootBtn').disabled=false;
+  document.getElementById('doneNote').style.display='block';
+  setCount();
+}
+
+fileInput.addEventListener('change', async function(ev){
+  var files=[].slice.call(ev.target.files);
+  ev.target.value='';
+  if(!files.length) return;
+  msg();
+  for(var i=0;i<files.length;i++){ await upload(files[i]); }
+});
+
+async function upload(f){
+  if(TOTAL>=MAXP){ msg('err','הגעתם למקסימום '+MAXP+' תמונות לאירוע.'); return; }
+  /* תמונה מופיעה מיד דהויה, ומתבהרת כשההעלאה הצליחה */
+  var img=document.createElement('img');
+  img.src=URL.createObjectURL(f); img.className='up';
+  document.getElementById('thumbs').appendChild(img);
+  var fd=new FormData();
+  fd.append('photo', f, f.name||'phone.jpg');
+  var r;
+  try{ r=await fetch('/field/api/phone/'+encodeURIComponent(TOKEN)+'/photos',{method:'POST',body:fd}); }
+  catch(e){ img.remove(); msg('err','אין קליטה — התמונה לא נשלחה. נסו שוב.'); return; }
+  if(r.status===410){ img.remove(); msg('err','⌛ הקישור פג. חיזרו לטאבלט וסרקו קוד חדש.'); return; }
+  if(!r.ok){ img.remove(); msg('err','התמונה לא נקלטה — נסו שוב.'); return; }
+  var d=await r.json();
+  if(d.added){ img.className=''; TOTAL=d.total; setCount(); }
+  else{ img.remove(); msg('err','התמונה לא נקלטה (גדולה מדי או שהושג המקסימום).'); }
+}
+
+init();
+</script>
+</body></html>

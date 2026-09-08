@@ -1039,3 +1039,37 @@ class FieldInstructions(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     data = db.Column(db.Text)                                  # JSON: {tank: {wash, ppe, ppe_level, material}}
     updated_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+
+class FieldPhoneLink(db.Model):
+    """צילום מהטלפון (אישור לימור 08/09/2026, שטיפה+תיקונים בלבד): הטאבלט מציג
+    QR חד-פעמי, הטלפון של העובד מעלה תמונות תחת הטוקן, הטאבלט מושך אותן לתוך
+    האירוע לפני השליחה — הגשר וכל ההמשך לא השתנו. הטוקן פג אחרי חצי שעה;
+    הרקע: לטאבלטים אין עדשה רחבה (אבחון 08/09) והעובדים צילמו בוואטסאפ."""
+    __tablename__ = "field_phone_links"
+
+    id = db.Column(db.Integer, primary_key=True)
+    token = db.Column(db.String(64), unique=True, nullable=False, index=True)
+    device_id = db.Column(db.Integer, db.ForeignKey("field_devices.id"), nullable=False)
+    flow = db.Column(db.String(20), nullable=False)            # wash / repairs בלבד
+    tank = db.Column(db.String(40))
+    created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+    expires_at = db.Column(db.DateTime, nullable=False, index=True)
+
+    photos = db.relationship("FieldPhonePhoto", backref="link",
+                             cascade="all, delete-orphan")
+
+
+class FieldPhonePhoto(db.Model):
+    """תמונה שהועלתה מטלפון תחת קישור-צילום; מוחזקת זמנית עד שהטאבלט מושך
+    אותה לאירוע (או עד ניקוי הקישורים שפגו)."""
+    __tablename__ = "field_phone_photos"
+
+    id = db.Column(db.Integer, primary_key=True)
+    link_id = db.Column(db.Integer, db.ForeignKey("field_phone_links.id"),
+                        nullable=False, index=True)
+    filename = db.Column(db.String(200))
+    mime = db.Column(db.String(100))
+    data = db.Column(db.LargeBinary)
+    size = db.Column(db.Integer)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)

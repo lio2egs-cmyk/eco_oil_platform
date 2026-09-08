@@ -17,13 +17,14 @@ Auth:
 import json
 import os
 import secrets
-from datetime import datetime
+from datetime import datetime, timedelta
 from functools import wraps
 
 from flask import Blueprint, request, jsonify
 from flask_jwt_extended import jwt_required, get_jwt
 
-from .db import db, FieldDevice, FieldEvent, FieldPhoto, FieldOnsiteAsset, FieldBoard, FieldInstructions
+from .db import (db, FieldDevice, FieldEvent, FieldPhoto, FieldOnsiteAsset,
+                 FieldBoard, FieldInstructions, FieldPhoneLink, FieldPhonePhoto)
 
 field = Blueprint("field", __name__, url_prefix="/field/api")
 
@@ -303,6 +304,132 @@ def bridge_ack():
         done += 1
     db.session.commit()
     return jsonify({"ok": True, "updated": done})
+
+
+# -------------------------------------------- phone-photo handoff (08/09/2026)
+# אישור לימור: צילום מהטלפון בשטיפה ותיקונים בלבד (לא כניסה/יציאה). הטאבלט
+# יוצר קישור-צילום ומציג QR; הטלפון מעלה תמונות תחת הטוקן בלי שום התחברות;
+# הטאבלט מושך אותן לתוך האירוע לפני השליחה — הגשר והתיוק לא השתנו.
+PHONE_FLOWS = {"wash", "repairs"}
+PHONE_LINK_TTL_MIN = 30
+PHONE_FLOW_HEB = {"wash": "🧼 שטיפה", "repairs": "🔧 תיקונים"}
+
+
+def _phone_link(token):
+    if not token:
+        return None
+    return FieldPhoneLink.query.filter_by(token=token).first()
+
+
+@field.route("/phone-link", methods=["POST"])
+@device_required
+def create_phone_link(device):
+    data = request.get_json(silent=True) or {}
+    flow = data.get("flow")
+    if flow not in PHONE_FLOWS:
+        return jsonify({"error": "phone photos allowed for wash/repairs only"}), 400
+    # ניקוי הזדמנותי: קישורים שפג תוקפם מעל שעתיים נמחקים (כולל התמונות)
+    cutoff = datetime.utcnow() - timedelta(hours=2)
+    for old in FieldPhoneLink.query.filter(FieldPhoneLink.expires_at < cutoff).all():
+        db.session.delete(old)
+    link = FieldPhoneLink(
+        token=secrets.token_urlsafe(24),
+        device_id=device.id,
+        flow=flow,
+        tank=(data.get("tank") or "").strip().upper()[:MAX_TANK_LEN] or None,
+        expires_at=datetime.utcnow() + timedelta(minutes=PHONE_LINK_TTL_MIN),
+    )
+    db.session.add(link)
+    db.session.commit()
+    scheme = "https" if "localhost" not in request.host and "127.0.0.1" not in request.host else "http"
+    return jsonify({"token": link.token,
+                    "url": f"{scheme}://{request.host}/phone-cam?t={link.token}",
+                    "expires_at": link.expires_at.isoformat()}), 201
+
+
+@field.route("/phone-link/<token>/qr.svg", methods=["GET"])
+@device_required
+def phone_link_qr(device, token):
+    link = _phone_link(token)
+    if link is None:
+        return jsonify({"error": "not found"}), 404
+    import qrcode
+    import qrcode.image.svg
+    scheme = "https" if "localhost" not in request.host and "127.0.0.1" not in request.host else "http"
+    url = f"{scheme}://{request.host}/phone-cam?t={link.token}"
+    img = qrcode.make(url, image_factory=qrcode.image.svg.SvgPathImage,
+                      box_size=14, border=2)
+    return img.to_string(), 200, {"Content-Type": "image/svg+xml"}
+
+
+@field.route("/phone-link/<token>/photos", methods=["GET"])
+@device_required
+def phone_link_photos(device, token):
+    """הטאבלט סוקר: אילו תמונות הגיעו מהטלפון תחת הקישור."""
+    link = _phone_link(token)
+    if link is None:
+        return jsonify({"error": "not found"}), 404
+    return jsonify({
+        "expired": link.expires_at < datetime.utcnow(),
+        "photos": [{"id": p.id, "filename": p.filename, "size": p.size}
+                   for p in link.photos]})
+
+
+@field.route("/phone-link/<token>/photo/<int:photo_id>", methods=["GET"])
+@device_required
+def phone_link_photo(device, token, photo_id):
+    link = _phone_link(token)
+    p = db.session.get(FieldPhonePhoto, photo_id)
+    if link is None or p is None or p.link_id != link.id or p.data is None:
+        return jsonify({"error": "not found"}), 404
+    return p.data, 200, {"Content-Type": p.mime or "image/jpeg"}
+
+
+# --- הצד של הטלפון: טוקן בלבד, בלי שום התחברות ---
+@field.route("/phone/<token>/info", methods=["GET"])
+def phone_info(token):
+    link = _phone_link(token)
+    if link is None:
+        return jsonify({"error": "not found"}), 404
+    if link.expires_at < datetime.utcnow():
+        return jsonify({"error": "expired"}), 410
+    return jsonify({
+        "flow": link.flow,
+        "flow_heb": PHONE_FLOW_HEB.get(link.flow, link.flow),
+        "tank": link.tank or "",
+        "uploaded": len(link.photos),
+        "max_photos": MAX_PHOTOS_PER_EVENT,
+        "seconds_left": int((link.expires_at - datetime.utcnow()).total_seconds()),
+    })
+
+
+@field.route("/phone/<token>/photos", methods=["POST"])
+def phone_upload(token):
+    link = _phone_link(token)
+    if link is None:
+        return jsonify({"error": "not found"}), 404
+    if link.expires_at < datetime.utcnow():
+        return jsonify({"error": "expired"}), 410
+    existing = len(link.photos)
+    added, rejected = 0, 0
+    for f in request.files.values():
+        if existing + added >= MAX_PHOTOS_PER_EVENT:
+            rejected += 1
+            continue
+        blob = f.read(MAX_PHOTO_BYTES + 1)
+        if not blob or len(blob) > MAX_PHOTO_BYTES:
+            rejected += 1
+            continue
+        db.session.add(FieldPhonePhoto(
+            link_id=link.id,
+            filename=(f.filename or f"phone{existing + added}.jpg")[:200],
+            mime=f.mimetype or "image/jpeg",
+            data=blob, size=len(blob)))
+        added += 1
+    db.session.commit()
+    return jsonify({"ok": True, "added": added, "rejected": rejected,
+                    "total": existing + added,
+                    "max_photos": MAX_PHOTOS_PER_EVENT}), 201
 
 
 @field.route("/instructions", methods=["GET"])

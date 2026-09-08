@@ -102,6 +102,9 @@
          היפוך לסלפי — חיוני לצילום דיסקיות תחתית ופנים מכל חשוך). הקלט הקבצי = גיבוי
          למקרה שאין הרשאת מצלמה בלבד. -->
     <button class="btn" id="camBtn" onclick="openCam()">📷 צילום</button>
+    <!-- צילום מהטלפון (אישור לימור 08/09): לטאבלט אין עדשה רחבה (אבחון) — בשטיפה
+         ותיקונים בלבד סורקים QR והתמונות מהטלפון נכנסות לאותו אירוע -->
+    <button class="btn hidden" id="phoneBtn" style="background:#455a64;" onclick="openPhonePanel()">📱 צילום מהטלפון</button>
     <input type="file" id="fileInput" accept="image/*" class="hidden" multiple>
     <div class="photos" id="thumbs"></div>
     <div id="treatWrap" class="hidden">
@@ -192,6 +195,16 @@
   </div>
 </div>
 
+<!-- צילום מהטלפון — פאנל ה-QR (אישור לימור 08/09, שטיפה+תיקונים בלבד) -->
+<div id="phonePanel" style="display:none; position:fixed; inset:0; background:#161b1a; z-index:55; flex-direction:column; align-items:center; justify-content:center; padding:20px; text-align:center;">
+  <b style="color:#8fd3cb; font-size:24px;">📱 צילום מהטלפון</b>
+  <div style="color:#ddd; font-size:19px; margin-top:8px;">סרקו את הקוד עם מצלמת הטלפון — ייפתח דף צילום.<br>כל תמונה שתצלמו בטלפון תופיע כאן מיד.</div>
+  <div id="phoneQrBox" style="background:#fff; border-radius:16px; padding:14px; margin-top:16px; width:min(62vw,340px);"></div>
+  <div id="phoneStatus" style="color:#8fe6ae; font-size:22px; font-weight:bold; margin-top:14px; min-height:32px;"></div>
+  <div id="phoneErr" style="display:none; color:#f0a08c; font-size:18px; margin-top:8px;"></div>
+  <button class="btn" style="width:min(80vw,420px); background:#1d8a3a; margin-top:18px;" onclick="closePhonePanel()">✔ סיום — חזרה לדיווח</button>
+</div>
+
 <!-- דף אירוע (דאמוני 22/07): לחיצה על שורה ברשימת האירועים — פרטי הדיווח + התמונות -->
 <div id="evPanel" style="display:none; position:fixed; inset:0; background:#fff; z-index:60; overflow-y:auto; padding:14px;">
   <div style="display:flex; justify-content:space-between; align-items:center; gap:8px;">
@@ -233,11 +246,14 @@ function show(id) {
   // רשימת האירועים מלווה את מסך הבית וגם את מסכי הפעולה (דאמוני 22/07)
   document.getElementById("queueCard").classList.toggle("hidden", !(id === "home" || id === "flow"));
 }
-function goHome() { closeCam(); show("home"); renderQueue(); }
+function goHome() { closeCam(); closePhonePanel(); resetPhoneLink(); show("home"); renderQueue(); }
 
 // ---------- מסך אירוע ----------
 function startFlow(t) {
   flowType = t; photos = [];
+  resetPhoneLink();   // אירוע חדש = קישור-צילום חדש (אם ישתמשו)
+  // צילום מהטלפון — בשטיפה ותיקונים בלבד (הכרעת לימור 08/09)
+  document.getElementById("phoneBtn").classList.toggle("hidden", !(t === "wash" || t === "repairs"));
   document.getElementById("thumbs").innerHTML = "";
   document.getElementById("tankManual").value = "";
   document.getElementById("tankHint").classList.add("hidden");
@@ -727,6 +743,87 @@ async function loadBoard() {
     const cached = localStorage.getItem("board_json");
     renderBoard(cached ? JSON.parse(cached) : null, true);
   }
+}
+
+// ---------- צילום מהטלפון (אישור לימור 08/09 — שטיפה ותיקונים בלבד) ----------
+// הטאבלט יוצר קישור-צילום ומציג QR; הטלפון מעלה תמונות תחת הטוקן; הטאבלט
+// מושך כל תמונה חדשה לתוך photos[] — מכאן והלאה הכול כרגיל (שליחה, גשר, תיוק).
+let phoneLink = null, phoneSeen = new Set(), phonePollId = null;
+
+function resetPhoneLink() { phoneLink = null; phoneSeen = new Set(); stopPhonePoll(); }
+function stopPhonePoll() { if (phonePollId) { clearInterval(phonePollId); phonePollId = null; } }
+
+async function openPhonePanel() {
+  document.getElementById("phoneErr").style.display = "none";
+  document.getElementById("phonePanel").style.display = "flex";
+  try {
+    // קישור אחד לכל האירוע: פתיחה חוזרת ממשיכה את אותו קוד (שהטלפון כבר סרק)
+    if (!phoneLink) {
+      const tank = selectedTank || document.getElementById("tankManual").value.trim();
+      const r = await fetch(`${API}/field/api/phone-link`, {method: "POST",
+        headers: {Authorization: "Bearer " + token(), "Content-Type": "application/json"},
+        body: JSON.stringify({flow: flowType, tank})});
+      if (!r.ok) throw new Error("link");
+      phoneLink = await r.json();
+      const qr = await fetch(`${API}/field/api/phone-link/${phoneLink.token}/qr.svg`,
+        {headers: {Authorization: "Bearer " + token()}});
+      if (!qr.ok) throw new Error("qr");
+      document.getElementById("phoneQrBox").innerHTML = await qr.text();
+      const svg = document.getElementById("phoneQrBox").querySelector("svg");
+      if (svg) { svg.style.width = "100%"; svg.style.height = "auto"; }
+    }
+    phoneCount();
+    stopPhonePoll();
+    phonePollId = setInterval(pollPhonePhotos, 3000);
+    pollPhonePhotos();
+  } catch (e) {
+    phoneFail("לא הצלחנו להכין את הקוד — בדקו קליטה ונסו שוב.");
+  }
+}
+
+function phoneFail(msg) {
+  const e = document.getElementById("phoneErr");
+  e.style.display = "block"; e.textContent = msg;
+}
+
+function phoneCount() {
+  const n = phoneSeen.size;
+  document.getElementById("phoneStatus").textContent =
+    n ? `✅ התקבלו ${n} תמונות מהטלפון` : "ממתינים לתמונות מהטלפון…";
+}
+
+async function pollPhonePhotos() {
+  if (!phoneLink) return;
+  try {
+    const r = await fetch(`${API}/field/api/phone-link/${phoneLink.token}/photos`,
+      {headers: {Authorization: "Bearer " + token()}});
+    if (!r.ok) return;
+    const d = await r.json();
+    if (d.expired && !phoneSeen.size) {
+      // הקוד פג לפני שצולם משהו — מכינים קוד חדש אוטומטית
+      resetPhoneLink();
+      document.getElementById("phonePanel").style.display = "none";
+      openPhonePanel();
+      return;
+    }
+    for (const p of d.photos || []) {
+      if (phoneSeen.has(p.id)) continue;
+      phoneSeen.add(p.id);
+      const pr = await fetch(`${API}/field/api/phone-link/${phoneLink.token}/photo/${p.id}`,
+        {headers: {Authorization: "Bearer " + token()}});
+      if (!pr.ok) { phoneSeen.delete(p.id); continue; }
+      const blob = await pr.blob();
+      const f = new File([blob], p.filename || ("phone_" + p.id + ".jpg"),
+                         {type: blob.type || "image/jpeg"});
+      photos.push(f); addThumb(f); updateCamCount();
+    }
+    phoneCount();
+  } catch (e) { /* אין קליטה — הסבב הבא ינסה שוב */ }
+}
+
+function closePhonePanel() {
+  stopPhonePoll();
+  document.getElementById("phonePanel").style.display = "none";
 }
 
 // ---------- מצלמה פנימית — חוויית מצלמה מלאה: זום בצביטה, פלאש, היפוך (דאמוני 22/07) ----------
