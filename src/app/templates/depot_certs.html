@@ -1,7 +1,7 @@
 <!doctype html>
 <html lang="he" dir="rtl"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>תעודות שטיפה — {{ brand }}</title>
+<title>ארכיון התעודות — {{ brand }}</title>
 <link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@400;500;600;700&family=Rubik:wght@300;400;500;600;700&display=swap" rel="stylesheet">
 <style>
   :root{--bg:#EDE8DC;--teal:#5B9E96;--teal-dark:#4a8a82;--navy:#2F5F59;--fh:'Fredoka',sans-serif;--fb:'Rubik',sans-serif;}
@@ -30,8 +30,8 @@
 </style></head>
 <body>
   <div class="card">
-    <h1>תעודות השטיפה שלנו</h1>
-    <div class="sub">כל תעודות השטיפה של המכלים שלכם, זמינות לצפייה ולהורדה בכל רגע — במקום לחכות למייל.</div>
+    <h1>📚 ארכיון התעודות</h1>
+    <div class="sub">כל תעודות השטיפה שהופקו למכלים שלכם — כולל מכלים שכבר שוחררו — זמינות לצפייה ולהורדה בכל רגע.</div>
     <div class="who">שלום, <b id="whoName">…</b></div>
     <div class="preview" id="previewBox">👁 תצוגת מנהלת — כך נראה המסך אצל: <b id="previewName"></b></div>
 
@@ -81,6 +81,9 @@ async function api(url, opts){
 
 /* מבט-מנהלת (?client_id=) — הלקח מ-17/08: המסך נצפה בעיני הלקוח מהשרת */
 var CLIENT_ID=new URLSearchParams(location.search).get('client_id')||'';
+/* הגעה מציר-הזמן במסך הנכסים — הארכיון נפתח מסונן מראש על המכל */
+var TANK_Q=new URLSearchParams(location.search).get('tank')||'';
+if(TANK_Q){ document.getElementById('q').value=TANK_Q; }
 var CERTS=[];
 var MONTHS=['','ינואר','פברואר','מרץ','אפריל','מאי','יוני','יולי','אוגוסט','ספטמבר','אוקטובר','נובמבר','דצמבר'];
 

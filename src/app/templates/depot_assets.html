@@ -77,6 +77,8 @@
   .tl-dot{position:absolute;inset-inline-start:-31px;top:5px;width:13px;height:13px;border-radius:50%;background:#fff;border:3px solid var(--teal)}
   .tl-item.now .tl-dot{background:var(--teal)}
   .tl-when{color:#777;font-size:12.5px;margin-inline-start:8px}
+  .tl-arch{display:inline-block;margin-top:10px;font-size:13px;color:var(--teal-dark);border:1.5px solid var(--teal);border-radius:8px;background:#fff;padding:4px 12px;text-decoration:none}
+  .tl-arch:hover{background:#EDF3F2}
 </style></head>
 <body>
   <div class="card">
@@ -108,7 +110,7 @@
     <div class="tblwrap">
       <table id="tbl" style="display:none">
         <thead><tr>
-          <th>מספר מכל</th><th>חומר אחרון</th><th>הגיע אלינו</th><th>מצב</th><th>פעולות</th>
+          <th>מספר מכל</th><th>חומר אחרון</th><th>הגיע אלינו</th><th>מצב</th><th>תעודה</th><th>פעולות</th>
         </tr></thead>
         <tbody id="rows"></tbody>
       </table>
@@ -278,10 +280,14 @@ function renderRows(){
     var tr=document.createElement('tr');
     tr.className='asset';
     tr.onclick=function(){ toggleTl(tr,'tl_'+idx); };
+    var certCell=a.cert_id
+      ? '<button class="act" title="הורדת תעודת השטיפה" onclick="openCert('+a.cert_id+',\'save\',event)">📄</button>'
+      : '<span class="muted">—</span>';
     tr.innerHTML='<td><span class="arrow">▶</span><span class="tank">'+esc(a.tank)+'</span></td>'+
       '<td>'+esc(a.material||'—')+'</td>'+
       '<td>'+(a.arrival_date||'—')+'</td>'+
       '<td><span class="'+stClass(a.status)+'">'+esc(a.status)+'</span></td>'+
+      '<td>'+certCell+'</td>'+
       '<td>'+acts+'</td>';
     tb.appendChild(tr);
 
@@ -295,10 +301,13 @@ function renderRows(){
         (EV_ICON[t.kind]||(t.kind==='now'?'📦':'')||'')+' <b>'+esc(t.label)+'</b>'+
         (when?('<span class="tl-when">'+when+'</span>'):'')+extra+'</div>';
     });
+    var archUrl='/depot/certificates?tank='+encodeURIComponent(a.tank)+
+      (CLIENT_ID?('&client_id='+CLIENT_ID):'');
     var tlr=document.createElement('tr');
     tlr.className='tl-row'; tlr.id='tl_'+idx;
-    tlr.innerHTML='<td colspan="5"><div class="tl-title">📜 מה עבר על המכל אצלנו</div>'+
-      '<div class="tl">'+items+'</div></td>';
+    tlr.innerHTML='<td colspan="6"><div class="tl-title">📜 מה עבר על המכל אצלנו</div>'+
+      '<div class="tl">'+items+'</div>'+
+      '<a class="tl-arch" href="'+archUrl+'" onclick="event.stopPropagation()">📚 לכל התעודות של המכל — ארכיון התעודות</a></td>';
     tb.appendChild(tlr);
   });
   document.getElementById('tbl').style.display=list.length?'table':'none';

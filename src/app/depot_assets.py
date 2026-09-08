@@ -97,6 +97,9 @@ def _asset_dict(a, open_req, certs=None):
         # ציר הזמן של הנכס (המסך המשולב — אישור יואב 04/09/2026)
         "timeline": _timeline(a, open_req, certs or []),
     }
+    # עמודת 📄 בטבלה — תעודת השטיפה האחרונה של הביקור (החבילה המלאה, 08/09)
+    if certs:
+        d["cert_id"] = certs[-1].id
     if open_req is not None:
         d["request"] = {
             "action": open_req.action,
