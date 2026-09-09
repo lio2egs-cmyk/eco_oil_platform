@@ -49,7 +49,20 @@ def verify_page():
 
 @web.route("/portal")
 def portal_home():
-    return render_template("portal_placeholder.html", **_brand_for_host())
+    """עמוד הבית. בתצוגת-מנהלת (?client_id=) המיתוג והחטיבה נקבעים לפי הלקוח
+    המוצג ולא לפי הכתובת — צוות הדיפו שנכנס דרך portal. ראה עמוד בית של
+    אקו-אויל במקום את הבית של טנקו (יואב, 09/09/2026). זהו HTML בלבד;
+    הנתונים עדיין דורשים טוקן ומסוננים בשרת."""
+    brand = _brand_for_host()
+    cid = request.args.get("client_id", type=int)
+    if cid:
+        from .db import db, Client
+        c = db.session.get(Client, cid)
+        if c is not None and c.division == "eco_depot":
+            brand = dict(division="eco_depot", brand="אקו-דיפו", logo="logo_eco_depot.png")
+        elif c is not None:
+            brand = dict(division="eco_oil", brand="אקו-אויל", logo="logo_eco_oil.png")
+    return render_template("portal_placeholder.html", **brand)
 
 
 @web.route("/documents")

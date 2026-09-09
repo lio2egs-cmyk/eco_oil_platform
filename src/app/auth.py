@@ -166,7 +166,13 @@ def _send_magic_link_email(user: User, raw_token: str) -> None:
     If neither is available or the send fails, the link is logged (dev fallback)
     so nothing is lost and local testing still works.
     """
-    division = user.client.division if user.client else "eco_oil"
+    # צוות הדיפו (depot_admin) אין לו כרטיס לקוח, ועד 09/09 נפל לברירת המחדל
+    # אקו-אויל — הקישור הוביל ל-portal. במקום depot., ומשם "עמוד הבית כפי
+    # שהלקוח רואה" הציג דף אויל (יואב/יעל, 09/09).
+    if user.role in STAFF_ROLES:
+        division = "eco_depot"
+    else:
+        division = user.client.division if user.client else "eco_oil"
     brand = _brand_name_for_division(division)
     link = _build_magic_link_url(raw_token, division)
 
