@@ -22,10 +22,10 @@ from .db import db, Client, DepotDailyReport
 from .depot_certs import _norm
 from .depot_portal import _depot_client_for_request
 from .ecooil_bridge import ecooil_bridge_required
+from .file_gate import signed_file_url, storage_configured
 
 depot_daily = Blueprint("depot_daily", __name__)
 
-PRESIGN_SECONDS = 300
 LIST_LIMIT = 30
 XLSX_MIME = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
 
@@ -89,29 +89,12 @@ def download_daily_report(report_id):
     r = db.session.get(DepotDailyReport, report_id)
     if r is None or r.folder not in _client_folders(client):
         return jsonify(error="not found"), 404
-    for var in ("B2_KEY_ID", "B2_APP_KEY", "B2_BUCKET_CERTS", "B2_ENDPOINT"):
-        if not os.environ.get(var):
-            return jsonify(error="storage not configured"), 503
-    import boto3
-    from botocore.config import Config
-    s3 = boto3.client(
-        "s3", endpoint_url=f"https://{os.environ['B2_ENDPOINT']}",
-        aws_access_key_id=os.environ["B2_KEY_ID"],
-        aws_secret_access_key=os.environ["B2_APP_KEY"],
-        config=Config(signature_version="s3v4"),
-    )
-    from urllib.parse import quote
-    fname = quote(r.file_name)
-    # תמיד הורדה (attachment) — הקובץ מיועד לטעינה לפריוריטי, לא לצפייה בדפדפן
-    url = s3.generate_presigned_url(
-        "get_object",
-        Params={"Bucket": os.environ["B2_BUCKET_CERTS"], "Key": r.b2_key,
-                "ResponseContentType": XLSX_MIME,
-                "ResponseContentDisposition":
-                    f"attachment; filename*=UTF-8''{fname}"},
-        ExpiresIn=PRESIGN_SECONDS,
-    )
-    return jsonify({"url": url})
+    if not storage_configured():
+        return jsonify(error="storage not configured"), 503
+    # תמיד הורדה (attachment) — הקובץ מיועד לטעינה לפריוריטי, לא לצפייה בדפדפן.
+    # 09/09 (ישקר): הקישור על הדומיין שלנו, לא ישירות לאחסון — file_gate.
+    return jsonify({"url": signed_file_url(r.b2_key, r.file_name, "attachment",
+                                           content_type=XLSX_MIME)})
 
 
 # ------------------------------------------------------------ bridge side

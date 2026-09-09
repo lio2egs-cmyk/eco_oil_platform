@@ -4,8 +4,9 @@
 Scoping (Limor's ruling 2026-07-13): an account sees rows where THEY are the
 billed party (חיוב); an end-customer login (on request) sees rows where they
 are the לקוח (source). Mode picked automatically: billed rows exist → billed
-view; otherwise source view. Downloads are served as short-lived presigned B2
-URLs — the bucket stays private.
+view; otherwise source view. Downloads are served as short-lived signed links
+on OUR domain (file_gate streams from B2) — the bucket stays private and its
+hostname never reaches a customer's browser (ISCAR web-filter case, 09/09).
 """
 import os
 import re
@@ -15,10 +16,10 @@ from flask_jwt_extended import jwt_required, get_jwt, get_jwt_identity
 from sqlalchemy import and_, func, not_, or_
 
 from .db import db, Client, User, EcoOilUnloadEvent, EcoOilFilingRuling
+from .file_gate import signed_file_url, storage_configured
 
 ecooil_docs = Blueprint("ecooil_docs", __name__, url_prefix="/eco-oil")
 
-PRESIGN_SECONDS = 300
 
 # doc_status values that withhold the filed documents from the customer
 # (Limor's ריכוז column "הערות למערכת פורטל", 30/07/2026):
@@ -1313,32 +1314,15 @@ def download(event_id):
     key = ev.manifest_key if request.args.get("doc") == "manifest" else ev.pdf_key
     if not key:
         return jsonify({"error": "no file"}), 404
-    for var in ("B2_KEY_ID", "B2_APP_KEY", "B2_BUCKET_CERTS", "B2_ENDPOINT"):
-        if not os.environ.get(var):
-            return jsonify({"error": "storage not configured"}), 503
-    import boto3
-    from botocore.config import Config
-    s3 = boto3.client(
-        "s3", endpoint_url=f"https://{os.environ['B2_ENDPOINT']}",
-        aws_access_key_id=os.environ["B2_KEY_ID"],
-        aws_secret_access_key=os.environ["B2_APP_KEY"],
-        config=Config(signature_version="s3v4"),
-    )
-    from urllib.parse import quote
-    fname = quote(key.rsplit("/", 1)[-1])
+    if not storage_configured():
+        return jsonify({"error": "storage not configured"}), 503
     # צפייה מול הורדה (לימור 18/08): עד היום כל לחיצה החזירה attachment,
     # ולכן כל פתיחה של מסמך גם הורידה אותו בשקט — לקוח על הקו צבר עשרה
     # קבצים בלי לדעת. ההורדה חייבת להיות בחירה מודעת, ולכן ?mode=view
     # מגיש את הקובץ לצפייה בלבד.
+    # 09/09 (ישקר): הקישור הוא על הדומיין שלנו, לא ישירות לאחסון — file_gate.
     disp = "inline" if request.args.get("mode") == "view" else "attachment"
-    url = s3.generate_presigned_url(
-        "get_object",
-        Params={"Bucket": os.environ["B2_BUCKET_CERTS"], "Key": key,
-                "ResponseContentDisposition":
-                    f"{disp}; filename*=UTF-8''{fname}"},
-        ExpiresIn=PRESIGN_SECONDS,
-    )
-    return jsonify({"url": url})
+    return jsonify({"url": signed_file_url(key, key.rsplit("/", 1)[-1], disp)})
 
 
 # תקרת ההורדה המרוכזת — מגן על השרת; הסינון לחודש אחד רחוק מלהגיע אליה.
