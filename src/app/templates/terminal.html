@@ -47,6 +47,8 @@
 
 <!-- מסך הבית -->
 <div id="home" class="hidden">
+  <!-- תור הטיפול (לימור 10/09/2026): הודעות מהמשרד — צלמו שוב / בבירור במשרד / להחזיר לנהג -->
+  <div id="notices"></div>
   <button class="btn" onclick="startFlow('entry')">📥 כניסה</button>
   <button class="btn" onclick="startFlow('wash')">🧼 שטיפה</button>
   <button class="btn" onclick="startFlow('exit')">📤 יציאה</button>
@@ -1007,6 +1009,7 @@ async function submitEvent() {
     tank_number: (tank || "").trim().toUpperCase(),
     event_at: localIso(),   // שעון מקומי! toISOString = UTC וגרם להזחת 3 שעות (לקח פיילוט 16/07)
     payload: {treatments, not_listed: unlistedMode, not_expected: notExpected,
+              supersedes: superseding,   // צילום חוזר: מזהה הדיווח הישן שהתמונה שלו לא הייתה קריאה
               vacuum_test: flowType === "wash" && at === "iso" && document.getElementById("vacuumChk").checked,
               pump: flowType === "wash" && at === "rt" && document.getElementById("pumpChk").checked,
               voc_ppm: flowType === "wash" ? (document.getElementById("vocInput").value.trim() || null) : null,
@@ -1019,8 +1022,54 @@ async function submitEvent() {
     state: "queued", ts: Date.now(),
   };
   await idbPut(item);
+  superseding = null;
   goHome();
   pump();
+}
+
+// ---------- הודעות מהמשרד (תור הטיפול, לימור 10/09/2026) ----------
+// הגשר דוחף לענן רשימת הודעות; הטאבלט מקבל רק את שלו (לפי מכשיר) ומציג פס בראש מסך הבית.
+//   rephoto        — "תמונה לא קריאה": לוחצים "צלמו שוב" → מסך כניסה, והדיווח החדש מחליף את הישן.
+//   investigating  — "בבירור במשרד": מידע בלבד, לא להזיז את הנכס.
+//   return_driver  — "להחזיר לנהג": העובד לוחץ "בוצע" (נעלם מהטאבלט הזה בלבד).
+let superseding = null;
+const NOTICE_DISMISS_KEY = "notice_dismissed";
+function dismissedNotices() { try { return JSON.parse(localStorage.getItem(NOTICE_DISMISS_KEY) || "{}"); } catch (e) { return {}; } }
+function dismissNotice(id) {
+  const d = dismissedNotices(); d[id] = Date.now();
+  localStorage.setItem(NOTICE_DISMISS_KEY, JSON.stringify(d));
+  loadNotices();
+}
+function rephotoFrom(eventId, tank) {
+  superseding = eventId;
+  startFlow("entry");
+  document.getElementById("flowTitle").textContent = "📥 כניסה — צילום חוזר" + (tank ? " " + tank : "");
+}
+function renderNotices(list) {
+  const el = document.getElementById("notices");
+  if (!el) return;
+  const dis = dismissedNotices();
+  const rows = (list || []).filter(n => !dis[n.id]);
+  if (!rows.length) { el.innerHTML = ""; return; }
+  el.innerHTML = rows.map(n => {
+    const bg = n.kind === "rephoto" ? "#c62828" : n.kind === "return_driver" ? "#e65100" : "#8a6d00";
+    let btn = "";
+    if (n.kind === "rephoto") btn = `<button class="btn" style="background:#fff; color:#c62828; margin-top:8px;" onclick="rephotoFrom(${n.event_id}, '${esc(n.tank || "")}')">📷 צלמו שוב</button>`;
+    else if (n.kind === "return_driver") btn = `<button class="btn" style="background:#fff; color:#e65100; margin-top:8px;" onclick="dismissNotice('${esc(n.id)}')">✓ בוצע</button>`;
+    return `<div class="card" style="background:${bg}; color:#fff; font-size:18px; font-weight:bold;">${esc(n.text)}${btn}</div>`;
+  }).join("");
+}
+async function loadNotices() {
+  if (!token()) return;
+  try {
+    const r = await fetch(`${API}/field/api/notices`, {headers: {Authorization: "Bearer " + token()}});
+    if (!r.ok) return;
+    const d = await r.json();
+    localStorage.setItem("notices_json", JSON.stringify(d.notices || []));
+    renderNotices(d.notices || []);
+  } catch (e) {
+    try { renderNotices(JSON.parse(localStorage.getItem("notices_json") || "[]")); } catch (e2) {}
+  }
 }
 
 // ---------- משאבת שליחה: מנסה כל הזמן, שורדת חוסר קליטה ----------
@@ -1160,6 +1209,7 @@ idbReady.then(async () => {
   } else if (FLOW_TITLES[FLOW_PARAM]) {
     startFlow(FLOW_PARAM);
   }
+  if (!BOARD_KIND) { loadNotices(); setInterval(loadNotices, 30000); }
   pump(); pollStatus(); cleanupOld();
   setInterval(pump, 15000);
   setInterval(pollStatus, 20000);

@@ -24,7 +24,7 @@ from flask import Blueprint, request, jsonify
 from flask_jwt_extended import jwt_required, get_jwt
 
 from .db import (db, FieldDevice, FieldEvent, FieldPhoto, FieldOnsiteAsset,
-                 FieldBoard, FieldInstructions, FieldPhoneLink, FieldPhonePhoto)
+                 FieldBoard, FieldInstructions, FieldNotices, FieldPhoneLink, FieldPhonePhoto)
 
 field = Blueprint("field", __name__, url_prefix="/field/api")
 
@@ -259,6 +259,7 @@ def bridge_pending():
         r.status = "fetched"
         out.append({
             "id": r.id, "client_uuid": r.client_uuid, "worker_name": r.worker_name,
+            "device_id": r.device_id,
             "event_type": r.event_type, "asset_type": r.asset_type,
             "tank_number": r.tank_number, "event_at": r.event_at.isoformat(),
             "payload": json.loads(r.payload or "{}"),
@@ -304,6 +305,41 @@ def bridge_ack():
         done += 1
     db.session.commit()
     return jsonify({"ok": True, "updated": done})
+
+
+# ------------------------------------------------ office → tablet notices (10/09/2026)
+# תור הטיפול (לימור): "תמונה לא קריאה" → דרישה לצלם שוב בטאבלט שדיווח; "בבירור במשרד";
+# "להחזיר לנהג". הגשר דוחף את הרשימה המלאה בכל סבב; הטאבלט שואל ומקבל רק את שלו.
+@field.route("/bridge/notices", methods=["POST"])
+@bridge_required
+def bridge_notices():
+    data = request.get_json(silent=True) or {}
+    notices = data.get("notices")
+    if not isinstance(notices, list):
+        return jsonify({"error": "notices list required"}), 400
+    b = db.session.get(FieldNotices, 1)
+    if b is None:
+        b = FieldNotices(id=1)
+        db.session.add(b)
+    b.data = json.dumps(notices, ensure_ascii=False)
+    b.updated_at = datetime.utcnow()
+    db.session.commit()
+    return jsonify({"ok": True, "count": len(notices)})
+
+
+@field.route("/notices", methods=["GET"])
+@device_required
+def get_notices(device):
+    b = db.session.get(FieldNotices, 1)
+    items = []
+    if b is not None and b.data:
+        try:
+            items = json.loads(b.data)
+        except ValueError:
+            items = []
+    mine = [n for n in items if n.get("device_id") in (None, device.id)]
+    return jsonify({"notices": mine, "device_id": device.id, "worker_name": device.worker_name,
+                    "updated_at": b.updated_at.isoformat() if b is not None and b.updated_at else None})
 
 
 # -------------------------------------------- phone-photo handoff (08/09/2026)

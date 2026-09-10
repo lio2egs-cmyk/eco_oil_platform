@@ -1059,6 +1059,18 @@ class FieldInstructions(db.Model):
     updated_at = db.Column(db.DateTime, default=datetime.utcnow)
 
 
+class FieldNotices(db.Model):
+    """Office → tablet notices (תור הטיפול, Limor 10/09/2026): re-photo requests,
+    "under investigation at the office", "return to driver". Single row, JSON list,
+    replaced wholesale by the bridge every cycle (same pattern as FieldBoard).
+    Each notice: {id, kind, tank, text, device_id|null, event_id, since}."""
+    __tablename__ = "field_notices"
+
+    id = db.Column(db.Integer, primary_key=True)
+    data = db.Column(db.Text)                                  # JSON list
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+
 class FieldPhoneLink(db.Model):
     """צילום מהטלפון (אישור לימור 08/09/2026, שטיפה+תיקונים בלבד): הטאבלט מציג
     QR חד-פעמי, הטלפון של העובד מעלה תמונות תחת הטוקן, הטאבלט מושך אותן לתוך
