@@ -17,6 +17,8 @@
   label{display:block;font-weight:600;font-size:15px;color:#333}
   .must::after{content:" *";color:#B23B32;font-weight:700}
   .hint{font-size:12.5px;color:#777;margin-top:2px}
+  .chk{display:flex;align-items:center;gap:8px;font-size:14px;font-weight:600;cursor:pointer}
+  .chk input{width:18px;height:18px;margin:0}
   input[type=text],input[type=date],input[type=tel],select,textarea{width:100%;margin-top:6px;padding:11px 12px;border:1.5px solid #cfd8d6;border-radius:10px;font-family:var(--fb);font-size:14px;background:#fff}
   .radios,.checks{margin-top:8px;display:flex;flex-direction:column;gap:6px;font-size:14px}
   .radios label,.checks label{font-weight:400;display:flex;gap:8px;align-items:center}
@@ -62,8 +64,14 @@
       <label class="must">החומר האחרון שהיה בנכס</label>
       <input type="text" id="material" list="matList" placeholder="מתחילים להקליד — המערכת מציעה מרשימת החומרים המוכרים">
       <datalist id="matList"></datalist>
-      <div class="hint">אם החומר לא נמצא ברשימה — כותבים אותו חופשי, ואנחנו נשלים את הסיווג.</div>
+      <div class="hint">אם החומר לא נמצא ברשימה — כותבים את שמו המלא כפי שמופיע ב-MSDS, וממלאים בעצמכם את מספר האו"ם וקבוצת הסיכון.</div>
       <div class="err" id="e_material"></div>
+    </div>
+
+    <!-- 10/09/2026 (לימור אישרה): "0 = לא מסוכן" — אותה מוסכמה כמו במסד החומרים (0 → "ללא" בקטלוג).
+         תיבת הסימון ממלאת 0 בשני השדות ונועלת אותם; הבדיקה בשרת לא השתנתה (שדה ריק = חסר). -->
+    <div class="fld" id="f_nonhaz" style="margin-top:14px">
+      <label class="chk"><input type="checkbox" id="nonhaz" onchange="nonhazToggle()"> החומר האחרון אינו חומר מסוכן (ללא מספר או"ם וללא קבוצת סיכון)</label>
     </div>
 
     <div class="fld" id="f_un"><span class="num">3</span>
@@ -75,6 +83,7 @@
     <div class="fld" id="f_class"><span class="num">4</span>
       <label class="must">Class סכנה (CLASS ID)</label>
       <input type="text" id="cls" placeholder="לדוגמה: 6.1">
+      <div class="hint">מספר או"ם וקבוצת הסיכון הם באחריות מוסר הנכס וחובה למלא אותם. לחומר לא מסוכן מסמנים את התיבה למעלה, והמערכת רושמת 0.</div>
       <div class="err" id="e_class"></div>
     </div>
 
@@ -250,6 +259,10 @@ function msdsPicked(){
   var box=document.getElementById('msdsBox');
   if(f){ box.textContent='📎 '+f.name; box.classList.add('hasfile'); }
   else{ box.textContent='📎 גוררים לכאן קובץ או לוחצים לבחירה (PDF)'; box.classList.remove('hasfile'); }
+}
+function nonhazToggle(){
+  var on=document.getElementById('nonhaz').checked;
+  ['un','cls'].forEach(function(id){ var el=document.getElementById(id); el.value=on?'0':''; el.readOnly=on; el.style.background=on?'#f1f1f1':''; });
 }
 function setErr(key,msg){
   var map={tank:'f_tank',material:'f_material',un:'f_un','class':'f_class',carrier:'f_carrier',
