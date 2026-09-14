@@ -82,6 +82,7 @@ def overview():
             "notice_sent_at": sent.isoformat() if sent else None,
             "invite_sent_at": invited.isoformat() if invited else None,
             "daily_report_mail": bool(u.daily_report_mail),
+            "contact_name": u.contact_name,
         })
     staff = User.query.filter_by(role="depot_admin").order_by(User.id).all()
     actions = (AdminActionLog.query.filter_by(division="eco_depot")
@@ -336,6 +337,16 @@ def update_user(user_id):
     if user is None or user.role != "eco_depot_client":
         return jsonify(error="משתמש לא נמצא"), 404
     data = request.get_json(silent=True) or {}
+    # שם איש הקשר (לימור 14/09/2026 — "לא יודעת לזהות מי זו כל כתובת"):
+    # בקשה בלי שדה מייל = עדכון השם בלבד; מחרוזת ריקה מוחקת את השם.
+    if "contact_name" in data and "email" not in data:
+        old_name = user.contact_name
+        user.contact_name = (str(data.get("contact_name") or "")).strip()[:120] or None
+        client = db.session.get(Client, user.client_id) if user.client_id else None
+        _log("עדכון שם איש קשר",
+             f"{user.email}: {old_name or '—'} ← {user.contact_name or '—'} ({client.name if client else '?'})")
+        db.session.commit()
+        return jsonify(id=user.id, email=user.email, contact_name=user.contact_name)
     # סימון "דוח יומי במייל" (לימור 14/09/2026) — בקשה בלי שדה מייל = רק הסימון
     if "daily_report_mail" in data and "email" not in data:
         user.daily_report_mail = bool(data["daily_report_mail"])
