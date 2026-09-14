@@ -12,6 +12,12 @@ two deliberate differences:
    manifest. No suffix = pickup #1. Only when exactly one candidate is left is
    it taken by elimination; otherwise the row stays without a manifest and is
    listed in the log instead of guessing.
+   Refinement (Limor 14/09, the ISCAR 27/08 + Zohar-Dalia cases): ONE pickup can
+   produce SEVERAL rows when inspection finds extra material (sludge/sand) and
+   Yoav's rule adds a separate row — those rows share the pickup's single
+   manifest. Hence "single-use" is per STREAM: a manifest may serve rows of
+   different (raw) streams on that day/owner, never two rows of the same stream
+   (those are two pickups and carry numbered files).
 
 Manifests exist for hazardous streams; צמחי/סניטרי rows are not expected to
 have one — the summary reports per-stream so those gaps read correctly.
@@ -157,7 +163,7 @@ def scan_owner(base, owner):
                 continue
             rec = {"path": os.path.join(dirpath, f), "owner": owner_full,
                    "name": p["name"], "streams": p["streams"],
-                   "suffix": day_suffix(f), "used": False}
+                   "suffix": day_suffix(f), "used_by": set()}
             index[(p["y"], p["mo"], p["d"])].append(rec)
             n_files += 1
 
@@ -189,6 +195,7 @@ with app.app_context():
     matched = 0
     by_suffix = 0
     by_elimination = 0
+    shared_same_pickup = 0   # one manifest → several rows of different streams (same pickup)
     ambiguous = []   # (ev, [candidate paths]) — several manifests, none with the row's suffix
     per_stream = defaultdict(lambda: [0, 0])
     for ev in events:
@@ -197,9 +204,10 @@ with app.app_context():
         per_stream[ev.stream_norm or bs or "?"][0] += 1
         cands = index.get((d.year, d.month, d.day), [])
         ev_suffix = day_suffix(os.path.basename(ev.pdf_path)) if ev.pdf_path else 1
-        passing = []                           # (score, rec) — all gates passed, unused
+        skey = norm(ev.stream) or "?"          # raw stream: אמולסיה ≠ אמולסיה בוצה
+        passing = []                           # (score, rec) — all gates passed, free for this stream
         for rec in cands:
-            if rec["used"]:                    # single-use (Limor 14/09/2026)
+            if skey in rec["used_by"]:         # single-use per stream (Limor 14/09/2026)
                 continue
             # stream gate: a manifest naming streams matches only rows of those
             # streams; a stream-less filename may serve any stream that day
@@ -232,14 +240,16 @@ with app.app_context():
             else:
                 ambiguous.append((ev, [r["path"] for _, r in passing]))
         if best:
-            best["used"] = True
+            if best["used_by"]:
+                shared_same_pickup += 1
+            best["used_by"].add(skey)
             ev.manifest_path = best["path"]
             matched += 1
             per_stream[ev.stream_norm or bs or "?"][1] += 1
         else:
             ev.manifest_path = None
     db.session.commit()
-    log.write(f"by suffix: {by_suffix} | by elimination (single candidate): {by_elimination} | ambiguous (left empty): {len(ambiguous)}\n")
+    log.write(f"by suffix: {by_suffix} | by elimination (single candidate): {by_elimination} | shared by rows of different streams (same pickup): {shared_same_pickup} | ambiguous (left empty): {len(ambiguous)}\n")
     for ev, paths in ambiguous[:40]:
         log.write(f"  AMBIGUOUS {ev.event_date} {ev.billed_to} {ev.stream} code={ev.code}: {[os.path.basename(x) for x in paths]}\n")
 
