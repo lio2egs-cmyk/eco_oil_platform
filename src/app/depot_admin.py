@@ -81,6 +81,7 @@ def overview():
             "last_login_at": u.last_login_at.isoformat() if u.last_login_at else None,
             "notice_sent_at": sent.isoformat() if sent else None,
             "invite_sent_at": invited.isoformat() if invited else None,
+            "daily_report_mail": bool(u.daily_report_mail),
         })
     staff = User.query.filter_by(role="depot_admin").order_by(User.id).all()
     actions = (AdminActionLog.query.filter_by(division="eco_depot")
@@ -335,6 +336,15 @@ def update_user(user_id):
     if user is None or user.role != "eco_depot_client":
         return jsonify(error="משתמש לא נמצא"), 404
     data = request.get_json(silent=True) or {}
+    # סימון "דוח יומי במייל" (לימור 14/09/2026) — בקשה בלי שדה מייל = רק הסימון
+    if "daily_report_mail" in data and "email" not in data:
+        user.daily_report_mail = bool(data["daily_report_mail"])
+        client = db.session.get(Client, user.client_id) if user.client_id else None
+        _log("דוח יומי במייל " + ("הופעל" if user.daily_report_mail else "כובה"),
+             f"{user.email} ({client.name if client else '?'})")
+        db.session.commit()
+        return jsonify(id=user.id, email=user.email,
+                       daily_report_mail=bool(user.daily_report_mail))
     new_email, email_err = clean_portal_email(data.get("email"))
     if email_err:
         return jsonify(error=email_err), 400

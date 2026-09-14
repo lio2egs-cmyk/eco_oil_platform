@@ -74,6 +74,10 @@ class User(db.Model):
     # stays the primary/default company. NOT for same-company spelling
     # variants — those belong in Client.billing_aliases.
     extra_client_ids = db.Column(db.String(200))
+    # מייל הבוקר האוטומטי של הדוח היומי (לקוחות הפריוריטי — לימור 14/09/2026):
+    # רק איש קשר שסומן במסך הניהול מקבל את קובץ האקסל כצרופה כשהדוח נרשם
+    # בפורטל. ברירת מחדל כבוי — אף אחד לא מקבל בלי סימון מפורש.
+    daily_report_mail = db.Column(db.Boolean, default=False)
 
     def allowed_client_ids(self):
         """Primary + extra client ids this user may view, primary first."""
@@ -986,6 +990,10 @@ class DepotDailyReport(db.Model):
     file_date = db.Column(db.DateTime)                               # חותמת הקובץ בדיסק
     size = db.Column(db.Integer)
     created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+    # מייל הבוקר (לימור 14/09): חותמת השליחה + למי נשלח. דוח נשלח פעם אחת
+    # בלבד — הרשומות שהיו קיימות לפני התוספת מוחתמות במעבר (לא נשלחות למפרע).
+    mailed_at = db.Column(db.DateTime, nullable=True)
+    mailed_to = db.Column(db.Text, nullable=True)
 
 
 class DepotAssetSnapshot(db.Model):

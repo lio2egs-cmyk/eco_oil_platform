@@ -22,20 +22,33 @@ from flask import current_app
 OFFICE_EMAIL = "office@eco-oil.co.il"
 
 
-def send_office_email(subject: str, html: str, text: str = None, to: str = None) -> bool:
-    """Send an internal notification email. Returns True on confirmed send."""
+def send_office_email(subject: str, html: str, text: str = None, to: str = None,
+                      attachments=None) -> bool:
+    """Send an internal notification email. Returns True on confirmed send.
+
+    attachments — optional list of (filename, bytes, mime) tuples (מייל הבוקר
+    של הדוח היומי, לימור 14/09/2026). Resend takes them base64-encoded;
+    SMTP as MIME parts. Both channels keep the filename as given (UTF-8)."""
     to = to or OFFICE_EMAIL
     from_addr = os.environ.get("MAIL_FROM_ADDRESS", os.environ.get("MAIL_USERNAME", ""))
     from_name = os.environ.get("MAIL_FROM_NAME", "")
+    attachments = attachments or []
 
     resend_key = os.environ.get("RESEND_API_KEY")
     if resend_key and from_addr:
         sender = formataddr((from_name, from_addr)) if from_name else from_addr
         try:
+            import base64
             import requests
             payload = {"from": sender, "to": [to], "subject": subject, "html": html}
             if text:
                 payload["text"] = text
+            if attachments:
+                payload["attachments"] = [{
+                    "filename": fname,
+                    "content": base64.b64encode(data).decode("ascii"),
+                    "content_type": mime,
+                } for fname, data, mime in attachments]
             r = requests.post(
                 "https://api.resend.com/emails",
                 headers={"Authorization": "Bearer " + resend_key},
@@ -56,13 +69,27 @@ def send_office_email(subject: str, html: str, text: str = None, to: str = None)
         current_app.logger.warning("office email — no mail channel configured | subject: %s", subject)
         return False
 
-    msg = MIMEMultipart("alternative")
+    body = MIMEMultipart("alternative")
+    if text:
+        body.attach(MIMEText(text, "plain", "utf-8"))
+    body.attach(MIMEText(html, "html", "utf-8"))
+    if attachments:
+        from email.mime.base import MIMEBase
+        from email import encoders
+        msg = MIMEMultipart("mixed")
+        msg.attach(body)
+        for fname, data, mime in attachments:
+            maintype, _, subtype = (mime or "application/octet-stream").partition("/")
+            part = MIMEBase(maintype, subtype or "octet-stream")
+            part.set_payload(data)
+            encoders.encode_base64(part)
+            part.add_header("Content-Disposition", "attachment", filename=("utf-8", "", fname))
+            msg.attach(part)
+    else:
+        msg = body
     msg["Subject"] = Header(subject, "utf-8")
     msg["From"] = formataddr((str(Header(from_name, "utf-8")), from_addr)) if from_name else from_addr
     msg["To"] = to
-    if text:
-        msg.attach(MIMEText(text, "plain", "utf-8"))
-    msg.attach(MIMEText(html, "html", "utf-8"))
     try:
         with smtplib.SMTP(smtp_host, int(os.environ.get("MAIL_PORT", "587")), timeout=20) as server:
             server.ehlo(); server.starttls(); server.ehlo()

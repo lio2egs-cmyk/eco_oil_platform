@@ -127,6 +127,9 @@ def create_app():
             "ALTER TABLE users ADD COLUMN extra_client_ids VARCHAR(200)",
             "ALTER TABLE users ADD COLUMN invited_at TIMESTAMP",
             "ALTER TABLE users ADD COLUMN contact_name VARCHAR(120)",
+            # מייל הבוקר של הדוח היומי (לימור 14/09/2026)
+            "ALTER TABLE users ADD COLUMN daily_report_mail BOOLEAN DEFAULT FALSE",
+            "ALTER TABLE depot_daily_reports ADD COLUMN mailed_to TEXT",
             # תשובת "שייך לחברה אחרת" בסתירות התיוק (לימור 03/09 ערב)
             "ALTER TABLE ecooil_filing_rulings ADD COLUMN client_id INTEGER REFERENCES clients(id)",
         ):
@@ -135,6 +138,20 @@ def create_app():
                 db.session.commit()
             except Exception:
                 db.session.rollback()
+
+        # מייל הבוקר של הדוח היומי (לימור 14/09/2026): עמודת החותמת נוספת פעם
+        # אחת, ובאותה פעם כל הדוחות שכבר היו רשומים מוחתמים כ"נשלחו" — כדי
+        # שהפריסה הראשונה לא תשלח ללקוחות מאות דוחות ישנים למפרע. ה-ALTER
+        # נכשל בכל אתחול הבא, ולכן ההחתמה רצה רק בפעם הראשונה.
+        try:
+            db.session.execute(db.text(
+                "ALTER TABLE depot_daily_reports ADD COLUMN mailed_at TIMESTAMP"))
+            db.session.execute(db.text(
+                "UPDATE depot_daily_reports SET mailed_at = created_at, "
+                "mailed_to = 'קיים לפני מייל הבוקר' WHERE mailed_at IS NULL"))
+            db.session.commit()
+        except Exception:
+            db.session.rollback()
 
         # Migrate: portal-submitted producer declarations (additive, idempotent)
         for stmt in (

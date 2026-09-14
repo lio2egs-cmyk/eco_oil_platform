@@ -159,6 +159,11 @@ def push(items, manifest, api_base, token, dry_run=False):
         d = r.json()
         added += d.get("added", 0)
         updated += d.get("updated", 0)
+        # מייל הבוקר (לימור 14/09): הפורטל שולח את הדוחות החדשים לנמענים
+        # המסומנים ומדווח כאן — נרשם ביומן הסבב השעתי לצורך מעקב.
+        for m in d.get("mailed") or []:
+            who = ", ".join(m.get("sent") or []) or "-"
+            print(f"  mail {m.get('folder')} {m.get('report_date')}: {m.get('result')} → {who}")
     print(f"push done: {added} added, {updated} updated")
 
 
