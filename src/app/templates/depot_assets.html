@@ -116,6 +116,9 @@
 
     <div class="filters">
       <input type="text" id="q" placeholder="🔍 חיפוש לפי מספר מכל…" oninput="renderRows()">
+      <!-- המלאי לאקסל (בקשת עידן/הי טנק — לימור 14/09/2026): הרשימה שלמטה כקובץ,
+           כותרות בשורה 1, מתאים לטעינה לפריוריטי -->
+      <button class="feed-toggle" type="button" id="invBtn" style="display:none" title="הרשימה שלמטה כקובץ אקסל — כותרות בשורה הראשונה, מתאים לטעינה לפריוריטי" onclick="downloadInventory()">⬇ המלאי לאקסל</button>
     </div>
 
     <div class="tblwrap">
@@ -251,6 +254,22 @@ async function downloadDaily(){
   else{ toast(d.error||'הקובץ לא זמין כרגע — נסו שוב'); }
 }
 
+/* ── המלאי לאקסל (בקשת עידן/הי טנק, 14/09/2026) — הקובץ נבנה בענן ברגע הלחיצה ── */
+async function downloadInventory(){
+  var btn=document.getElementById('invBtn'); btn.disabled=true;
+  try{
+    var r=await api('/depot/portal/my-assets/export.xlsx'+(CLIENT_ID?('?client_id='+CLIENT_ID):''));
+    if(!r||!r.ok){ toast('הקובץ לא זמין כרגע — נסו שוב'); return; }
+    var blob=await r.blob();
+    var name='מלאי.xlsx', cd=r.headers.get('Content-Disposition')||'';
+    var m=/filename\*=UTF-8''([^;]+)/i.exec(cd); if(m){ try{ name=decodeURIComponent(m[1]); }catch(e){} }
+    var u=URL.createObjectURL(blob), a=document.createElement('a');
+    a.href=u; a.download=name; document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(function(){ URL.revokeObjectURL(u); },3000);
+  }catch(e){ toast('ההורדה נכשלה — נסו שוב'); }
+  finally{ btn.disabled=false; }
+}
+
 /* ── פס "מה קרה אצלכם" ── */
 var EV_ICON={entry:'📥',wash:'🧼',cert:'📄',exit:'🚚'};
 function renderFeed(feed){
@@ -356,6 +375,7 @@ function renderRows(){
   });
   document.getElementById('tbl').style.display=list.length?'table':'none';
   document.getElementById('empty').style.display=(ASSETS.length===0)?'block':'none';
+  document.getElementById('invBtn').style.display=ASSETS.length?'inline-block':'none';
 }
 
 function renderReqs(reqs){

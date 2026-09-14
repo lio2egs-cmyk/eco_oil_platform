@@ -18,7 +18,9 @@
 import re
 from datetime import date, datetime, timedelta
 
-from flask import Blueprint, current_app, jsonify, request
+from io import BytesIO
+
+from flask import Blueprint, current_app, jsonify, request, send_file
 from flask_jwt_extended import get_jwt, get_jwt_identity, jwt_required
 
 from .auth import depot_admin_required
@@ -197,6 +199,67 @@ def _events_feed(rows, cert_rows, today):
     for e in events:
         summary[e["kind"]] = summary.get(e["kind"], 0) + 1
     return {"events": events[:40], "summary": summary}
+
+
+# ------------------------------------------------------------ המלאי לאקסל
+XLSX_MIME = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+INVENTORY_HEADERS = ["מספר מכל", "חומר אחרון", "תאריך הגעה", "מצב", "מספר ביקור"]
+
+
+def build_inventory_xlsx(assets):
+    """"המלאי לאקסל" (בקשת עידן/הי טנק דרך לימור, 14/09/2026): אותה רשימה
+    שהמסך מציג, כקובץ לטעינה לפריוריטי — כותרות בשורה 1, נתונים משורה 2,
+    גיליון אחד, בלי שורות כותרת מעל. עיצוב לפי כלל הדוחות: טבלה ממוסגרת,
+    כותרת מעוצבת, RTL. הקובץ נבנה בענן מתמונת המלאי של הסבב השעתי."""
+    from openpyxl import Workbook
+    from openpyxl.styles import Alignment, Border, Font, PatternFill, Side
+    from openpyxl.utils import get_column_letter
+
+    wb = Workbook()
+    ws = wb.active
+    ws.title = "מלאי"
+    ws.sheet_view.rightToLeft = True
+    thin = Side(style="thin", color="999999")
+    border = Border(left=thin, right=thin, top=thin, bottom=thin)
+    ws.append(INVENTORY_HEADERS)
+    for c in ws[1]:
+        c.font = Font(bold=True)
+        c.fill = PatternFill("solid", fgColor="D9D9D9")
+        c.alignment = Alignment(horizontal="center")
+        c.border = border
+    for a in assets:
+        ws.append([a.tank, a.material or "",
+                   a.arrival_date.strftime("%d/%m/%Y") if a.arrival_date else "",
+                   STATUS_HEB.get(a.status, a.status), a.visit_id])
+        for c in ws[ws.max_row]:
+            c.border = border
+    for i, w in enumerate((16, 34, 14, 18, 18), start=1):
+        ws.column_dimensions[get_column_letter(i)].width = w
+    ws.freeze_panes = "A2"
+    buf = BytesIO()
+    wb.save(buf)
+    buf.seek(0)
+    return buf
+
+
+@depot_assets.route("/depot/portal/my-assets/export.xlsx", methods=["GET"])
+@jwt_required()
+def export_my_assets_xlsx():
+    """הורדת המלאי כאקסל — אותו סינון בדיוק כמו הטבלה במסך (הנכסים שבאתר,
+    בלי יציאות טריות), לפי גורם מחוייב האחסנה; גם בתצוגת-מנהלת ?client_id=."""
+    client, _ = _client_for_view()
+    if client is None:
+        return jsonify(error="depot customers only"), 403
+    keys = _client_payer_keys(client)
+    rows = (DepotAssetSnapshot.query
+            .order_by(DepotAssetSnapshot.arrival_date.desc().nullslast(),
+                      DepotAssetSnapshot.id.desc()).all())
+    mine = [a for a in rows if _norm(a.storage_payer) in keys and not a.exited]
+    today_il = (datetime.utcnow() + timedelta(hours=3)).date()
+    short = (client.file_short_name or client.name or "").strip().replace("/", "-")
+    name = f"מלאי_{short}_{today_il:%d-%m-%Y}.xlsx"
+    return send_file(build_inventory_xlsx(mine), mimetype=XLSX_MIME,
+                     as_attachment=True, download_name=name, max_age=0)
 
 
 # ------------------------------------------------------------ customer side
