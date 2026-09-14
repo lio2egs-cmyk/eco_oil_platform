@@ -140,16 +140,18 @@
     <div id="loading">טוען את הנכסים…</div>
     <div id="empty">אין כרגע נכסים שלכם באתר.<br>נכס חדש מופיע כאן אוטומטית אחרי הקליטה בשער.</div>
 
-    <h2>הבקשות האחרונות שלנו</h2>
-    <div class="tblwrap">
-      <table id="reqTbl" style="display:none">
-        <thead><tr>
-          <th>מתי</th><th>מכל</th><th>בקשה</th><th>תאריך איסוף</th><th>מוביל</th><th>מצב</th>
-        </tr></thead>
-        <tbody id="reqRows"></tbody>
-      </table>
+    <!-- בקשות שחרור פתוחות — רק לנכסים שנמצאים אצלנו כרגע; אין בקשות = המקטע לא מוצג (לימור 14/09/2026) -->
+    <div id="reqSection" style="display:none">
+      <h2>בקשות שחרור פתוחות</h2>
+      <div class="tblwrap">
+        <table id="reqTbl">
+          <thead><tr>
+            <th>מתי</th><th>מכל</th><th>בקשה</th><th>תאריך איסוף</th><th>מוביל</th><th>מצב</th>
+          </tr></thead>
+          <tbody id="reqRows"></tbody>
+        </table>
+      </div>
     </div>
-    <div id="reqEmpty">עוד לא הגשתם בקשות שחרור דרך הפורטל.</div>
 
     <a class="back" href="/portal">חזרה לעמוד הבית</a>
   </div>
@@ -399,8 +401,7 @@ function renderReqs(reqs){
       '<td>'+esc(r.status)+'</td>';
     tb.appendChild(tr);
   });
-  document.getElementById('reqTbl').style.display=reqs.length?'table':'none';
-  document.getElementById('reqEmpty').style.display=reqs.length?'none':'block';
+  document.getElementById('reqSection').style.display=reqs.length?'block':'none';
 }
 
 function openDlg(visit, tank){

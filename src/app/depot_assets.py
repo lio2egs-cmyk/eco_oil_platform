@@ -45,17 +45,19 @@ STATUS_HEB = {
 }
 READY_STATUS = "מוכן לשחרור"
 
+# ניסוחי המצב בטבלת "בקשות שחרור פתוחות" (לימור 14/09/2026): שלושה מצבים בלבד —
+# ממתינה לקליטה / נקלטה / נדחתה. הטבלה מציגה רק בקשות לנכסים שנמצאים אצלנו כרגע.
 REQ_STATUS_HEB = {
-    ("release", "pending"): "בקשת השחרור התקבלה — בקליטה במשרד",
-    ("release", "fetched"): "בקשת השחרור בקליטה במשרד",
-    ("release", "posted"): "הבקשה נקלטה — הנכס בהכנה לשחרור",
-    ("release", "rejected"): "הבקשה לא בוצעה — פנו למשרד",
-    ("release", "error"): "הבקשה בבירור מול המשרד",
-    ("cancel", "pending"): "בקשת הביטול התקבלה — בקליטה במשרד",
-    ("cancel", "fetched"): "בקשת הביטול בקליטה במשרד",
-    ("cancel", "posted"): "השחרור בוטל — הנכס נשאר באחסנה",
-    ("cancel", "rejected"): "הביטול לא בוצע — הנכס כבר הוכן. פנו למשרד",
-    ("cancel", "error"): "הבקשה בבירור מול המשרד",
+    ("release", "pending"): "ממתינה לקליטה במשרד",
+    ("release", "fetched"): "ממתינה לקליטה במשרד",
+    ("release", "posted"): "נקלטה — הנכס בהכנה לשחרור",
+    ("release", "rejected"): "נדחתה — פנו למשרד",
+    ("release", "error"): "בבירור מול המשרד",
+    ("cancel", "pending"): "ממתינה לקליטה במשרד",
+    ("cancel", "fetched"): "ממתינה לקליטה במשרד",
+    ("cancel", "posted"): "הביטול נקלט — הנכס נשאר באחסנה",
+    ("cancel", "rejected"): "הביטול נדחה — הנכס כבר הוכן לאיסוף, פנו למשרד",
+    ("cancel", "error"): "בבירור מול המשרד",
 }
 OPEN_STATES = ("pending", "fetched")
 
@@ -105,8 +107,10 @@ def _asset_dict(a, open_req, certs=None):
     if open_req is not None:
         d["request"] = {
             "action": open_req.action,
-            "status": REQ_STATUS_HEB.get((open_req.action, open_req.status),
-                                         open_req.status),
+            # בשורת הנכס עצמה מקדימים את סוג הבקשה, כי הניסוחים הקצרים
+            # ("ממתינה לקליטה במשרד") נכתבו לטבלת הבקשות הפתוחות
+            "status": ("בקשת שחרור — " if open_req.action == "release" else "ביטול שחרור — ")
+                      + REQ_STATUS_HEB.get((open_req.action, open_req.status), open_req.status),
             "created_at": open_req.created_at.isoformat(),
         }
     return d
@@ -299,6 +303,13 @@ def my_assets():
                                 DepotWashCert.file_date >= cert_cut)
                         .all())
 
+    # טבלת "בקשות שחרור פתוחות" (לימור 14/09/2026): רק בקשות לנכסים שנמצאים אצלנו
+    # כרגע — נכס שיצא נעלם מהטבלה בדיוק כמו שהוא נעלם מרשימת המלאי ("הדף הראשי =
+    # מה נוכח עכשיו; מה שיצא = היסטוריה, והיא מדווחת בדוחות"). ההיסטוריה המלאה
+    # נשארת במסך הניהול של המשרד.
+    onsite_keys = {(a.visit_id, a.tank) for a in mine}
+    shown_reqs = [r for r in reqs if (r.visit_id, r.tank) in onsite_keys]
+
     pushed = max((a.pushed_at for a in rows), default=None)
     out = {
         "assets": [_asset_dict(a, open_by_key.get((a.visit_id, a.tank)),
@@ -314,7 +325,7 @@ def my_assets():
             "requested_date": r.requested_date.strftime("%d/%m/%Y") if r.requested_date else None,
             "carrier": r.carrier or "",
             "status": REQ_STATUS_HEB.get((r.action, r.status), r.status),
-        } for r in reqs],
+        } for r in shown_reqs],
     }
     if preview:
         out["preview"] = preview
