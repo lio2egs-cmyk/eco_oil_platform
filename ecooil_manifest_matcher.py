@@ -5,9 +5,13 @@ Eco-Oil MANIFEST matcher — links unload events to their signed טופס מלו
 Sister of ecooil_pdf_matcher.py (same trees, same normalization/scoring), with
 two deliberate differences:
 1. Indexes ONLY מלווה files (the cert matcher skips them).
-2. A manifest is NOT single-use: one truck's signed manifest may cover several
-   unload rows of the same day/stream/owner (multiple pickups on one route),
-   so records are never marked "used".
+2. A manifest IS single-use (Limor's rule 14/09/2026: a טופס מלווה is issued
+   per pickup at one site — never shared across rows). When a site has several
+   pickups on one day Limor numbers BOTH the certificate and its manifest with
+   the same suffix (_2, _3); the row's certificate suffix therefore selects the
+   manifest. No suffix = pickup #1. Only when exactly one candidate is left is
+   it taken by elimination; otherwise the row stays without a manifest and is
+   listed in the log instead of guessing.
 
 Manifests exist for hazardous streams; צמחי/סניטרי rows are not expected to
 have one — the summary reports per-stream so those gaps read correctly.
@@ -90,6 +94,14 @@ SKIP_PARTS = {"אישורים", "ישן"}
 index = defaultdict(list)
 n_files = n_unparsed = 0
 
+# מספור-היום של לימור: _2/_3 בסוף שם הקובץ (לפני .pdf) = פינוי חוזר באותו יום.
+# ספרה אחת בלבד — כדי לא לבלבל עם מספרים אחרים בשם ("בריכה צפונית_160").
+SUFFIX_RE = re.compile(r"_(\d)\.pdf$", re.I)
+
+def day_suffix(f):
+    m = SUFFIX_RE.search(f)
+    return int(m.group(1)) if m else 1
+
 def parse_manifest_name(f, year_on_path):
     base = f[:-4]  # strip .pdf
     m = DATE_ANY.search(base)
@@ -144,7 +156,8 @@ def scan_owner(base, owner):
                 n_unparsed += 1
                 continue
             rec = {"path": os.path.join(dirpath, f), "owner": owner_full,
-                   "name": p["name"], "streams": p["streams"]}
+                   "name": p["name"], "streams": p["streams"],
+                   "suffix": day_suffix(f), "used": False}
             index[(p["y"], p["mo"], p["d"])].append(rec)
             n_files += 1
 
@@ -174,14 +187,20 @@ with app.app_context():
         return s
 
     matched = 0
+    by_suffix = 0
+    by_elimination = 0
+    ambiguous = []   # (ev, [candidate paths]) — several manifests, none with the row's suffix
     per_stream = defaultdict(lambda: [0, 0])
     for ev in events:
         d = ev.event_date
         bs = base_stream(ev.stream)
         per_stream[ev.stream_norm or bs or "?"][0] += 1
         cands = index.get((d.year, d.month, d.day), [])
-        best, best_score = None, 0.0
-        for rec in cands:                      # NOTE: no 'used' flag — reuse allowed
+        ev_suffix = day_suffix(os.path.basename(ev.pdf_path)) if ev.pdf_path else 1
+        passing = []                           # (score, rec) — all gates passed, unused
+        for rec in cands:
+            if rec["used"]:                    # single-use (Limor 14/09/2026)
+                continue
             # stream gate: a manifest naming streams matches only rows of those
             # streams; a stream-less filename may serve any stream that day
             if rec["streams"] and bs not in rec["streams"]:
@@ -200,15 +219,29 @@ with app.app_context():
                     continue
                 nsc = 0.0
             score = osc + nsc
-            if score > best_score:
-                best, best_score = rec, score
+            passing.append((score, rec))
+        best = None
+        if passing:
+            same = [(sc, r) for sc, r in passing if r["suffix"] == ev_suffix]
+            if same:
+                best = max(same, key=lambda t: t[0])[1]
+                by_suffix += 1
+            elif len(passing) == 1:
+                best = passing[0][1]
+                by_elimination += 1
+            else:
+                ambiguous.append((ev, [r["path"] for _, r in passing]))
         if best:
+            best["used"] = True
             ev.manifest_path = best["path"]
             matched += 1
             per_stream[ev.stream_norm or bs or "?"][1] += 1
         else:
             ev.manifest_path = None
     db.session.commit()
+    log.write(f"by suffix: {by_suffix} | by elimination (single candidate): {by_elimination} | ambiguous (left empty): {len(ambiguous)}\n")
+    for ev, paths in ambiguous[:40]:
+        log.write(f"  AMBIGUOUS {ev.event_date} {ev.billed_to} {ev.stream} code={ev.code}: {[os.path.basename(x) for x in paths]}\n")
 
     total = len(events)
     log.write(f"matched: {matched} ({matched*100//total}% of all rows)\n")

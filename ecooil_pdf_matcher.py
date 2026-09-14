@@ -23,6 +23,10 @@ TREES = [(r"Z:\Eco_General\מובילים", "transporter"),
          (r"Z:\Eco_General\לקוחות", "customer")]
 OUT_XLSX = r"C:\eco_oil_portal\השלמת התאמות - אישורי פריקה.xlsx"
 
+# קוד האישור בסוף שם הקובץ + מספור-יום אופציונלי: ..._AUG045801.pdf / ..._AUG045801_2.pdf
+CODE_RE = re.compile(r"_([A-Z]{3}\d{6})(?:_(\d))?\.pdf$", re.I)
+code_index = {}
+
 FNAME_RE = re.compile(
     r"^(?:\d{1,3}_)?"                                  # optional leading serial
     r"(?P<stream>[^_]+)"
@@ -186,10 +190,18 @@ def scan_owner(base, owner):
                 y = year_on_path
             if y is None or y not in YEARS:
                 continue
+            # חוק לימור 14/09/2026: קוד האישור (AUG045801) שבשם הקובץ הוא
+            # הזיהוי המוחלט של השורה; הספרה אחריו (_2, _3) היא המספור שלה
+            # לפינויים חוזרים באותו יום — אותה ספרה על הטופס המלווה המשויך.
+            cm = CODE_RE.search(f)
             rec = {"path": os.path.join(dirpath, f), "owner": owner_full,
                    "name": m["name"], "stream": base_stream(m["stream"]),
+                   "code": cm.group(1).upper() if cm else None,
                    "used": False}
             index[(y, mo, d, rec["stream"])].append(rec)
+            if rec["code"]:
+                # מפתח = (שנה, קוד): הקוד (חודש+יום+4 ספרות) חוזר בשנים שונות
+                code_index.setdefault((y, rec["code"]), []).append(rec)
             n_files += 1
 
 for tree, kind in TREES:
@@ -219,14 +231,32 @@ with app.app_context():
         return s
 
     matched = 0
+    by_code = 0
+    code_conflicts = []   # שורה עם קוד שקובץ הקוד שלה כבר נלקח / כפול
     unmatched = []
     for ev in events:
         d = ev.event_date
         bs = base_stream(ev.stream)
+        ev_code = (ev.code or "").strip().upper() or None
+        # שלב א — התאמה מוחלטת לפי קוד (חוק לימור 14/09/2026): קובץ שנושא את
+        # קוד השורה הוא שלה, בלי ניקוד ובלי ניחוש. פותר את ההחלפה בין שני
+        # פינויים של אותו לקוח/זרם/יום (ישקר 04/08, 26/08, 27/08 ועוד).
+        if ev_code and (d.year, ev_code) in code_index:
+            free = [r for r in code_index[(d.year, ev_code)] if not r["used"]]
+            if len(free) == 1:
+                free[0]["used"] = True
+                ev.pdf_path = free[0]["path"]
+                matched += 1
+                by_code += 1
+                continue
+            code_conflicts.append((ev, [r["path"] for r in code_index[(d.year, ev_code)]]))
         cands = index.get((d.year, d.month, d.day, bs), [])
         best, best_score = None, 0.0
         for rec in cands:
             if rec["used"]:
+                continue
+            # קובץ עם קוד של שורה אחרת לעולם לא מוצמד לשורה עם קוד משלה
+            if ev_code and rec["code"] and rec["code"] != ev_code:
                 continue
             osc = owner_score(rec, ev)
             if osc < 0.5:
@@ -264,7 +294,11 @@ with app.app_context():
     unmatched = [ev for ev in unmatched if not ev.doc_status]
 
     total = len(events)
-    log.write(f"matched: {matched} ({matched*100//total}%)\n")
+    log.write(f"matched: {matched} ({matched*100//total}%) | by exact code: {by_code}\n")
+    if code_conflicts:
+        log.write(f"code conflicts (same code on several files / already taken): {len(code_conflicts)}\n")
+        for ev, paths in code_conflicts[:30]:
+            log.write(f"  {ev.event_date} {ev.billed_to} {ev.stream} code={ev.code}: {paths}\n")
     log.write(f"unmatched (real gaps): {len(unmatched)}\n")
     log.write(f"awaiting declaration (sanction rows): {len(awaiting)}\n")
     log.write(f"closed by design (no cert ever): {len(closed_by_design)}\n")
