@@ -114,11 +114,19 @@
       </div>
     </div>
 
+    <!-- המלאי לאקסל (בקשת עידן/הי טנק — לימור 14/09/2026): הרשימה שלמטה כקובץ,
+         כותרות בשורה 1, מתאים לטעינה לפריוריטי. קופסה זהה לזו של הדוח היומי —
+         כלל לימור 14/09: פעולה מאותו סוג = אותו סימול, אותו מקום, אותו כפתור. -->
+    <div class="feed" id="invBox" style="display:none">
+      <div class="feed-head" style="cursor:default">
+        <span class="feed-title">📊 המלאי — קובץ אקסל</span>
+        <span class="muted">רשימת הנכסים שלמטה כקובץ, נכון לעכשיו (מתאים לטעינה לפריוריטי)</span>
+        <button class="feed-toggle" type="button" id="invBtn" style="margin-inline-start:auto" onclick="downloadInventory()">⬇ הורדה</button>
+      </div>
+    </div>
+
     <div class="filters">
       <input type="text" id="q" placeholder="🔍 חיפוש לפי מספר מכל…" oninput="renderRows()">
-      <!-- המלאי לאקסל (בקשת עידן/הי טנק — לימור 14/09/2026): הרשימה שלמטה כקובץ,
-           כותרות בשורה 1, מתאים לטעינה לפריוריטי -->
-      <button class="feed-toggle" type="button" id="invBtn" style="display:none" title="הרשימה שלמטה כקובץ אקסל — כותרות בשורה הראשונה, מתאים לטעינה לפריוריטי" onclick="downloadInventory()">⬇ המלאי לאקסל</button>
     </div>
 
     <div class="tblwrap">
@@ -375,7 +383,7 @@ function renderRows(){
   });
   document.getElementById('tbl').style.display=list.length?'table':'none';
   document.getElementById('empty').style.display=(ASSETS.length===0)?'block':'none';
-  document.getElementById('invBtn').style.display=ASSETS.length?'inline-block':'none';
+  document.getElementById('invBox').style.display=ASSETS.length?'block':'none';
 }
 
 function renderReqs(reqs){
