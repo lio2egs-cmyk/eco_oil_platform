@@ -30,6 +30,7 @@
   .act.warn{border-color:#c47d1a;color:#9a7412}
   .muted{font-size:12.5px;color:#888}
   #empty,#reqEmpty{display:none;text-align:center;color:#666;padding:26px 0;font-size:15px}
+  .pdate{padding:5px 10px;border:1.5px solid #cfd8d6;border-radius:8px;font-family:var(--fb);font-size:13px;background:#fff}
   .back{display:inline-block;margin-top:24px;background:#fff;border:1.5px solid var(--teal);color:var(--teal-dark);border-radius:10px;padding:10px 22px;font-family:var(--fh);font-size:14px;cursor:pointer;text-decoration:none}
   #loading{text-align:center;color:#777;padding:30px 0}
   /* תיבת בקשת שחרור */
@@ -111,6 +112,27 @@
         <span class="muted">אותו פורמט בדיוק כמו הדוח שנשלח עד היום (מתאים לטעינה לפריוריטי)</span>
         <select id="dailySel" style="margin-inline-start:auto;padding:5px 10px;border:1.5px solid #cfd8d6;border-radius:8px;font-family:var(--fb);font-size:13px"></select>
         <button class="feed-toggle" type="button" onclick="downloadDaily()">⬇ הורדה</button>
+      </div>
+    </div>
+
+    <!-- תנועות לתקופה (בקשת עידן/הי טנק — הכרעות לימור 14/09/2026): תיבה נפרדת בין
+         הדוח היומי למלאי; טווח תאריכים + סוג פעולה; ההיסטוריה מה-1 בחודש הקודם בלבד.
+         המקבילה בפורטל לגיליון "דיווחים יומיים ללקוח" בקובץ החי. -->
+    <div class="feed" id="periodBox" style="display:none">
+      <div class="feed-head" style="cursor:default;flex-wrap:wrap;gap:8px">
+        <span class="feed-title">📊 תנועות לתקופה — קובץ אקסל</span>
+        <span class="muted">כל הכניסות, השטיפות והיציאות בטווח שתבחרו, עד חודש אחד אחורה (מתאים לטעינה לפריוריטי)</span>
+        <span class="muted" style="margin-inline-start:auto">מתאריך</span>
+        <input type="date" id="pFrom" class="pdate">
+        <span class="muted">עד תאריך</span>
+        <input type="date" id="pTo" class="pdate">
+        <select id="pAction" class="pdate">
+          <option value="all">כל הפעולות</option>
+          <option value="entry">כניסה לאחסון</option>
+          <option value="wash">שטיפה</option>
+          <option value="exit">יציאה מאחסון</option>
+        </select>
+        <button class="feed-toggle" type="button" id="pBtn" onclick="downloadPeriod()">⬇ הורדה</button>
       </div>
     </div>
 
@@ -252,7 +274,41 @@ async function loadDaily(){
       sel.appendChild(o);
     });
     document.getElementById('dailyBox').style.display='block';
+    setupPeriodBox();
   }catch(e){}
+}
+
+/* ── תנועות לתקופה (הכרעות לימור 14/09/2026): מה-1 בחודש הקודם ועד היום ── */
+function isoDate(d){ return d.getFullYear()+'-'+('0'+(d.getMonth()+1)).slice(-2)+'-'+('0'+d.getDate()).slice(-2); }
+function setupPeriodBox(){
+  var today=new Date();
+  var firstPrev=new Date(today.getFullYear(), today.getMonth()-1, 1);
+  var lo=isoDate(firstPrev), hi=isoDate(today);
+  var f=document.getElementById('pFrom'), t=document.getElementById('pTo');
+  f.min=lo; f.max=hi; t.min=lo; t.max=hi;
+  if(!f.value) f.value=isoDate(new Date(today.getFullYear(), today.getMonth(), 1));
+  if(!t.value) t.value=hi;
+  document.getElementById('periodBox').style.display='block';
+}
+async function downloadPeriod(){
+  var f=document.getElementById('pFrom').value, t=document.getElementById('pTo').value;
+  var act=document.getElementById('pAction').value;
+  if(!f||!t){ toast('יש לבחור תאריך התחלה ותאריך סיום'); return; }
+  if(f>t){ toast('תאריך ההתחלה מאוחר מתאריך הסיום'); return; }
+  var btn=document.getElementById('pBtn'); btn.disabled=true;
+  try{
+    var r=await api('/depot/portal/my-daily-reports/period.xlsx?from='+f+'&to='+t+'&action='+act+
+                    (CLIENT_ID?('&client_id='+CLIENT_ID):''));
+    if(!r||!r.ok){ var d={}; try{ d=await r.json(); }catch(e){} toast(d.message||d.error||'הקובץ לא זמין כרגע — נסו שוב'); return; }
+    var blob=await r.blob();
+    var name='תנועות.xlsx', cd=r.headers.get('Content-Disposition')||'';
+    var m=/filename\*=UTF-8''([^;]+)/i.exec(cd); if(m){ try{ name=decodeURIComponent(m[1]); }catch(e){} }
+    var u=URL.createObjectURL(blob), a=document.createElement('a');
+    a.href=u; a.download=name; document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(function(){ URL.revokeObjectURL(u); },3000);
+    if(r.headers.get('X-Rows')==='0') toast('אין תנועות בטווח שנבחר — הקובץ ריק');
+  }catch(e){ toast('ההורדה נכשלה — נסו שוב'); }
+  finally{ btn.disabled=false; }
 }
 async function downloadDaily(){
   var id=document.getElementById('dailySel').value;

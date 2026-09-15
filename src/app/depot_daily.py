@@ -188,6 +188,147 @@ def download_daily_report(report_id):
                                            content_type=XLSX_MIME)})
 
 
+# ------------------------------------------------------------ תנועות לתקופה
+# "תנועות לתקופה — קובץ אקסל" (בקשת עידן/הי טנק דרך לימור 14/09/2026; הכרעות
+# לימור 14/09): תיבה נפרדת, טווח תאריכים + סוג פעולה, ההיסטוריה מוגבלת ל-1 בחודש
+# הקודם ("חיתוך קר"). המקבילה בפורטל לגיליון דיווחים_יומיים_ללקוח בקובץ החי.
+# הקובץ = איחוד הדוחות היומיים שכבר נמצאים באחסון (אותן 4 עמודות + עמודת תאריך),
+# כך שהפריוריטי של הלקוח קורא אותו כמו את הדוח היומי.
+PERIOD_ACTIONS = {
+    "all": None,
+    "entry": "כניסה לאחסון",
+    "wash": "שטיפה",
+    "exit": "יציאה מאחסון",
+}
+PERIOD_HEADERS = ["תאריך", "מרכז רווח", "מס' נכס", "סוג פעולה", "שעה"]
+PERIOD_MAX_FILES = 70   # חודשיים בערך — מעבר לגבול לימור ממילא לא ניתן לבחור
+
+
+def _il_today():
+    return (datetime.utcnow() + timedelta(hours=3)).date()
+
+
+def period_bounds(today=None):
+    """(התאריך המוקדם ביותר לבחירה, המאוחר ביותר) — מה-1 בחודש הקודם ועד היום."""
+    today = today or _il_today()
+    first_prev = (today.replace(day=1) - timedelta(days=1)).replace(day=1)
+    return first_prev, today
+
+
+def _parse_daily_rows(xlsx_bytes):
+    """שורות הטבלה מתוך דוח יומי אחד: [מרכז רווח, מס' נכס, סוג פעולה, שעה].
+    מזהה את שורת הכותרת לפי "מס' נכס" (כותרות הדוח מעל הטבלה — 4 שורות היום)."""
+    from io import BytesIO
+    from openpyxl import load_workbook
+    wb = load_workbook(BytesIO(xlsx_bytes), read_only=True, data_only=True)
+    ws = wb.worksheets[0]
+    out, in_table = [], False
+    for row in ws.iter_rows(values_only=True):
+        cells = list(row) + [None] * 4
+        if not in_table:
+            if any(isinstance(v, str) and "מס' נכס" in v for v in cells):
+                in_table = True
+            continue
+        if cells[1] in (None, "") and cells[2] in (None, ""):
+            continue
+        out.append(cells[:4])
+    wb.close()
+    return out
+
+
+def build_period_xlsx(day_files, action=None):
+    """day_files = [(report_date, xlsx_bytes)] → קובץ אחד: תאריך + 4 עמודות הדוח היומי,
+    ממוין לפי תאריך ושעה; action = תווית סוג פעולה לסינון או None להכל."""
+    from io import BytesIO
+    from datetime import time as _time
+    from openpyxl import Workbook
+    from openpyxl.styles import Alignment, Border, Font, PatternFill, Side
+    from openpyxl.utils import get_column_letter
+
+    rows = []
+    for d, data in day_files:
+        for pc, tank, act, tm in _parse_daily_rows(data):
+            if action and str(act or "").strip() != action:
+                continue
+            rows.append((d, pc, tank, act, tm))
+    rows.sort(key=lambda r: (r[0], r[4] if isinstance(r[4], _time) else _time(0, 0)))
+
+    wb = Workbook()
+    ws = wb.active
+    ws.title = "תנועות לתקופה"
+    ws.sheet_view.rightToLeft = True
+    thin = Side(style="thin", color="999999")
+    border = Border(left=thin, right=thin, top=thin, bottom=thin)
+    ws.append(PERIOD_HEADERS)
+    for c in ws[1]:
+        c.font = Font(bold=True)
+        c.fill = PatternFill("solid", fgColor="D9D9D9")
+        c.alignment = Alignment(horizontal="center")
+        c.border = border
+    for d, pc, tank, act, tm in rows:
+        ws.append([d, pc, tank, act, tm])
+        r = ws[ws.max_row]
+        r[0].number_format = "dd/mm/yyyy"
+        if isinstance(tm, _time):
+            r[4].number_format = "hh:mm"
+        for c in r:
+            c.border = border
+    for i, w in enumerate((13, 14, 16, 18, 9), start=1):
+        ws.column_dimensions[get_column_letter(i)].width = w
+    ws.freeze_panes = "A2"
+    buf = BytesIO()
+    wb.save(buf)
+    buf.seek(0)
+    return buf, len(rows)
+
+
+@depot_daily.route("/depot/portal/my-daily-reports/period.xlsx", methods=["GET"])
+@jwt_required()
+def download_period_report():
+    """?from=YYYY-MM-DD&to=YYYY-MM-DD&action=all|entry|wash|exit (&client_id בתצוגת-מנהלת)."""
+    from flask import send_file
+    client, _ = _client_or_preview()
+    if client is None:
+        return jsonify(error="depot customers only"), 403
+    try:
+        d_from = date.fromisoformat((request.args.get("from") or "")[:10])
+        d_to = date.fromisoformat((request.args.get("to") or "")[:10])
+    except ValueError:
+        return jsonify(error="bad dates", message="יש לבחור תאריך התחלה ותאריך סיום"), 400
+    lo, hi = period_bounds()
+    if d_from < lo or d_to > hi or d_from > d_to:
+        return jsonify(error="out of range",
+                       message=f"הטווח חייב להיות בין {lo:%d/%m/%Y} ל-{hi:%d/%m/%Y}"), 400
+    action_key = request.args.get("action") or "all"
+    if action_key not in PERIOD_ACTIONS:
+        return jsonify(error="bad action"), 400
+    if not storage_configured():
+        return jsonify(error="storage not configured"), 503
+
+    folders = _client_folders(client)
+    reports = []
+    if folders:
+        reports = (DepotDailyReport.query
+                   .filter(DepotDailyReport.folder.in_(folders),
+                           DepotDailyReport.report_date >= d_from,
+                           DepotDailyReport.report_date <= d_to)
+                   .order_by(DepotDailyReport.report_date, DepotDailyReport.id)
+                   .limit(PERIOD_MAX_FILES).all())
+    day_files = []
+    for r in reports:
+        try:
+            day_files.append((r.report_date, _fetch_report_bytes(r.b2_key)))
+        except Exception:
+            current_app.logger.warning("period report: missing B2 key %s", r.b2_key)
+    buf, n = build_period_xlsx(day_files, PERIOD_ACTIONS[action_key])
+    short = (client.file_short_name or client.name or "").strip().replace("/", "-")
+    name = f"תנועות_{short}_{d_from:%d-%m-%Y}_עד_{d_to:%d-%m-%Y}.xlsx"
+    resp = send_file(buf, mimetype=XLSX_MIME, as_attachment=True,
+                     download_name=name, max_age=0)
+    resp.headers["X-Rows"] = str(n)
+    return resp
+
+
 # ------------------------------------------------------------ bridge side
 @depot_daily.route("/depot/portal/bridge/daily-reports", methods=["POST"])
 @ecooil_bridge_required
