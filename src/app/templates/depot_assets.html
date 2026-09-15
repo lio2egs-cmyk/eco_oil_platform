@@ -122,17 +122,19 @@
       <div class="feed-head" style="cursor:default;flex-wrap:wrap;gap:8px">
         <span class="feed-title">📊 תנועות לתקופה — קובץ אקסל</span>
         <span class="muted">כל הכניסות, השטיפות והיציאות בטווח שתבחרו, עד חודש אחד אחורה (מתאים לטעינה לפריוריטי)</span>
-        <span class="muted" style="margin-inline-start:auto">מתאריך</span>
-        <input type="date" id="pFrom" class="pdate">
-        <span class="muted">עד תאריך</span>
-        <input type="date" id="pTo" class="pdate">
-        <select id="pAction" class="pdate">
-          <option value="all">כל הפעולות</option>
-          <option value="entry">כניסה לאחסון</option>
-          <option value="wash">שטיפה</option>
-          <option value="exit">יציאה מאחסון</option>
-        </select>
-        <button class="feed-toggle" type="button" id="pBtn" onclick="downloadPeriod()">⬇ הורדה</button>
+        <span style="display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin-inline-start:auto">
+          <span class="muted">מתאריך</span>
+          <input type="date" id="pFrom" class="pdate">
+          <span class="muted">עד תאריך</span>
+          <input type="date" id="pTo" class="pdate">
+          <select id="pAction" class="pdate">
+            <option value="all">כל הפעולות</option>
+            <option value="entry">כניסה לאחסון</option>
+            <option value="wash">שטיפה</option>
+            <option value="exit">יציאה מאחסון</option>
+          </select>
+          <button class="feed-toggle" type="button" id="pBtn" onclick="downloadPeriod()">⬇ הורדה</button>
+        </span>
       </div>
     </div>
 
