@@ -13,3 +13,7 @@
 /export-of-waste.html            /export-of-waste           301!
 /types-of-waste-water.html       /types-of-waste-water      301!
 /partners.html                   /partners                  301!
+
+# Never serve internal notes if a stale copy ever lands in the publish folder
+/CLAUDE.md    /index.html    404!
+/memory/*     /index.html    404!

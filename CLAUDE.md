@@ -52,3 +52,6 @@
 
 ## 7. סקילים
 סקילים (נטענים לשיחה, אני לובשת את התפקיד): `ecodepot` (הקובץ החי + דוחות), `materials` (קטלוג חומרים), `portals` (הפורטלים), `field-terminals` (טאבלטים + גשר יעל), `detective` (פרוטוקול הבלשית). סוכנים (עובדים לבד ומחזירים דוח, קריאה בלבד): `evidence-search` (ראיות למכל/שורה), `state-check` (מה באמת רץ). לפני שימוש בסקיל לאמת מצב בקוד וב-git; הסקילים מתארים מבנה וכללים, הזיכרון מתאר מצב.
+
+## 8. אתר השיווק (website/)
+אתר סטטי, חי ב-Netlify מענף `dev` (base directory website/). דפים: index, about, services-offered, industrial-consulting, eco-depot, partners, export-of-waste, types-of-waste-water; טפסים דרך Netlify Forms; `_redirects` מנקה סיומות .html. **כל קובץ בתוך website/ מתפרסם לציבור** — לכן אין שם הערות פנימיות (CLAUDE.md, memory) ואין מסמכי עבודה; הערות על האתר נשארות כאן. עיצוב: קיימת שפת עיצוב ב-`style.css` + css לכל דף; לא משנים ביוזמתי, רכיב חדש באותה שפה; אחרי שינוי פריסה להראות ללימור איך לבדוק במחשב/טאבלט/נייד. שני דפי התעודות (cleaning_certificate.html אנגלית, release_certificate.html עברית) הם תבניות מאפריל 2026 למילוי ידני; התעודות התפעוליות מופקות היום מהקובץ החי. פירוט החלטות העיצוב: `docs/archive/website_CLAUDE_full_2026-04.md`.
