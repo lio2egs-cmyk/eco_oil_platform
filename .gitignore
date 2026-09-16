@@ -11,8 +11,9 @@ prepare_data.py
 test_*.pdf
 output/
 
-# Local IDE / agent settings
-.claude/
+# Local agent settings (per-machine); skills + launch.json ARE versioned
+.claude/settings.local.json
+.claude/settings.json
 
 # Temporary debug dumps and backups
 _*.json

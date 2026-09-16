@@ -1,0 +1,30 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "portal",
+      "runtimeExecutable": "venv\\Scripts\\python.exe",
+      "runtimeArgs": ["run.py"],
+      "port": 5000,
+      "autoPort": true
+    },
+    {
+      "name": "website",
+      "runtimeExecutable": "venv\\Scripts\\python.exe",
+      "runtimeArgs": ["-m", "http.server", "8766", "--bind", "127.0.0.1", "--directory", "website"],
+      "port": 8766
+    },
+    {
+      "name": "previews",
+      "runtimeExecutable": "venv\\Scripts\\python.exe",
+      "runtimeArgs": ["-m", "http.server", "8765", "--bind", "127.0.0.1", "--directory", "C:\\eco_oil_portal"],
+      "port": 8765
+    },
+    {
+      "name": "katz-ad",
+      "runtimeExecutable": "venv\\Scripts\\python.exe",
+      "runtimeArgs": ["-m", "http.server", "8767", "--bind", "127.0.0.1", "--directory", "C:\\Users\\Office\\AppData\\Local\\Temp\\claude\\C--eco-oil-platform-git\\96487265-b250-4c15-8b4b-739908919416\\scratchpad\\katz_ad"],
+      "port": 8767
+    }
+  ]
+}
