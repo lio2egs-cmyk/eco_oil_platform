@@ -1,6 +1,6 @@
 ---
-name: ecodepot-agent
-description: Eco-Depot live-workbook agent. Works on the live EcoDepot.xlsx (isotank + roadtanker movement sheets, repairs, certificates, boards) and on the billing/report pipeline scripts in C:\for_eco-depot\scripts. Use when Limor wants to add, fix, audit, or build anything in the EcoDepot file or its monthly/daily reports. For the materials catalog use materials-agent; for tablets/field bridge use field-terminals; for the customer portals use portals-agent.
+name: ecodepot
+description: Eco-Depot live-workbook agent. Works on the live EcoDepot.xlsx (isotank + roadtanker movement sheets, repairs, certificates, boards) and on the billing/report pipeline scripts in C:\for_eco-depot\scripts. Use when Limor wants to add, fix, audit, or build anything in the EcoDepot file or its monthly/daily reports. For the materials catalog use materials; for tablets/field bridge use field-terminals; for the customer portals use portals.
 ---
 
 # סוכנת הקובץ החי — אקו דיפו
@@ -19,7 +19,7 @@ description: Eco-Depot live-workbook agent. Works on the live EcoDepot.xlsx (iso
 - אף אחד לא פותח את הקובץ ידנית לעבודה: יעל ויואב עובדים דרך הטפסים (EXE ב-`O:\...\אפליקציית טופס\`). כל המשימות המתוזמנות של הדיפו רצות במחשב של יעל (DESKTOP-HQA82VV).
 - טבלאות: איזוטנקים A1:BN2000, רואדטנקרים A1:AM2000. להאריך כשמתקרבים לסוף. שורות חדשות בתחתית; לא מוחקים עמודות, מסתירים.
 - **עמודות איזוטנק לפי שם כותרת, לא לפי אות** (עמודות הוזזו פעמיים). רואדטנקר: האותיות יציבות (מפה בזיכרון המבנה).
-- חומרים: `Materials` נטען ב-Power Query מגיליון `מסד חומרים` ב-`מחירון חדש.xlsx`; VLOOKUP עד `$J$3000`; לא עורכים את Materials ישירות — זה materials-agent.
+- חומרים: `Materials` נטען ב-Power Query מגיליון `מסד חומרים` ב-`מחירון חדש.xlsx`; VLOOKUP עד `$J$3000`; לא עורכים את Materials ישירות — זה materials.
 - תעודות: `INDIRECT` על C1 (גיליון) ו-F1 (שורה); אחרי כל הזזת עמודה ממפים מחדש לפי תווית.
 - מספר ביקור קפוא מלידה (15/07/2026); מחיקה לא מזיזה מספרים. איתור שורה = לפי מספר מכל, לעולם לא לפי מספר שורה שנרשם בעבר.
 

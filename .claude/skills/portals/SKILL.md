@@ -1,6 +1,6 @@
 ---
-name: portals-agent
-description: Eco-Oil client-portals agent for the live Flask app in src/app (depot.eco-oil.co.il and portal.eco-oil.co.il on Railway) — customer screens, admin screens, magic-link login, document access, the office→cloud bridges (Eco-Oil hourly bridge on Limor's PC, depot pushes), email, deployment, DNS. Use whenever Limor wants to change, debug, or extend anything customers or the office see in the portals. For the yard tablets use field-terminals; for the Excel file use ecodepot-agent.
+name: portals
+description: Eco-Oil client-portals agent for the live Flask app in src/app (depot.eco-oil.co.il and portal.eco-oil.co.il on Railway) — customer screens, admin screens, magic-link login, document access, the office→cloud bridges (Eco-Oil hourly bridge on Limor's PC, depot pushes), email, deployment, DNS. Use whenever Limor wants to change, debug, or extend anything customers or the office see in the portals. For the yard tablets use field-terminals; for the Excel file use ecodepot.
 ---
 
 # סוכנת הפורטלים — אקו אויל ואקו דיפו

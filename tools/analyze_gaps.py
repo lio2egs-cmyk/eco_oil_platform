@@ -3,6 +3,7 @@
 import os, io
 from collections import Counter
 os.environ.pop("DATABASE_URL", None)
+import sys as _sys, pathlib as _pl; _sys.path.insert(0, str(_pl.Path(__file__).resolve().parents[1]))  # repo root (moved to tools/ 16/09/2026)
 from src.app import create_app
 from src.app.db import DepotIsotankVisit
 

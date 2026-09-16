@@ -7,7 +7,7 @@ seed_demo_data.py
 
 import sys
 import os
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), "src"))
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "src"))  # repo root/src (moved 16/09/2026)
 
 from datetime import datetime, timedelta
 from app import create_app

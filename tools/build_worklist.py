@@ -4,6 +4,7 @@ the worker to complete one-by-one (with the live-file ROW NUMBER for fast lookup
 Only incomplete tanks are listed — fully-complete ones are excluded on purpose."""
 import os
 os.environ.pop("DATABASE_URL", None)
+import sys as _sys, pathlib as _pl; _sys.path.insert(0, str(_pl.Path(__file__).resolve().parents[1]))  # repo root (moved to tools/ 16/09/2026)
 from src.app import create_app
 from src.app.db import DepotIsotankVisit
 import openpyxl

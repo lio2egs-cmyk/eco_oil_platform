@@ -7,8 +7,10 @@
 |---|---|---|
 | `src/app/` | פורטלי הלקוחות (Flask + SQLAlchemy): כניסה בקישור קסם, פורטל דיפו (נכסים, תעודות, דוח יומי, בקשות שחרור), פורטל אויל (אישורי פריקה, הצהרות יצרן, טפסים מלווים), מסכי ניהול, PWA למסופוני השטח | Railway + Postgres, `Procfile`; depot.eco-oil.co.il / portal.eco-oil.co.il |
 | `website/` | אתר השיווק הסטטי | Netlify, נפרס מענף `dev` |
-| `ecooil_*.py`, `depot_*.py`, `bridge_sync.py` | גשרים: קוראים את קבצי המשרד (ריכוז, מסד, EcoDepot.xlsx, תיקיות התיוק) ודוחפים לענן; תזכורות; שידוך PDF-ים לשורות | משימות מתוזמנות במחשבי המשרד |
+| `ecooil_*.py`, `depot_*.py` | גשרים: קוראים את קבצי המשרד (ריכוז, מסד, EcoDepot.xlsx, תיקיות התיוק) ודוחפים לענן; תזכורות; שידוך PDF-ים לשורות | משימות מתוזמנות במחשבי המשרד |
 | `data/`, `artifacts/templates/` | DB מקומי לפיתוח, תבניות מסמכים רשמיים | מקומי |
+| `tools/` | כלי פיתוח: דאטה-דמו, תצוגות מקדימות, סנכרון מקומי, בדיקת DB | מקומי |
+| `legacy/` | קוד הקורס (03/2026) וסקריפטי התעודות הראשונים (04/2026), לעיון בלבד | |
 | `docs/archive/` | מסמכי הנחיה ישנים (מאי 2026) לעיון בלבד | |
 | `CLAUDE.md` | מסמך הבסיס לעבודה עם Claude Code | |
 
@@ -18,7 +20,7 @@
 ```
 venv\Scripts\python.exe run.py
 ```
-שרת ב-http://127.0.0.1:5000, DB ב-`data/app.db` (SQLite, נוצר לבד). דאטה-דמו: `seed_demo_data.py`. פרטים: `.claude/launch.json` והזיכרון reference_dev_setup.
+שרת ב-http://127.0.0.1:5000, DB ב-`data/app.db` (SQLite, נוצר לבד). דאטה-דמו: `tools/seed_demo_data.py`. פרטים: `.claude/launch.json` והזיכרון reference_dev_setup.
 
 ## ענפים ופריסה
 `dev` = הענף הפעיל; push אליו פורס אוטומטית את האתר (Netlify) ואת הפורטלים (Railway). `master` ישן (לוח Streamlit מהקורס) ואינו בשימוש. סודות ב-`.env` בלבד.
