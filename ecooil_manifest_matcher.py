@@ -132,7 +132,25 @@ def parse_manifest_name(f, year_on_path):
         for t in norm(b).split():
             words = [w for w in words if norm(w) != t]
     name = " ".join(words).strip() or None
-    return {"d": d, "mo": mo, "y": y, "streams": streams, "name": name}
+    # Multi-site manifest (Limor 17/09/2026, Or Barkan "שוהם+חלמיש"): when the
+    # residual name joins several SITE names with '+', Limor wrote one manifest
+    # for one pickup that served several sites of the same customer — it may
+    # serve one row per site (same stream). Stream combos ("אמולסיה+בוצה")
+    # never reach here: stream words are removed from the residue first.
+    site_parts = []
+    if "+" in residue:
+        for part in residue.split("+"):
+            ws = [w for w in re.split(r"[_\s\-,.']+", part)
+                  if w and not w.isdigit() and w not in NOISE_WORDS]
+            for b in streams:
+                for t in norm(b).split():
+                    ws = [w for w in ws if norm(w) != t]
+            if ws:
+                site_parts.append(" ".join(ws))
+    if len(site_parts) < 2:
+        site_parts = []
+    return {"d": d, "mo": mo, "y": y, "streams": streams, "name": name,
+            "site_parts": site_parts}
 
 def scan_owner(base, owner):
     global n_files, n_unparsed
@@ -163,6 +181,7 @@ def scan_owner(base, owner):
                 continue
             rec = {"path": os.path.join(dirpath, f), "owner": owner_full,
                    "name": p["name"], "streams": p["streams"],
+                   "site_parts": p["site_parts"], "served_sites": set(),
                    "suffix": day_suffix(f), "used_by": set()}
             index[(p["y"], p["mo"], p["d"])].append(rec)
             n_files += 1
@@ -196,6 +215,7 @@ with app.app_context():
     by_suffix = 0
     by_elimination = 0
     shared_same_pickup = 0   # one manifest → several rows of different streams (same pickup)
+    shared_multi_site = 0    # one "site+site" manifest → one row per named site (17/09/2026)
     ambiguous = []   # (ev, [candidate paths]) — several manifests, none with the row's suffix
     per_stream = defaultdict(lambda: [0, 0])
     for ev in events:
@@ -205,9 +225,19 @@ with app.app_context():
         cands = index.get((d.year, d.month, d.day), [])
         ev_suffix = day_suffix(os.path.basename(ev.pdf_path)) if ev.pdf_path else 1
         skey = norm(ev.stream) or "?"          # raw stream: אמולסיה ≠ אמולסיה בוצה
-        passing = []                           # (score, rec) — all gates passed, free for this stream
+        passing = []                           # (score, rec, site) — all gates passed, free for this stream
         for rec in cands:
-            if skey in rec["used_by"]:         # single-use per stream (Limor 14/09/2026)
+            # Multi-site file (Limor 17/09/2026): one row per named site, per
+            # stream. Anything else: single-use per stream (Limor 14/09/2026).
+            site = None
+            for part in rec["site_parts"]:
+                if name_score(part, ev.customer or "") >= 0.5:
+                    site = part
+                    break
+            if site is None:
+                if skey in rec["used_by"]:
+                    continue
+            elif (skey, site) in rec["served_sites"]:
                 continue
             # stream gate: a manifest naming streams matches only rows of those
             # streams; a stream-less filename may serve any stream that day
@@ -227,29 +257,34 @@ with app.app_context():
                     continue
                 nsc = 0.0
             score = osc + nsc
-            passing.append((score, rec))
-        best = None
+            passing.append((score, rec, site))
+        best = best_site = None
         if passing:
-            same = [(sc, r) for sc, r in passing if r["suffix"] == ev_suffix]
+            same = [t for t in passing if t[1]["suffix"] == ev_suffix]
             if same:
-                best = max(same, key=lambda t: t[0])[1]
+                _, best, best_site = max(same, key=lambda t: t[0])
                 by_suffix += 1
             elif len(passing) == 1:
-                best = passing[0][1]
+                _, best, best_site = passing[0]
                 by_elimination += 1
             else:
-                ambiguous.append((ev, [r["path"] for _, r in passing]))
+                ambiguous.append((ev, [r["path"] for _, r, _ in passing]))
         if best:
-            if best["used_by"]:
-                shared_same_pickup += 1
-            best["used_by"].add(skey)
+            if best_site is not None:
+                if best["served_sites"]:
+                    shared_multi_site += 1
+                best["served_sites"].add((skey, best_site))
+            else:
+                if best["used_by"]:
+                    shared_same_pickup += 1
+                best["used_by"].add(skey)
             ev.manifest_path = best["path"]
             matched += 1
             per_stream[ev.stream_norm or bs or "?"][1] += 1
         else:
             ev.manifest_path = None
     db.session.commit()
-    log.write(f"by suffix: {by_suffix} | by elimination (single candidate): {by_elimination} | shared by rows of different streams (same pickup): {shared_same_pickup} | ambiguous (left empty): {len(ambiguous)}\n")
+    log.write(f"by suffix: {by_suffix} | by elimination (single candidate): {by_elimination} | shared by rows of different streams (same pickup): {shared_same_pickup} | shared by sites named in the file: {shared_multi_site} | ambiguous (left empty): {len(ambiguous)}\n")
     for ev, paths in ambiguous[:40]:
         log.write(f"  AMBIGUOUS {ev.event_date} {ev.billed_to} {ev.stream} code={ev.code}: {[os.path.basename(x) for x in paths]}\n")
 
