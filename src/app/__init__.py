@@ -134,6 +134,8 @@ def create_app():
             "ALTER TABLE ecooil_filing_rulings ADD COLUMN client_id INTEGER REFERENCES clients(id)",
             # מפתח טבעי לשורות האויל — מזהה קבוע בין סבבים (לימור 17/09/2026)
             "ALTER TABLE ecooil_unload_events ADD COLUMN nat_key VARCHAR(64)",
+            # ביטול הגעה של בקשה מקדימה (לימור 17/09/2026)
+            "ALTER TABLE depot_prearrivals ADD COLUMN cancelled_at TIMESTAMP",
             "CREATE INDEX IF NOT EXISTS ix_ecooil_unload_events_nat_key ON ecooil_unload_events(nat_key)",
         ):
             try:

@@ -921,10 +921,44 @@ class DepotPreArrival(db.Model):
 
     status = db.Column(db.String(20), default="pending", nullable=False, index=True)
     # pending → fetched (bridge downloaded) → posted (צפי row born) | error
+    # | cancelled (ביטול הגעה — הלקוח ביטל; השורה בקובץ סומנה "בוטל שגוי")
+    bridge_note = db.Column(db.String(400))
+    posted_at = db.Column(db.DateTime)
+    cancelled_at = db.Column(db.DateTime)
+
+    client = db.relationship("Client")
+
+
+class DepotArrivalCancel(db.Model):
+    """ביטול הגעה (לימור 17/09/2026, מקרה HOYU9667783 / מרינה-טנקו): הלקוח
+    הודיע שנכס שהוגשה לו בקשה מקדימה לא יגיע. אותו צינור כמו הטופס המקדים
+    ובקשות השחרור: הענן שומר (pending) → הגשר של יעל מושך → מסמן את שורת
+    הצפי בקובץ החי "בוטל שגוי" (חוק 53א) → מאשר (posted) או דוחה (rejected:
+    הנכס כבר נכנס). source = מי ביטל: 'portal' (כפתור בפורטל), ובעתיד
+    'priority' (הודעת מערכת מהלקוח, למשל פריוריטי של טנקו — אותו מנגנון,
+    אותה רשומה, רק המקור שונה)."""
+    __tablename__ = "depot_arrival_cancels"
+
+    id = db.Column(db.Integer, primary_key=True)
+    client_id = db.Column(db.Integer, db.ForeignKey("clients.id"), nullable=False, index=True)
+    submitted_by_user_id = db.Column(db.Integer, db.ForeignKey("users.id"))
+    prearrival_id = db.Column(db.Integer, db.ForeignKey("depot_prearrivals.id"), index=True)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False, index=True)
+
+    tank = db.Column(db.String(40), nullable=False, index=True)
+    source = db.Column(db.String(20), default="portal", nullable=False)   # portal / priority / office
+    reason = db.Column(db.String(400))
+
+    # pending → fetched (הגשר משך) → posted (השורה סומנה "בוטל שגוי" / לא הייתה
+    # שורה) / rejected (הנכס כבר נכנס — לטיפול המשרד) / error
+    status = db.Column(db.String(20), default="pending", nullable=False, index=True)
     bridge_note = db.Column(db.String(400))
     posted_at = db.Column(db.DateTime)
 
     client = db.relationship("Client")
+    # לפי המחלקה ולא לפי שם: בקובץ יש מחלקה ישנה באותו שם (depot_pre_arrivals,
+    # מהקורס) — חיפוש לפי מחרוזת נכשל על "Multiple classes found".
+    prearrival = db.relationship(DepotPreArrival, foreign_keys=[prearrival_id])
 
 
 class EcoOilValiditySnapshot(db.Model):

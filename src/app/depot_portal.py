@@ -16,7 +16,7 @@ from datetime import date, datetime
 from flask import Blueprint, Response, current_app, jsonify, request
 from flask_jwt_extended import get_jwt, get_jwt_identity, jwt_required
 
-from .db import db, Client, DepotFormOptions, DepotPreArrival, User
+from .db import db, Client, DepotArrivalCancel, DepotFormOptions, DepotPreArrival, User
 from .field import bridge_required
 
 depot_portal = Blueprint("depot_portal", __name__, url_prefix="/depot/portal")
@@ -186,16 +186,169 @@ def my_prearrivals():
     heb = {"pending": "נקלט — ממתין לפתיחת שורה במשרד",
            "fetched": "בקליטה במשרד",
            "posted": "נפתחה שורת צפי — הנכס מוכר למערכת",
-           "error": "בבירור מול המשרד"}
-    return jsonify(prearrivals=[{
-        "id": r.id,
+           "error": "בבירור מול המשרד",
+           "cancelled": "ההגעה בוטלה"}
+    # ביטול הגעה (17/09/2026): מצב הביטול הפתוח של כל הגשה, כדי שהלקוח יראה
+    # "הביטול בטיפול" / "הביטול נדחה — פנו למשרד" ולא ילחץ שוב.
+    open_cancels = {c.prearrival_id: c for c in (
+        DepotArrivalCancel.query
+        .filter(DepotArrivalCancel.client_id == client.id,
+                DepotArrivalCancel.prearrival_id.in_([r.id for r in rows] or [0]))
+        .order_by(DepotArrivalCancel.id).all())}
+    out = []
+    for r in rows:
+        c = open_cancels.get(r.id)
+        status = heb.get(r.status, r.status)
+        can_cancel = r.status in CANCELLABLE_STATES and c is None
+        if c is not None and c.status in ("pending", "fetched"):
+            status = "ביטול ההגעה בטיפול המשרד"
+        elif c is not None and c.status == "rejected":
+            status = "הביטול לא בוצע — " + (c.bridge_note or "פנו למשרד")
+        elif c is not None and c.status == "error":
+            status = "הביטול בבירור מול המשרד"
+        out.append({
+            "id": r.id,
+            "created_at": r.created_at.isoformat(),
+            "tank_number": r.tank_number,
+            "material": r.material,
+            "purpose": r.purpose if r.purpose != "אחר" else (r.purpose_other or "אחר"),
+            "expected_date": r.expected_date.strftime("%d/%m/%Y") if r.expected_date else None,
+            "status": status,
+            "can_cancel": can_cancel,
+        })
+    return jsonify(prearrivals=out)
+
+
+# ---------------------------------------------------------- ביטול הגעה
+# (לימור 17/09/2026, מקרה HOYU9667783: מרינה מטנקו הודיעה במייל ליואב
+# שהנכס לא יגיע, והטופס במשרד לא ידע לבטל שורת צפי.)
+CANCELLABLE_STATES = ("pending", "fetched", "posted")
+
+
+def create_arrival_cancel(client, tank, source="portal", reason=None,
+                          prearrival=None, user_id=None):
+    """הרשומה האחת לביטול הגעה, מכל מקור: כפתור בפורטל היום, הודעת מערכת
+    (פריוריטי של טנקו) מחר — אותו צינור לגשר של יעל, אותו סימון בקובץ.
+    הגשה שעוד לא נמשכה ע"י הגשר (pending) נסגרת מיד כ'בוטלה' — לא תיפתח
+    לה שורה; כל השאר מחכה לאישור הגשר (השורה בקובץ מסומנת "בוטל שגוי")."""
+    row = DepotArrivalCancel(
+        client_id=client.id, submitted_by_user_id=user_id,
+        prearrival_id=prearrival.id if prearrival is not None else None,
+        tank=tank, source=source[:20], reason=(reason or "")[:400] or None,
+    )
+    db.session.add(row)
+    if prearrival is not None and prearrival.status == "pending":
+        prearrival.status = "cancelled"
+        prearrival.cancelled_at = datetime.utcnow()
+        prearrival.bridge_note = "בוטל לפני פתיחת שורה"
+        row.status = "posted"
+        row.posted_at = datetime.utcnow()
+        row.bridge_note = "ההגשה בוטלה לפני שנפתחה שורת צפי"
+    db.session.commit()
+    return row
+
+
+@depot_portal.route("/prearrivals/<int:row_id>/cancel", methods=["POST"])
+@jwt_required()
+def cancel_prearrival(row_id):
+    """ביטול הגעה מהפורטל: רק ההגשה של הלקוח המחובר, רק כשעדיין לא בוטלה
+    ואין ביטול פתוח. הביצוע בקובץ — אצל הגשר (בדיקת-האמת ברגע הביצוע)."""
+    client = _depot_client_for_request()
+    if client is None:
+        return jsonify(error="depot customers only"), 403
+    r = db.session.get(DepotPreArrival, row_id)
+    if r is None or r.client_id != client.id:
+        return jsonify(error="ההגשה לא נמצאה"), 404
+    if r.status not in CANCELLABLE_STATES:
+        return jsonify(error="את ההגשה הזו כבר אי-אפשר לבטל מהפורטל — פנו למשרד"), 409
+    existing = (DepotArrivalCancel.query
+                .filter(DepotArrivalCancel.prearrival_id == r.id).first())
+    if existing is not None:
+        return jsonify(error="כבר נשלח ביטול להגשה הזו — הוא בטיפול המשרד"), 409
+    data = request.get_json(silent=True) or {}
+    row = create_arrival_cancel(client, r.tank_number, source="portal",
+                                reason=(data.get("reason") or "").strip(),
+                                prearrival=r, user_id=int(get_jwt_identity()))
+    try:
+        _notify_office_cancel(row, r, client)
+    except Exception as exc:
+        current_app.logger.error("arrival-cancel office notification failed: %s", exc)
+    return jsonify(id=row.id, tank=row.tank, status=row.status), 201
+
+
+def _notify_office_cancel(row, pa, client):
+    from .mailer import send_office_email
+
+    def tr(k, v):
+        return (f'<tr><td style="border:1px solid #999;padding:6px 10px;'
+                f'background:#EDF3F2;font-weight:bold">{k}</td>'
+                f'<td style="border:1px solid #999;padding:6px 10px">{v or "—"}</td></tr>')
+
+    submitter = db.session.get(User, row.submitted_by_user_id or 0)
+    what = ("ההגשה בוטלה לפני שנפתחה שורת צפי — אין מה לעשות."
+            if row.status == "posted" else
+            "שורת הצפי בקובץ תסומן אוטומטית \"בוטל שגוי\" ע\"י הגשר.")
+    html = f"""<div dir="rtl" style="font-family:Arial,sans-serif">
+<p>הלקוח הודיע בפורטל הדיפו על <b>ביטול הגעה</b> של נכס שהוגשה לו בקשה מקדימה. {what}</p>
+<table style="border-collapse:collapse">
+{tr("לקוח", client.name)}
+{tr("מספר איזוטנק", row.tank)}
+{tr("חומר אחרון", pa.material)}
+{tr("תאריך הגעה משוער שהיה", pa.expected_date.strftime('%d/%m/%Y') if pa.expected_date else None)}
+{tr("הבקשה המקדימה הוגשה", pa.created_at.strftime('%d/%m/%Y %H:%M'))}
+{tr("סיבת הביטול (לפי הלקוח)", row.reason)}
+{tr("בוטל על ידי", submitter.email if submitter else None)}
+</table>
+<p style="margin-top:14px"><a href="https://depot.eco-oil.co.il/depot-admin"
+style="background:#5B9E96;color:#fff;padding:9px 18px;border-radius:8px;
+text-decoration:none;font-weight:bold">לצפייה — מסך ניהול הדיפו</a></p></div>"""
+    send_office_email(subject=f"ביטול הגעה — {row.tank} ({client.name})",
+                      html=html, to="shtifot@eco-oil.co.il")
+
+
+@depot_portal.route("/bridge/arrival-cancels", methods=["GET"])
+@bridge_required
+def bridge_pending_cancels():
+    """הגשר מושך ביטולי הגעה פתוחים (גם fetched מוגש שוב — כמו שאר הצינורות)."""
+    rows = (DepotArrivalCancel.query
+            .filter(DepotArrivalCancel.status.in_(("pending", "fetched")))
+            .order_by(DepotArrivalCancel.id).limit(50).all())
+    for r in rows:
+        r.status = "fetched"
+    db.session.commit()
+    return jsonify(cancels=[{
+        "id": r.id, "client_id": r.client_id,
+        "client_name": r.client.name if r.client else "?",
         "created_at": r.created_at.isoformat(),
-        "tank_number": r.tank_number,
-        "material": r.material,
-        "purpose": r.purpose if r.purpose != "אחר" else (r.purpose_other or "אחר"),
-        "expected_date": r.expected_date.strftime("%d/%m/%Y") if r.expected_date else None,
-        "status": heb.get(r.status, r.status),
+        "tank": r.tank, "source": r.source, "reason": r.reason,
+        "prearrival_id": r.prearrival_id,
+        "expected_date": (r.prearrival.expected_date.isoformat()
+                          if r.prearrival is not None and r.prearrival.expected_date else None),
     } for r in rows])
+
+
+@depot_portal.route("/bridge/arrival-cancels/ack", methods=["POST"])
+@bridge_required
+def bridge_ack_cancel():
+    """posted = השורה סומנה "בוטל שגוי" (או לא הייתה שורה); rejected = הנכס
+    כבר נכנס — הלקוח רואה את ההסבר בפורטל; error = תקלה."""
+    data = request.get_json(silent=True) or {}
+    r = db.session.get(DepotArrivalCancel, int(data.get("id") or 0))
+    if r is None:
+        return jsonify(error="not found"), 404
+    status = data.get("status")
+    if status not in ("posted", "rejected", "error"):
+        return jsonify(error="status must be posted/rejected/error"), 400
+    r.status = status
+    r.bridge_note = (data.get("note") or "")[:400] or None
+    if status == "posted":
+        r.posted_at = datetime.utcnow()
+        if r.prearrival is not None:
+            r.prearrival.status = "cancelled"
+            r.prearrival.cancelled_at = datetime.utcnow()
+            r.prearrival.bridge_note = r.bridge_note
+    db.session.commit()
+    return jsonify(ok=True, id=r.id, status=r.status)
 
 
 def _payer_text(row, sep=" · "):

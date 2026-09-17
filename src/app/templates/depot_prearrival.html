@@ -31,6 +31,8 @@
   .upload.hasfile{color:var(--teal-dark);border-color:var(--teal)}
   .btn{display:block;width:100%;margin-top:28px;background:var(--teal);color:#fff;border:none;border-radius:12px;padding:15px;font-family:var(--fh);font-size:17px;cursor:pointer}
   .btn:disabled{opacity:.6;cursor:wait}
+  .cancelBtn{background:#fff;color:#C0564F;border:1px solid #C0564F;border-radius:8px;padding:5px 10px;font-family:var(--fh);font-size:13px;cursor:pointer;white-space:nowrap}
+  .cancelBtn:hover{background:#FBEDEC}
   .btnnote{text-align:center;font-size:12.5px;color:#888;margin-top:8px}
   .legend{font-size:13px;color:#666;margin-top:14px}
   .legend .must-ex{color:#B23B32;font-weight:700}
@@ -292,14 +294,28 @@ async function loadPrev(){
   if(!r||!r.ok) return;
   var rows=(await r.json()).prearrivals||[];
   if(!rows.length) return;
-  var h='<tr><th>הוגש</th><th>איזוטנק</th><th>חומר</th><th>מצב</th></tr>';
+  var h='<tr><th>הוגש</th><th>איזוטנק</th><th>חומר</th><th>מצב</th><th></th></tr>';
   rows.slice(0,8).forEach(function(p){
     var d=(p.created_at||'').slice(0,10).split('-');
+    /* ביטול הגעה (לימור 17/09/2026): הנכס לא יגיע — לחיצה אחת במקום מייל
+       למשרד; שורת הצפי אצלנו מסומנת מבוטלת אוטומטית. */
+    var act=p.can_cancel?'<button class="cancelBtn" onclick="cancelArrival('+p.id+',\''+p.tank_number+'\')">✖ ביטול הגעה</button>':'';
     h+='<tr><td>'+(d.length===3?d[2]+'/'+d[1]+'/'+d[0]:'')+'</td><td><b>'+p.tank_number+'</b></td>'+
-       '<td>'+(p.material||'')+'</td><td>'+(p.status||'')+'</td></tr>';
+       '<td>'+(p.material||'')+'</td><td>'+(p.status||'')+'</td><td>'+act+'</td></tr>';
   });
   document.getElementById('prevTable').innerHTML=h;
   document.getElementById('prevBox').style.display='block';
+}
+
+async function cancelArrival(id, tank){
+  var reason=prompt('ביטול הגעה של '+tank+'\nהנכס לא יגיע אלינו, ושורת הצפי תבוטל.\n\nסיבה (רשות):','');
+  if(reason===null) return;
+  var r=await api('/depot/portal/prearrivals/'+id+'/cancel',{method:'POST',
+    headers:{'Content-Type':'application/json'},body:JSON.stringify({reason:reason})});
+  if(!r) return;
+  var d={}; try{ d=await r.json(); }catch(_){}
+  if(r.ok){ alert('ביטול ההגעה נקלט ✓ המשרד קיבל את ההודעה.'); loadPrev(); }
+  else alert(d.error||'הביטול לא נקלט — נסו שוב או פנו למשרד');
 }
 
 function togglePayers(){
