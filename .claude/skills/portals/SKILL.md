@@ -23,7 +23,7 @@ description: Eco-Oil client-portals agent for the live Flask app in src/app (dep
 | `auth.py` | `/auth`: קישור קסם, JWT, תפקידים (admin, eco_oil_client, eco_depot_client, transport_company, eco_oil_declaration_only), `get_allowed_client_ids()` = לב אבטחת הנתונים |
 | `web.py` | דפי הלקוח: /login, /verify, /portal, /declaration |
 | `ecooil_docs.py` | `/eco-oil`: מסמכי הלקוח (אישורי פריקה, טפסים מלווים), הצהרות יצרן, מסך הניהול /admin |
-| `ecooil_bridge.py` | `/bridge/ecooil`: הדלת שהגשר במשרד דוחף דרכה (טוקן `ECOOIL_BRIDGE_TOKEN`) |
+| `ecooil_bridge.py` | `/bridge/ecooil`: הדלת שהגשר במשרד דוחף דרכה (טוקן `ECOOIL_BRIDGE_TOKEN`). מ-17/09 כמו גיבוי: מפתח טבעי לשורה (`ecooil_natkey.py`), עדכון במקום (ids קבועים), `/sync-delta` = רק מה שהשתנה; `/sync` מלא = השלמה במקום, לא מחיקה |
 | `depot_portal.py` / `depot_assets.py` / `depot_certs.py` / `depot_daily.py` | דיפו: טופס מקדים, "הנכסים שלנו" + ציר זמן + בקשות שחרור, ארכיון תעודות, דוח יומי xlsx + מייל בוקר, מלאי, תנועות לתקופה |
 | `depot_admin.py` | `/depot/admin`: הגשות, חברות, צוות, הזמנות, בקשות שחרור, תצוגת-לקוח |
 | `field.py` | `/field/api`: תיבת הדואר בענן בין הטאבלטים לגשר במחשב יעל (`FIELD_BRIDGE_TOKEN`) |

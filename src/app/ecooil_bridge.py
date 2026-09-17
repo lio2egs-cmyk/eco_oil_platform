@@ -5,6 +5,14 @@ The ריכוז workbook on the office drive is the source of truth (Limor 2026-0
 the office bridge reads it hourly, uploads certificate PDFs to B2 cloud storage,
 and pushes the unload-event rows here. The cloud only mirrors — it never edits.
 
+Since 17/09/2026 (Limor, after the Or-Barkan case) the mirror is kept like a
+backup: every row carries a natural key (ecooil_natkey.py), the cloud updates
+rows IN PLACE so their ids never change, and the office normally sends only
+the rows that changed since its previous push (/sync-delta). A full snapshot
+(/sync) is still accepted — first run, or whenever the delta cannot be applied
+safely — and is reconciled the same way (upsert + delete of vanished rows),
+never wipe-and-reload.
+
 Auth: ECOOIL_BRIDGE_TOKEN env var (Bearer), same pattern as FIELD_BRIDGE_TOKEN.
 """
 import os
@@ -16,7 +24,8 @@ from functools import wraps
 from flask import Blueprint, current_app, request, jsonify
 from sqlalchemy import func
 
-from .db import db, EcoOilUnloadEvent
+from .db import db, EcoOilUnloadEvent, EcoOilBridgeRun
+from .ecooil_natkey import assign_nat_keys
 
 ecooil_bridge = Blueprint("ecooil_bridge", __name__, url_prefix="/bridge/ecooil")
 
@@ -135,15 +144,102 @@ def _coerce_event(item):
     # manifest follows the manifest's folder (same filing act by Limor).
     kwargs["filed_owner"] = _filed_owner_from_path(
         kwargs.get("pdf_path") or kwargs.get("manifest_path"))
+    nk = item.get("nat_key")
+    kwargs["nat_key"] = str(nk).strip()[:64] if nk else None
     kwargs["synced_at"] = datetime.utcnow()
     return kwargs
+
+
+# The fields an update compares — everything the office controls plus the
+# server-derived filing anchor. id / nat_key / synced_at are never compared.
+_COMPARE_FIELDS = _STR_FIELDS + _INT_FIELDS + _FLOAT_FIELDS + ("event_date", "filed_owner")
+_IN_CHUNK = 900   # keep IN(...) lists well under driver parameter limits
+
+
+def _coerce_all(events):
+    rows, skipped = [], 0
+    for item in events:
+        kwargs = _coerce_event(item) if isinstance(item, dict) else None
+        if kwargs is None:
+            skipped += 1
+            continue
+        rows.append(kwargs)
+    return rows, skipped
+
+
+def _rows_by_keys(keys):
+    keys = list(keys)
+    out = {}
+    for i in range(0, len(keys), _IN_CHUNK):
+        for r in EcoOilUnloadEvent.query.filter(
+                EcoOilUnloadEvent.nat_key.in_(keys[i:i + _IN_CHUNK])).all():
+            out[r.nat_key] = r
+    return out
+
+
+def _delete_by_ids(ids):
+    ids = list(ids)
+    n = 0
+    for i in range(0, len(ids), _IN_CHUNK):
+        n += (EcoOilUnloadEvent.query
+              .filter(EcoOilUnloadEvent.id.in_(ids[i:i + _IN_CHUNK]))
+              .delete(synchronize_session=False))
+    return n
+
+
+def _apply_upsert(rows, existing):
+    """Update rows in place (only when something actually differs) and insert
+    the new ones. Returns (inserted, updated, unchanged). Ids of existing rows
+    are untouched — that is the whole point (Limor 17/09/2026)."""
+    inserted = updated = unchanged = 0
+    to_insert = []
+    for kw in rows:
+        row = existing.get(kw["nat_key"])
+        if row is None:
+            to_insert.append(kw)
+            inserted += 1
+            continue
+        changed = False
+        for f in _COMPARE_FIELDS:
+            new = kw.get(f)
+            if getattr(row, f) != new:
+                setattr(row, f, new)
+                changed = True
+        if changed:
+            row.synced_at = kw["synced_at"]
+            updated += 1
+        else:
+            unchanged += 1
+    if to_insert:
+        db.session.bulk_insert_mappings(EcoOilUnloadEvent, to_insert)
+    return inserted, updated, unchanged
+
+
+def _record_run(kind, inserted, updated, deleted, unchanged):
+    total = db.session.query(func.count(EcoOilUnloadEvent.id)).scalar() or 0
+    run = EcoOilBridgeRun(kind=kind, inserted=inserted, updated=updated,
+                          deleted=deleted, unchanged=unchanged, total=total,
+                          ran_at=datetime.utcnow())
+    db.session.add(run)
+    return run
+
+
+def _run_dict(run):
+    if run is None:
+        return None
+    return {"ran_at": run.ran_at.isoformat() if run.ran_at else None,
+            "kind": run.kind, "inserted": run.inserted, "updated": run.updated,
+            "deleted": run.deleted, "unchanged": run.unchanged, "total": run.total}
 
 
 @ecooil_bridge.route("/sync", methods=["POST"])
 @ecooil_bridge_required
 def sync_events():
-    """Wholesale snapshot replace — mirrors the office reader's wipe+reload model.
-    Body: {"events": [...]}  (one atomic transaction: readers never see a gap)."""
+    """Full snapshot, reconciled in place (17/09/2026): rows are matched by
+    their natural key — existing ones are updated only where they differ, new
+    ones inserted, and rows that vanished from the snapshot (or legacy rows
+    without a key) deleted. One transaction; ids of surviving rows never
+    change. Body: {"events": [...]}."""
     data = request.get_json(silent=True) or {}
     events = data.get("events")
     if not isinstance(events, list):
@@ -151,22 +247,82 @@ def sync_events():
     if len(events) > MAX_EVENTS:
         return jsonify({"error": f"too many events (max {MAX_EVENTS})"}), 400
 
-    rows, skipped = [], 0
-    for item in events:
-        if not isinstance(item, dict):
-            skipped += 1
-            continue
-        kwargs = _coerce_event(item)
-        if kwargs is None:
-            skipped += 1
-            continue
-        rows.append(kwargs)
+    rows, skipped = _coerce_all(events)
+    if any(not r.get("nat_key") for r in rows):
+        # An office script that predates the natural key — derive it here so
+        # the mirror is still reconciled rather than wiped.
+        assign_nat_keys(rows)
+    keys = [r["nat_key"] for r in rows]
+    if len(set(keys)) != len(keys):
+        return jsonify({"error": "duplicate nat_key in snapshot"}), 400
 
-    EcoOilUnloadEvent.query.delete()
-    if rows:
-        db.session.bulk_insert_mappings(EcoOilUnloadEvent, rows)
+    incoming = set(keys)
+    existing = {}
+    stale_ids = []
+    for r in EcoOilUnloadEvent.query.all():
+        if r.nat_key and r.nat_key in incoming:
+            existing[r.nat_key] = r
+        else:
+            stale_ids.append(r.id)
+    inserted, updated, unchanged = _apply_upsert(rows, existing)
+    deleted = _delete_by_ids(stale_ids)
+    run = _record_run("full", inserted, updated, deleted, unchanged)
     db.session.commit()
-    return jsonify({"ok": True, "loaded": len(rows), "skipped": skipped})
+    return jsonify({"ok": True, "loaded": len(rows), "skipped": skipped,
+                    "inserted": inserted, "updated": updated,
+                    "deleted": deleted, "unchanged": unchanged,
+                    "total": run.total})
+
+
+@ecooil_bridge.route("/sync-delta", methods=["POST"])
+@ecooil_bridge_required
+def sync_delta():
+    """Only what changed since the office's previous push (17/09/2026):
+    {"upsert": [...rows...], "delete": [nat_key, ...], "expect_total": N}.
+    Applied in one transaction and then checked against the office's expected
+    row count; on any doubt (legacy rows without a key, count mismatch) nothing
+    is written and 409 tells the office to send a full snapshot instead."""
+    data = request.get_json(silent=True) or {}
+    upsert = data.get("upsert", [])
+    delete = data.get("delete", [])
+    if not isinstance(upsert, list) or not isinstance(delete, list):
+        return jsonify({"error": "upsert/delete lists required"}), 400
+    if len(upsert) + len(delete) > MAX_EVENTS:
+        return jsonify({"error": f"too many events (max {MAX_EVENTS})"}), 400
+    expect_total = data.get("expect_total")
+
+    legacy = (db.session.query(func.count(EcoOilUnloadEvent.id))
+              .filter(EcoOilUnloadEvent.nat_key.is_(None)).scalar() or 0)
+    if legacy:
+        return jsonify({"error": "full sync required",
+                        "reason": f"{legacy} rows without nat_key"}), 409
+
+    rows, skipped = _coerce_all(upsert)
+    if any(not r.get("nat_key") for r in rows):
+        return jsonify({"error": "nat_key required on every upsert row"}), 400
+    keys = [r["nat_key"] for r in rows]
+    if len(set(keys)) != len(keys):
+        return jsonify({"error": "duplicate nat_key in upsert"}), 400
+    del_keys = [str(k) for k in delete if k]
+
+    existing = _rows_by_keys(keys) if keys else {}
+    inserted, updated, unchanged = _apply_upsert(rows, existing)
+    deleted = 0
+    if del_keys:
+        victims = _rows_by_keys(del_keys)
+        deleted = _delete_by_ids([r.id for r in victims.values()])
+    db.session.flush()
+    total = db.session.query(func.count(EcoOilUnloadEvent.id)).scalar() or 0
+    if expect_total is not None and int(expect_total) != total:
+        db.session.rollback()
+        return jsonify({"error": "mismatch", "total": total,
+                        "expect_total": expect_total,
+                        "reason": "cloud row count differs from the office's — send a full snapshot"}), 409
+    run = _record_run("delta", inserted, updated, deleted, unchanged)
+    db.session.commit()
+    return jsonify({"ok": True, "skipped": skipped, "inserted": inserted,
+                    "updated": updated, "deleted": deleted,
+                    "unchanged": unchanged, "total": run.total})
 
 
 @ecooil_bridge.route("/status", methods=["GET"])
@@ -190,6 +346,7 @@ def status():
         db.session.query(EcoOilUnloadEvent.doc_status, func.count(EcoOilUnloadEvent.id))
         .filter(EcoOilUnloadEvent.doc_status.isnot(None))
         .group_by(EcoOilUnloadEvent.doc_status).all())
+    last_run = EcoOilBridgeRun.query.order_by(EcoOilBridgeRun.ran_at.desc()).first()
     return jsonify({
         "total": total,
         "with_pdf_key": with_pdf,
@@ -198,7 +355,10 @@ def status():
         "per_year": {str(k): v for k, v in per_year.items()},
         "per_stream": {str(k): v for k, v in per_stream.items()},
         "per_doc_status": per_doc_status,
+        # last_synced_at = the last time a row actually changed; last_run = the
+        # bridge's heartbeat (a delta that changed nothing still records a run).
         "last_synced_at": last.isoformat() if last else None,
+        "last_run": _run_dict(last_run),
     })
 
 

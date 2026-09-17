@@ -766,10 +766,30 @@ class EcoOilUnloadEvent(db.Model):
     manifest_key = db.Column(db.String(500))                # B2 object key of the manifest scan
     source_sheet = db.Column(db.String(40))
     source_row = db.Column(db.Integer)
+    # מפתח טבעי (לימור 17/09/2026): זהות קבועה של השורה בין סבבי הגשר, כדי
+    # שמספר הזיהוי לא יתחלף כל שעה. נגזר בצד המשרד — ראו ecooil_natkey.py.
+    nat_key = db.Column(db.String(64), index=True)
     synced_at = db.Column(db.DateTime, default=datetime.utcnow)
 
     def __repr__(self):
         return f"<EcoOilUnloadEvent {self.event_date} {self.stream} {self.customer}>"
+
+
+class EcoOilBridgeRun(db.Model):
+    """יומן סבבי הגשר של אויל (17/09/2026): שורה לכל דחיפה — מלאה או הפרשים —
+    עם מה השתנה בפועל. מאז שהענן מעדכן במקום ולא מוחק-ומכניס, שורות שלא
+    השתנו לא נוגעים בהן, ולכן synced_at לבדו כבר לא מעיד שהגשר חי; הדופק
+    הוא השורה האחרונה כאן."""
+    __tablename__ = "ecooil_bridge_runs"
+
+    id = db.Column(db.Integer, primary_key=True)
+    ran_at = db.Column(db.DateTime, default=datetime.utcnow, index=True)
+    kind = db.Column(db.String(10))          # 'full' / 'delta'
+    inserted = db.Column(db.Integer)
+    updated = db.Column(db.Integer)
+    deleted = db.Column(db.Integer)
+    unchanged = db.Column(db.Integer)
+    total = db.Column(db.Integer)
 
 # ---------------------------------------------------------------------------
 # Field terminals (מסופוני שטח) — capture layer: events + photos relayed

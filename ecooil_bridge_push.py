@@ -7,22 +7,32 @@ Runs AFTER ecooil_bridge_sync.py (Excel → local DB) and ecooil_pdf_matcher.py
   1. Upload matched certificate PDFs to the B2 bucket (skip what's already
      there via a local manifest; re-upload on size change; NEVER deletes from
      B2 — the cloud copy is also the backup, the Gadot-2025 lesson).
-  2. Push the full events snapshot to the portal's secure bridge API.
+  2. Push the events to the portal's secure bridge API — like a backup
+     (Limor 17/09/2026): every row carries a natural key (ecooil_natkey.py),
+     the office remembers what it pushed last time (_ecooil_push_state.json),
+     and normally sends ONLY the rows that were added / changed / removed
+     since (/sync-delta). The cloud updates rows in place, so a row's id never
+     changes between runs. A full snapshot (/sync) goes out on the first run,
+     on --full, or whenever the cloud refuses the delta (409) — and even then
+     the cloud reconciles in place rather than wiping.
      An event gets pdf_key only if its PDF is confirmed uploaded, so the
      portal never offers a download it cannot serve.
 
 Usage:
-  python ecooil_bridge_push.py                 # full run: files + data
+  python ecooil_bridge_push.py                 # full run: files + data (delta)
   python ecooil_bridge_push.py --files-only [--limit N]
   python ecooil_bridge_push.py --data-only
-  python ecooil_bridge_push.py --dry-run
+  python ecooil_bridge_push.py --full          # force a full snapshot
+  python ecooil_bridge_push.py --dry-run       # show the plan, send nothing
   python ecooil_bridge_push.py --api-base http://127.0.0.1:5000   # local test
 """
 import argparse
+import hashlib
 import json
 import os
 import sys
 import io
+from datetime import datetime
 
 sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding="utf-8", errors="replace")
 
@@ -37,6 +47,8 @@ import requests
 Z_BASE = r"Z:\Eco_General"
 KEY_PREFIX = "certs/"
 MANIFEST_PATH = r"C:\eco_oil_portal\_b2_uploaded_manifest.json"
+# Memory of the previous push (natural key → row fingerprint), per target.
+STATE_PATH = os.environ.get("ECOOIL_PUSH_STATE") or r"C:\eco_oil_portal\_ecooil_push_state.json"
 DEFAULT_API_BASE = "https://portal.eco-oil.co.il"
 
 
@@ -159,13 +171,10 @@ def upload_pdfs(events, manifest, limit=None, dry_run=False):
     return uploaded, failed
 
 
-def push_data(events, manifest, api_base, dry_run=False):
-    """POST the full snapshot to the portal bridge API. pdf_key is attached
-    only when the file is confirmed in the cloud (manifest)."""
-    token = os.environ.get("ECOOIL_BRIDGE_TOKEN")
-    if not token:
-        print("ERROR: ECOOIL_BRIDGE_TOKEN missing from .env")
-        return False
+def build_payload(events, manifest):
+    """Rows as the cloud should hold them: pdf_key / manifest_key attached only
+    when the file is confirmed in the cloud, plus the natural key of each row."""
+    from src.app.ecooil_natkey import assign_nat_keys
     payload = []
     with_key = with_manifest = 0
     for ev in events:
@@ -183,19 +192,95 @@ def push_data(events, manifest, api_base, dry_run=False):
                 item["manifest_key"] = mkey
                 with_manifest += 1
         payload.append(item)
-    print(f"events to push: {len(payload)} ({with_key} with a cloud PDF, {with_manifest} with a cloud manifest)")
+    dups = assign_nat_keys(payload)
+    return payload, with_key, with_manifest, dups
+
+
+def item_digest(item):
+    """Fingerprint of everything the cloud stores for a row — any difference
+    (a note, a weight, a newly matched PDF, a publish flag) changes it."""
+    body = {k: v for k, v in item.items() if k != "nat_key"}
+    return hashlib.sha1(json.dumps(body, sort_keys=True, ensure_ascii=False,
+                                   default=str).encode("utf-8")).hexdigest()
+
+
+def load_state(api_base):
+    """What we pushed last time to THIS target (a local test server must not
+    inherit the production memory). None = no usable memory → full snapshot."""
+    if not os.path.exists(STATE_PATH):
+        return None
+    try:
+        with open(STATE_PATH, "r", encoding="utf-8") as f:
+            st = json.load(f)
+    except Exception as e:
+        print(f"state file unreadable ({type(e).__name__}) — full snapshot")
+        return None
+    if st.get("api_base") != api_base or not isinstance(st.get("keys"), dict):
+        return None
+    return st
+
+
+def save_state(api_base, keys):
+    st = {"api_base": api_base, "saved_at": datetime.now().isoformat(timespec="seconds"),
+          "total": len(keys), "keys": keys}
+    tmp = STATE_PATH + ".tmp"
+    with open(tmp, "w", encoding="utf-8") as f:
+        json.dump(st, f, ensure_ascii=False)
+    os.replace(tmp, STATE_PATH)
+
+
+def _post(api_base, token, path, body):
+    return requests.post(f"{api_base}/bridge/ecooil/{path}", json=body,
+                         headers={"Authorization": f"Bearer {token}"}, timeout=300)
+
+
+def push_data(events, manifest, api_base, dry_run=False, full=False):
+    """Send the rows to the cloud: normally only the differences since the
+    previous push (like a backup), a full snapshot when there is no memory of
+    a previous push, on --full, or when the cloud refuses the delta."""
+    token = os.environ.get("ECOOIL_BRIDGE_TOKEN")
+    if not token:
+        print("ERROR: ECOOIL_BRIDGE_TOKEN missing from .env")
+        return False
+    payload, with_key, with_manifest, dups = build_payload(events, manifest)
+    print(f"events: {len(payload)} ({with_key} with a cloud PDF, {with_manifest} with a cloud manifest"
+          + (f", {dups} identical-identity rows got #n suffixes" if dups else "") + ")")
+    current = {it["nat_key"]: item_digest(it) for it in payload}
+
+    state = None if full else load_state(api_base)
+    if state is None:
+        print("push mode: FULL snapshot" + (" (--full)" if full else " (no memory of a previous push)"))
+        plan = None
+    else:
+        prev = state["keys"]
+        upsert = [it for it in payload if prev.get(it["nat_key"]) != current[it["nat_key"]]]
+        added = sum(1 for it in upsert if it["nat_key"] not in prev)
+        delete = [k for k in prev if k not in current]
+        plan = {"upsert": upsert, "delete": delete, "expect_total": len(payload)}
+        print(f"push mode: delta since {state.get('saved_at')} — "
+              f"{added} added, {len(upsert) - added} changed, {len(delete)} removed")
     if dry_run:
         print("DRY RUN — not pushing")
         return True
-    resp = requests.post(
-        f"{api_base}/bridge/ecooil/sync",
-        json={"events": payload},
-        headers={"Authorization": f"Bearer {token}"},
-        timeout=300,
-    )
-    print("push:", resp.status_code, resp.text[:300])
-    if resp.status_code != 200:
-        return False
+
+    if plan is not None:
+        resp = _post(api_base, token, "sync-delta", plan)
+        print("push (delta):", resp.status_code, resp.text[:300])
+        if resp.status_code == 409:
+            print("cloud asked for a full snapshot — sending it")
+            plan = None
+        elif resp.status_code in (404, 405):
+            # cloud not yet deployed with delta support — the old /sync still works
+            print("cloud has no delta endpoint yet — sending a full snapshot")
+            plan = None
+        elif resp.status_code != 200:
+            return False
+    if plan is None:
+        resp = _post(api_base, token, "sync", {"events": payload})
+        print("push (full):", resp.status_code, resp.text[:300])
+        if resp.status_code != 200:
+            return False
+    save_state(api_base, current)
     st = requests.get(f"{api_base}/bridge/ecooil/status",
                       headers={"Authorization": f"Bearer {token}"}, timeout=60)
     print("status:", st.status_code, st.text[:300])
@@ -207,6 +292,8 @@ def main():
     ap.add_argument("--files-only", action="store_true")
     ap.add_argument("--data-only", action="store_true")
     ap.add_argument("--dry-run", action="store_true")
+    ap.add_argument("--full", action="store_true",
+                    help="send the whole snapshot instead of the differences")
     ap.add_argument("--limit", type=int, default=None)
     ap.add_argument("--api-base", default=os.environ.get("PORTAL_API_BASE", DEFAULT_API_BASE))
     args = ap.parse_args()
@@ -220,7 +307,8 @@ def main():
         upload_pdfs(events, manifest, limit=args.limit, dry_run=args.dry_run)
         manifest = load_manifest() if not args.dry_run else manifest
     if not args.files_only:
-        ok = push_data(events, manifest, args.api_base, dry_run=args.dry_run)
+        ok = push_data(events, manifest, args.api_base.rstrip("/"),
+                       dry_run=args.dry_run, full=args.full)
     sys.exit(0 if ok else 1)
 
 
