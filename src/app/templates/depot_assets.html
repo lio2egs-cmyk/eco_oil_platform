@@ -185,7 +185,7 @@
     <h3>בקשת שחרור — <span id="dlgTank"></span></h3>
     <div class="muted">המכל יעבור להכנה לשחרור, והמשרד יקבל את הבקשה מיידית.</div>
     <div class="row"><label>תאריך איסוף מבוקש *</label><input type="date" id="fDate"></div>
-    <div class="row"><label>מוביל אוסף (אם ידוע)</label><input type="text" id="fCarrier" maxlength="200"></div>
+    <div class="row"><label>מוביל אוסף *</label><input type="text" id="fCarrier" maxlength="200"></div>
     <div class="row"><label>הערות למשרד (רשות)</label><input type="text" id="fNotes" maxlength="400"></div>
     <div class="btns">
       <button class="btn" onclick="sendRelease()">שליחת הבקשה</button>
@@ -480,6 +480,7 @@ function closeDlg(){
 async function sendRelease(){
   var dt=document.getElementById('fDate').value;
   if(!dt){ toast('חסר תאריך איסוף מבוקש'); return; }
+  if(!document.getElementById('fCarrier').value.trim()){ toast('חסר מוביל אוסף'); return; }
   var r=await api('/depot/portal/release-requests',{method:'POST',body:JSON.stringify({
     action:'release', visit_id:DLG_VISIT, tank:DLG_TANK, requested_date:dt,
     carrier:document.getElementById('fCarrier').value.trim(),

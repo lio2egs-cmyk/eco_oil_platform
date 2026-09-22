@@ -371,6 +371,9 @@ def submit_release_request():
                 return jsonify(error="תאריך איסוף לא תקין"), 400
         if req_date is None:
             return jsonify(error="חסר תאריך איסוף מבוקש"), 400
+        # מוביל יציאה = חובה מהיום הראשון (לימור 22/09/2026), כמו התאריך
+        if not (data.get("carrier") or "").strip():
+            return jsonify(error="חסר מוביל אוסף"), 400
     else:
         if a.status == READY_STATUS:
             # כלל לימור 02/09: אחרי שהעובד סימן מוכן — רק דרך המשרד
