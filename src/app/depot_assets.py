@@ -135,7 +135,7 @@ def _timeline(a, open_req, certs):
                       "time": None, "cert_id": c.id})
     if open_req is not None and open_req.action == "release":
         steps.append({"kind": "release", "label": "ביקשתם שחרור",
-                      "date": _dmy(open_req.requested_date), "time": None})
+                      "date": _req_range(open_req), "time": None})
     steps.append({"kind": "now", "label": STATUS_HEB.get(a.status, a.status),
                   "date": None, "time": None})
     return steps
@@ -322,7 +322,7 @@ def my_assets():
             "created_at": r.created_at.isoformat(),
             "tank": r.tank,
             "action_heb": "בקשת שחרור" if r.action == "release" else "ביטול שחרור",
-            "requested_date": r.requested_date.strftime("%d/%m/%Y") if r.requested_date else None,
+            "requested_date": _req_range(r),
             "carrier": r.carrier or "",
             "status": REQ_STATUS_HEB.get((r.action, r.status), r.status),
         } for r in shown_reqs],
@@ -364,6 +364,7 @@ def submit_release_request():
         if a.status != "באחסון":
             return jsonify(error="בקשת שחרור אפשרית רק לנכס שנמצא באחסנה"), 409
         req_date = None
+        req_date_to = None
         if (data.get("requested_date") or "").strip():
             try:
                 req_date = date.fromisoformat(str(data["requested_date"]).strip())
@@ -371,6 +372,16 @@ def submit_release_request():
                 return jsonify(error="תאריך איסוף לא תקין"), 400
         if req_date is None:
             return jsonify(error="חסר תאריך איסוף מבוקש"), 400
+        # טווח איסוף (רשות): "10 מכולות לאורך 3 ימים" — לימור 22/09/2026
+        if (data.get("requested_date_to") or "").strip():
+            try:
+                req_date_to = date.fromisoformat(str(data["requested_date_to"]).strip())
+            except ValueError:
+                return jsonify(error="תאריך סיום הטווח לא תקין"), 400
+            if req_date_to < req_date:
+                return jsonify(error="תאריך סיום הטווח קודם לתאריך ההתחלה"), 400
+            if req_date_to == req_date:
+                req_date_to = None
         # מוביל יציאה = חובה מהיום הראשון (לימור 22/09/2026), כמו התאריך
         if not (data.get("carrier") or "").strip():
             return jsonify(error="חסר מוביל אוסף"), 400
@@ -381,6 +392,7 @@ def submit_release_request():
         if a.status != "הכנה לשחרור":
             return jsonify(error="אין לנכס הזה שחרור פתוח לביטול"), 409
         req_date = None
+        req_date_to = None
 
     row = DepotReleaseRequest(
         client_id=client.id,
@@ -389,6 +401,7 @@ def submit_release_request():
         tank=a.tank,
         action=action,
         requested_date=req_date,
+        requested_date_to=req_date_to,
         carrier=(data.get("carrier") or "").strip()[:200] or None,
         notes=(data.get("notes") or "").strip()[:400] or None,
     )
@@ -401,6 +414,16 @@ def submit_release_request():
         current_app.logger.error("release-request office notification failed: %s", exc)
 
     return jsonify(id=row.id, tank=row.tank), 201
+
+
+def _req_range(r):
+    """'07/09/2026' או '07/09/2026 עד 10/09/2026' — אותו נוסח בכל מסך."""
+    if not r.requested_date:
+        return None
+    txt = r.requested_date.strftime("%d/%m/%Y")
+    if r.requested_date_to:
+        txt += " עד " + r.requested_date_to.strftime("%d/%m/%Y")
+    return txt
 
 
 def _notify_office(row, client, asset):
@@ -421,7 +444,7 @@ def _notify_office(row, client, asset):
 {tr("מספר מכל", row.tank)}
 {tr("מס' ביקור", row.visit_id)}
 {tr("מצב נוכחי בקובץ", asset.status)}
-{tr("תאריך איסוף מבוקש", row.requested_date.strftime('%d/%m/%Y') if row.requested_date else None)}
+{tr("תאריך איסוף מבוקש", _req_range(row))}
 {tr("מוביל אוסף", row.carrier)}
 {tr("הערות הלקוח", row.notes)}
 {tr("הוגש על ידי", submitter.email if submitter else None)}
@@ -506,6 +529,7 @@ def bridge_pending_requests():
         "tank": r.tank,
         "action": r.action,
         "requested_date": r.requested_date.isoformat() if r.requested_date else None,
+        "requested_date_to": r.requested_date_to.isoformat() if r.requested_date_to else None,
         "carrier": r.carrier,
         "notes": r.notes,
     } for r in rows])
@@ -547,7 +571,7 @@ def admin_release_requests():
         "tank": r.tank,
         "visit_id": r.visit_id,
         "action_heb": "שחרור" if r.action == "release" else "ביטול שחרור",
-        "requested_date": r.requested_date.strftime("%d/%m/%Y") if r.requested_date else "",
+        "requested_date": _req_range(r) or "",
         "carrier": r.carrier or "",
         "notes": r.notes or "",
         "status": r.status,

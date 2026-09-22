@@ -136,6 +136,8 @@ def create_app():
             "ALTER TABLE ecooil_unload_events ADD COLUMN nat_key VARCHAR(64)",
             # ביטול הגעה של בקשה מקדימה (לימור 17/09/2026)
             "ALTER TABLE depot_prearrivals ADD COLUMN cancelled_at TIMESTAMP",
+            # טווח תאריכי איסוף בבקשת שחרור (לימור 22/09/2026)
+            "ALTER TABLE depot_release_requests ADD COLUMN requested_date_to DATE",
             "CREATE INDEX IF NOT EXISTS ix_ecooil_unload_events_nat_key ON ecooil_unload_events(nat_key)",
         ):
             try:

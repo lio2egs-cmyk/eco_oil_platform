@@ -1097,8 +1097,9 @@ class DepotReleaseRequest(db.Model):
     visit_id = db.Column(db.String(40), nullable=False, index=True)  # מס' הביקור מהתמונה
     tank = db.Column(db.String(40), nullable=False)
     action = db.Column(db.String(10), nullable=False)           # release / cancel
-    requested_date = db.Column(db.Date)                         # תאריך איסוף מבוקש (בשחרור)
-    carrier = db.Column(db.String(200))                         # מוביל אוסף (רשות)
+    requested_date = db.Column(db.Date)                         # תאריך איסוף מבוקש (בשחרור) / תחילת הטווח
+    requested_date_to = db.Column(db.Date)                      # סוף טווח האיסוף (רשות; לימור 22/09/2026)
+    carrier = db.Column(db.String(200))                         # מוביל אוסף (חובה מ-22/09/2026)
     notes = db.Column(db.String(400))
 
     # pending → fetched (הגשר משך) → posted (הסטטוס עודכן בקובץ) /

@@ -185,6 +185,7 @@
     <h3>בקשת שחרור — <span id="dlgTank"></span></h3>
     <div class="muted">המכל יעבור להכנה לשחרור, והמשרד יקבל את הבקשה מיידית.</div>
     <div class="row"><label>תאריך איסוף מבוקש *</label><input type="date" id="fDate"></div>
+    <div class="row"><label>עד תאריך (אם האיסוף נמשך כמה ימים)</label><input type="date" id="fDateTo"></div>
     <div class="row"><label>מוביל אוסף *</label><input type="text" id="fCarrier" maxlength="200"></div>
     <div class="row"><label>הערות למשרד (רשות)</label><input type="text" id="fNotes" maxlength="400"></div>
     <div class="btns">
@@ -466,6 +467,7 @@ function openDlg(visit, tank){
   DLG_VISIT=visit; DLG_TANK=tank;
   document.getElementById('dlgTank').textContent=tank;
   document.getElementById('fDate').value='';
+  document.getElementById('fDateTo').value='';
   document.getElementById('fCarrier').value='';
   document.getElementById('fNotes').value='';
   document.getElementById('overlay').style.display='block';
@@ -481,8 +483,10 @@ async function sendRelease(){
   var dt=document.getElementById('fDate').value;
   if(!dt){ toast('חסר תאריך איסוף מבוקש'); return; }
   if(!document.getElementById('fCarrier').value.trim()){ toast('חסר מוביל אוסף'); return; }
+  var dtTo=document.getElementById('fDateTo').value;
+  if(dtTo && dtTo<dt){ toast('תאריך הסיום קודם לתאריך ההתחלה'); return; }
   var r=await api('/depot/portal/release-requests',{method:'POST',body:JSON.stringify({
-    action:'release', visit_id:DLG_VISIT, tank:DLG_TANK, requested_date:dt,
+    action:'release', visit_id:DLG_VISIT, tank:DLG_TANK, requested_date:dt, requested_date_to:dtTo,
     carrier:document.getElementById('fCarrier').value.trim(),
     notes:document.getElementById('fNotes').value.trim()})});
   var d={}; try{ d=await r.json(); }catch(e){}
