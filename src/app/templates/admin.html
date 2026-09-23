@@ -565,12 +565,12 @@ async function loadDeclarations(){
     (buckets[1].length?' · '+buckets[1].length+' אצל הלקוח':'')+
     (buckets[2].length?' · '+buckets[2].length+' הוסדרו':'');
 
-  var h='<table><tr><th>הוגשה בתאריך</th><th>חשבון פורטל</th><th>שם העסק בהצהרה</th>'+
+  var h='<table><tr><th title="מספר ההצהרה במערכת — קבוע, לא משתנה">מס׳</th><th>הוגשה בתאריך</th><th>חשבון פורטל</th><th>שם העסק בהצהרה</th>'+
         '<th>שם הזרם</th><th>מספר פסולת</th><th>כמות שנתית</th><th>מעמד</th><th></th></tr>';
   DECL_GROUPS.forEach(function(g,gi){
     var items=buckets[gi];
     if(!items.length) return;
-    h+='<tr class="declgrp"><td colspan="8" onclick="toggleDeclGroup(\''+g.key+'\')">'+
+    h+='<tr class="declgrp"><td colspan="9" onclick="toggleDeclGroup(\''+g.key+'\')">'+
        '<span class="chev" id="gch-'+g.key+'">'+(g.open?'▾':'◂')+'</span> '+
        g.title+' <span class="pill">'+items.length+'</span></td></tr>';
     items.forEach(function(it){ h+=declRow(it.d,it.i,g); });
@@ -580,7 +580,7 @@ async function loadDeclarations(){
 
 function declRow(d,i,g){
   var hide=g.open?'':' hidden';
-  return '<tr class="'+g.cls+hide+'"><td>'+fmtDT(d.submitted_at)+'</td><td>'+esc(d.client_name)+'</td>'+
+  return '<tr class="'+g.cls+hide+'"><td><b>'+d.id+'</b></td><td>'+fmtDT(d.submitted_at)+'</td><td>'+esc(d.client_name)+'</td>'+
        '<td><b>'+esc(d.producer_name)+'</b></td><td>'+esc(d.material_name)+'</td>'+
        '<td>'+esc(d.waste_stream_number)+'</td><td>'+esc(d.quantity)+'</td>'+
        '<td>'+declStatus(d)+filingBadges(d)+'</td>'+
@@ -600,7 +600,7 @@ function declRow(d,i,g){
        ((d.status==='submitted'||d.status==='released'||d.status==='needs_fix')?'<button class="btn btn-danger" title="כלי צדדי — כפילות / הגשת ניסיון / ביטול; נשארת בתיעוד, לא מוצגת ללקוח" onclick="rejectDecl('+d.id+',\''+esc(d.producer_name)+'\')">✖ פסלי</button>':'')+
        (d.status==='rejected'?'<button class="btn btn-soft" onclick="unrejectDecl('+d.id+',\''+esc(d.producer_name)+'\')">החזירי</button>':'')+
        '</td></tr>'+
-       '<tr id="decl-'+i+'" class="'+g.cls+' det hidden"><td colspan="8" style="background:#F8FBFA">'+declDetails(d)+'</td></tr>';
+       '<tr id="decl-'+i+'" class="'+g.cls+' det hidden"><td colspan="9" style="background:#F8FBFA">'+declDetails(d)+'</td></tr>';
 }
 function toggleDecl(i){ document.getElementById('decl-'+i).classList.toggle('hidden'); }
 /* עריכת משרד (לימור 13/08) — שדות טקסט חופשי בלבד, רק לפני חתימת הלקוח;
