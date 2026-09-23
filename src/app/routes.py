@@ -3025,11 +3025,23 @@ def submit_portal_declaration():
         return {"error": "מסך הניהול פותח את הטופס לצפייה והדרכה בלבד — ההגשה נעשית על ידי הלקוח מהחשבון שלו"}, 403
 
     # ─── זיהוי הלקוח ומגבלת גישה ───
-    target_client_id = data.get("client_id") or claims.get("client_id")
+    # משתמש רב-חברות (לימור 23/09, מקרה מונאר — גליל כימיקלים + אם.אי.
+    # סולפונציה): עד היום כל הגשה נרשמה על החברה הראשית שלו, גם כשההצהרה
+    # של החברה השנייה. עכשיו הטופס שואל "עבור איזו חברה" והבחירה חובה.
+    from .db import User
+    submitter = db.session.get(User, int(get_jwt_identity()))
+    user_ids = submitter.allowed_client_ids() if submitter else []
+    try:
+        requested_cid = int(data.get("client_id")) if data.get("client_id") else None
+    except (TypeError, ValueError):
+        return {"error": "חברה לא תקינה"}, 400
+    if requested_cid is None and len(user_ids) > 1 and not data.get("fix_id"):
+        return {"error": "יש לבחור עבור איזו חברה ההצהרה"}, 400
+    target_client_id = requested_cid or claims.get("client_id")
     if not target_client_id:
         return {"error": "לא זוהה לקוח עבור ההצהרה"}, 400
     allowed = get_allowed_client_ids()
-    if allowed is not None and target_client_id not in allowed:
+    if allowed is not None and target_client_id not in allowed and target_client_id not in user_ids:
         return {"error": "אין הרשאה ללקוח זה"}, 403
     client = Client.query.get(target_client_id)
     if not client:
@@ -3108,7 +3120,8 @@ def submit_portal_declaration():
             # על החברה המקורית — התיקון לא מעביר אותה למוביל.
             from .ecooil_docs import _expand_indirect
 
-            if fixed_decl.client_id not in _expand_indirect([target_client_id]):
+            # כולל החברות הנוספות של משתמש רב-חברות (23/09)
+            if fixed_decl.client_id not in _expand_indirect([target_client_id] + user_ids):
                 return {"error": "ההצהרה לתיקון לא נמצאה או שאינה במעמד תיקון"}, 409
             target_client_id = fixed_decl.client_id
             client = Client.query.get(target_client_id)

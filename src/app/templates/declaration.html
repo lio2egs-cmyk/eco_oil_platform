@@ -176,6 +176,13 @@
       <div style="font-size:12.5px;color:#9a5a53;margin-top:6px">הטופס נטען עם הפרטים שהוגשו — תקנו את הנדרש ולחצו "שמירה ושליחת ההצהרה". ההגשה המתוקנת תחליף את הקודמת.</div>
     </div>
 
+    <!-- משתמש רב-חברות (23/09): ההצהרה נרשמת על החברה שנבחרה כאן -->
+    <section id="companyBox" style="display:none">
+      <div class="sec-title">עבור איזו חברה ההצהרה?</div>
+      <div class="sec-sub">החשבון שלכם מחובר לכמה חברות. ההצהרה תירשם ותתויק תחת החברה שתבחרו.</div>
+      <select id="companySel" style="font-size:15px;padding:8px 10px;min-width:260px"></select><span class="req">חובה</span>
+    </section>
+
     <div class="steps">
       <div class="step"><b>שלב 1</b>בחירת סוג הזרם</div>
       <div class="step"><b>שלב 2</b>מילוי כרטיס לכל חומר</div>
@@ -419,6 +426,7 @@ function collect(){
   return {
     stream: current,
     fix_id: FIX_ID || undefined,
+    client_id: (!FIX_ID && document.getElementById('companySel').value) ? parseInt(document.getElementById('companySel').value) : undefined,
     materials: mats,
     producer: {
       business_name: document.getElementById('p_name').value.trim(),
@@ -436,6 +444,10 @@ function collect(){
 function validate(payload){
   var problems=[];
   document.querySelectorAll('.miss').forEach(function(el){ el.classList.remove('miss'); });
+  if(!FIX_ID && document.getElementById('companyBox').style.display!=='none' && !payload.client_id){
+    problems.push('יש לבחור עבור איזו חברה ההצהרה (בראש הטופס).');
+    document.getElementById('companySel').classList.add('miss');
+  }
   if(!payload.stream){ problems.push('יש לבחור סוג זרם (שלב 1).'); }
   var cards=document.querySelectorAll('#cards .mcard');
   for(var i=0;i<cards.length;i++){
@@ -574,6 +586,24 @@ async function loadFixMode(){
     return true;
   }catch(e){ return false; }
 }
+/* בורר החברה — רק למשתמש שמחובר ליותר מחברה אחת; בתיקון החברה כבר ידועה */
+async function loadCompanies(){
+  if(FIX_ID) return;
+  try{
+    var r=await fetch('/eco-oil/portal/my-declaration-docs',
+      {headers:{'Authorization':'Bearer '+localStorage.getItem('eco_access_token')}});
+    if(!r.ok) return;
+    var cs=(await r.json()).companies||[];
+    if(cs.length<2) return;
+    var sel=document.getElementById('companySel');
+    sel.innerHTML='<option value="">— בחרו חברה —</option>'+cs.map(function(c){
+      return '<option value="'+c.id+'">'+String(c.name).replace(/[&<>"]/g,function(ch){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[ch];})+'</option>';
+    }).join('');
+    sel.onchange=function(){ sel.classList.remove('miss'); };
+    document.getElementById('companyBox').style.display='block';
+  }catch(e){}
+}
+loadCompanies();
 if(FIX_ID){
   loadFixMode();
 }else if(localStorage.getItem(DRAFT_KEY)){ document.getElementById('draftBar').classList.add('show'); }

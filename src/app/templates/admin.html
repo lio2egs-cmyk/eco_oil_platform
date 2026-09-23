@@ -57,6 +57,9 @@
   .pill-blocked { background:#FBE3E3; color:#8B2020; font-weight:bold; }
   .blocked-note { background:#FDF0F0; border:1.5px solid #E9B5B5; color:#8B2020;
           border-radius:9px; padding:8px 12px; font-size:13px; line-height:1.6; margin:6px 0; }
+  /* איש קשר שמנוהל בכרטיס של חברה אחרת (23/09) */
+  .shared-user { background:#F3F8F7; border:1px solid #D5E5E2; border-radius:9px;
+          padding:7px 12px; font-size:13px; line-height:1.6; margin:6px 0; }
   .toast { position:fixed; bottom:18px; right:18px; background:var(--dark); color:#fff;
            padding:10px 18px; border-radius:10px; font-size:14px; display:none; z-index:9; }
   #login { max-width:420px; margin:60px auto; }
@@ -741,7 +744,11 @@ function render(){
   var shown=0, h='';
   CLIENTS.forEach(function(c){
     var users=byClient[c.id]||[];
-    if(q && c.name.indexOf(q)<0 && !users.some(function(u){ return u.email.indexOf(q)>=0 || (u.contact_name||'').indexOf(q)>=0; })) return;
+    /* משתמשים שהחברה הזו רשומה אצלם כ"חברה נוספת" (לימור 23/09): בלי זה
+       הכרטיס נראה ריק ("אין משתמשים") למרות שיש איש קשר — שמנוהל בכרטיס
+       החברה הראשית שלו. מוצגים כשורת הפניה, לא כשורת ניהול. */
+    var shared=USERS.filter(function(u){ return u.client_id!==c.id && (u.extra_client_ids||[]).indexOf(c.id)>=0; });
+    if(q && c.name.indexOf(q)<0 && !users.concat(shared).some(function(u){ return u.email.indexOf(q)>=0 || (u.contact_name||'').indexOf(q)>=0; })) return;
     shown++;
     var aliases=(c.billing_aliases||'').split('\n').map(function(a){return a.trim();}).filter(Boolean);
     var rows=users.map(function(u){
@@ -782,7 +789,13 @@ function render(){
            :'')+'</div>'+
        (users.length?
          '<table><tr><th>מייל</th><th>כניסה אחרונה</th><th>תזכורת חמישי</th><th></th></tr>'+rows+'</table>':
-         '<div class="muted">אין עדיין משתמשים לחברה זו.</div>')+
+         (shared.length?'':'<div class="muted">אין עדיין משתמשים לחברה זו.</div>'))+
+       shared.map(function(u){
+         return '<div class="shared-user">👤 איש קשר של חברה זו: '+
+           (u.contact_name?'<b>'+esc(u.contact_name)+'</b> · ':'')+esc(u.email)+
+           ' — מנוהל בכרטיס החברה <b>'+esc(clientName(u.client_id))+'</b>'+
+           ' <span class="muted">(שם אפשר לשלוח לו הזמנה, לערוך או להסיר)</span></div>';
+       }).join('')+
        '<div class="row" style="margin-top:8px">'+
          (c.client_type==='indirect'
            ?'<button class="btn" title="כניסה שרואה רק את אזור הצהרת היצרן וההסכמה, בלי אישורי פריקה ובלי טופסי מלווה" '+

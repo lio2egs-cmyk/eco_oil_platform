@@ -1114,7 +1114,9 @@ def my_declaration_docs():
     # את שורות הגיליון ששייכות לחשבון המחובר.
     account_clients = list(Client.query.filter(Client.id.in_(own)).all())
     return jsonify({"declarations": rows, "preview": preview,
-                    "homs_clients": _homs_clients_for_account(account_clients)})
+                    "homs_clients": _homs_clients_for_account(account_clients),
+                    # בורר "עבור איזו חברה" בטופס ההצהרה (23/09) — ריק לחברה אחת
+                    "companies": _companies_for_user(claims)})
 
 
 @ecooil_docs.route("/portal/my-declaration-docs/<int:decl_id>/signed-scan",
