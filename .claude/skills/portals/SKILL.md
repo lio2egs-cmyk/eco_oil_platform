@@ -37,7 +37,7 @@ description: Eco-Oil client-portals agent for the live Flask app in src/app (dep
 - גשר אויל במחשב לימור: `ecooil_bridge_hourly.py` (משימה "EcoOil Portal Bridge Hourly", 07-18): קורא ריכוז → משדכי PDF/מלווה → push → מסד → תיוק → תוקף → 3 דחיפות דיפו. לא מריצים משדכים ידנית ליד השעה העגולה. לוגים: `C:\eco_oil_portal\bridge_logs\`.
 - גשר דיפו במחשב יעל: `field_bridge.py` + `field_post.py` (הסקיל field-terminals). דוח יומי ~07:30 שם.
 - קבצים: B2 bucket ecooil-certificates; מניפסטים `_*_b2_manifest.json`.
-- נקודות אבחון (טוקן אדמין דרך `C:\eco_oil_portal\_login.py`): `POST /admin/user-login-diagnosis`, `/admin/weekly-login-digest {days:1}`, `/depot/portal/bridge/daily-reports/mail {dry_run:true}`.
+- נקודות אבחון: `POST /admin/user-login-diagnosis {email}` (טוקן הגשר `ECOOIL_BRIDGE_TOKEN` מ-.env, קריאה בלבד — מספיק לרוב), `/depot/portal/bridge/daily-reports/mail {dry_run:true}`. ⚠ `/admin/weekly-login-digest` **שולח מייל** ל-office@ בכל קריאה (אין dry_run) — להפעיל רק בידיעת לימור. תוצאות מייל הבוקר לכל נמען: יומני הגשר `C:\eco_oil_portal\bridge_logs\` (שורות "mail {לקוח} {תאריך}: נשלח →").
 - DNS ב-Domain The Net (לימור בעצמה, לא דרך קבלן ה-IT). ns3 נוטה להתנתק.
 
 ## תכונות אבטחה שאסור לשבור
