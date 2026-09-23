@@ -186,6 +186,10 @@ def create_app():
             # תיוק אוטומטי לתיקיות הלקוחות (12/08)
             "ALTER TABLE producer_declarations ADD COLUMN scan_filed_at TIMESTAMP",
             "ALTER TABLE producer_declarations ADD COLUMN scan_file_note TEXT",
+            # תזכורות חתימה אוטומטיות ללקוח + התראה למשרד (לימור 23/09)
+            "ALTER TABLE producer_declarations ADD COLUMN sign_reminder1_at TIMESTAMP",
+            "ALTER TABLE producer_declarations ADD COLUMN sign_reminder2_at TIMESTAMP",
+            "ALTER TABLE producer_declarations ADD COLUMN sign_stale_alert_at TIMESTAMP",
             "ALTER TABLE agreement_documents ADD COLUMN filed_at TIMESTAMP",
             "ALTER TABLE agreement_documents ADD COLUMN file_note TEXT",
             # חסימת מסמכים ברמת החברה (17/08)

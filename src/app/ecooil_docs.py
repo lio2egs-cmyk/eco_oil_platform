@@ -576,6 +576,10 @@ def _decl_dict(d, clients, users):
         "notes": d.notes,
         "fix_note": d.fix_note,
         "released_at": d.released_at.isoformat() if d.released_at else None,
+        # תזכורות החתימה האוטומטיות (23/09) — מוצגות בשורה במסך הניהול
+        "sign_reminder1_at": d.sign_reminder1_at.isoformat() if d.sign_reminder1_at else None,
+        "sign_reminder2_at": d.sign_reminder2_at.isoformat() if d.sign_reminder2_at else None,
+        "sign_stale_alert_at": d.sign_stale_alert_at.isoformat() if d.sign_stale_alert_at else None,
         # הסריקה החתומה + האישור הסופי (09/08)
         "has_signed_scan": bool(d.signed_scan_at),
         "signed_scan_at": d.signed_scan_at.isoformat() if d.signed_scan_at else None,
@@ -641,6 +645,8 @@ def admin_release_declaration(decl_id):
             return jsonify({"error": f"אי אפשר לשחרר הצהרה במעמד '{d.status}'"}), 409
         d.status = "released"
         d.released_at = datetime.utcnow()
+        # שמירה מחדש לתא הלקוח = ספירת תזכורות חדשה (23/09)
+        d.sign_reminder1_at = d.sign_reminder2_at = d.sign_stale_alert_at = None
         # מייל אוטומטי למגיש (נוסח אושר ע"י לימור 03/08) — כשל בשליחה לא מפיל
         email_sent = False
         try:

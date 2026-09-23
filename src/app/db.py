@@ -519,6 +519,13 @@ class ProducerDeclaration(db.Model):
     scan_filed_at = db.Column(db.DateTime)
     scan_file_note = db.Column(db.Text)
 
+    # תזכורות חתימה (לימור 23/09): הצהרה שבתא הלקוח בלי מסמך חתום — תזכורת
+    # ראשונה אחרי 7 ימים, שנייה 7 ימים אחריה, ואחרי 7 נוספים התראה למשרד.
+    # מתאפסות כשההצהרה נשמרת מחדש לתא הלקוח.
+    sign_reminder1_at = db.Column(db.DateTime)
+    sign_reminder2_at = db.Column(db.DateTime)
+    sign_stale_alert_at = db.Column(db.DateTime)
+
     issued_at = db.Column(db.DateTime, default=datetime.utcnow)
     notes = db.Column(db.Text)
 

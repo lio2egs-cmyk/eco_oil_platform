@@ -449,8 +449,13 @@ function declStatus(d){
     var n=daysSince(d.released_at||d.submitted_at);
     var since=d.released_at?'אצל הלקוח':'מאז ההגשה';
     var tail=(n>=1?' · כבר '+daysTxt(n)+' '+since:'');
-    if(n>=7) return '<span class="warn">⚠ בתא הלקוח — ממתינה לחתימת היצרן'+tail+' — כדאי להזכיר ללקוח</span>';
-    return '<span class="ok">בתא הלקוח — ממתינה לחתימת היצרן'+tail+'</span>';
+    /* תזכורות אוטומטיות (23/09): 7 ימים → ראשונה, +7 → שנייה, +7 → התראה אלייך */
+    var rem='';
+    if(d.sign_reminder1_at) rem+='<div class="muted" style="font-size:12px">📧 תזכורת ללקוח '+fmtDate(d.sign_reminder1_at)+'</div>';
+    if(d.sign_reminder2_at) rem+='<div class="muted" style="font-size:12px">📧 תזכורת שנייה '+fmtDate(d.sign_reminder2_at)+'</div>';
+    if(d.sign_stale_alert_at) return '<span class="warn">⛔ לא נחתמה אחרי שתי תזכורות'+tail+' — ההחלטה שלך</span>'+rem;
+    if(n>=7) return '<span class="warn">⚠ בתא הלקוח — ממתינה לחתימת היצרן'+tail+'</span>'+rem;
+    return '<span class="ok">בתא הלקוח — ממתינה לחתימת היצרן'+tail+'</span>'+rem;
   }
   if(d.status==='needs_fix') return '<span class="warn">הוחזרה לתיקון אצל הלקוח</span>';
   if(d.status==='superseded') return '<span class="muted">הוגשה מחדש (גרסה ישנה)</span>';

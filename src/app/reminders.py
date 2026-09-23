@@ -304,3 +304,121 @@ def weekly_portal_reminder():
     return jsonify({"opted_in": len(users), "sent": len(sent),
                     "skipped_empty": len(skipped_empty),
                     "skipped_other": len(skipped_other), "errors": len(errors)})
+
+
+# ─── תזכורות חתימה על הצהרות יצרן (לימור 23/09/2026) ───────────────────────
+# הצהרה שנשמרה לתא הלקוח ולא הועלה לה מסמך חתום: תזכורת ראשונה אחרי 7
+# ימים, שנייה 7 ימים אחרי הראשונה, ואחרי 7 נוספים התראה אחת למשרד — משם
+# לימור מחליטה. הנוסח אושר ע"י לימור 23/09 — לא לשנות בלי לשאול אותה.
+# מופעל מהסבב השעתי במשרד (ecooil_signature_reminders.py); כל שלב נחתם
+# בעמודה משלו, ולכן הרצה חוזרת לא שולחת פעמיים.
+SIGN_REMINDER_DAYS = 7
+
+
+def _sign_reminder_email(d, days, second):
+    biz = (d.producer_name or "").strip()
+    mat = (d.material_name or "").strip()
+    subject = (("תזכורת שנייה: " if second else "תזכורת: ")
+               + f"הצהרת היצרן של {biz} ממתינה לחתימתכם")
+    html = f"""<div dir="rtl" style="font-family:Arial,sans-serif;color:#222;">
+<p>שלום,</p>
+<p>הצהרת היצרן של <b>{biz}</b> ({mat}) נשמרה בפורטל לפני {days} ימים, וממתינה לחתימתכם.</p>
+<p><b>ההצהרה תיכנס לתוקף רק לאחר שתגישו הצהרה חתומה ותקבלו מסמך הסכמה להצהרה.</b> כדי להשלים:</p>
+<ol style="line-height:1.8;">
+<li>היכנסו לפורטל והורידו או הדפיסו את המסמך.</li>
+<li>חתמו עליו בחתימה ובחותמת של יצרן הפסולת.</li>
+<li>העלו את המסמך החתום בפורטל — אפשר גם צילום ברור מהטלפון.</li>
+</ol>
+<p style="margin:22px 0;">
+<a href="{PORTAL_URL}" style="background:#5B9E96;color:#fff;text-decoration:none;
+padding:12px 28px;border-radius:8px;font-weight:bold;">כניסה לפורטל</a></p>
+<p>בברכה,<br>אקו-אויל</p></div>"""
+    return subject, html
+
+
+def _stale_alert_email(items):
+    rows = "".join(
+        f'<tr><td style="{TD}">{d.id}</td><td style="{TD}">{cname}</td>'
+        f'<td style="{TD}"><b>{d.producer_name or ""}</b></td><td style="{TD}">{d.material_name or ""}</td>'
+        f'<td style="{TD}">{email}</td><td style="{TD}">{days}</td>'
+        f'<td style="{TD}">{d.sign_reminder1_at:%d/%m/%Y} · {d.sign_reminder2_at:%d/%m/%Y}</td></tr>'
+        for d, cname, email, days in items)
+    html = f"""<div dir="rtl" style="font-family:Arial,sans-serif;font-size:14px;color:#222;">
+<h2 style="color:#2F6B62;">הצהרות שלא נחתמו אחרי שתי תזכורות</h2>
+<p>ההצהרות הבאות ממתינות בתא הלקוח לחתימה. נשלחו ללקוח שתי תזכורות אוטומטיות ולא הועלה מסמך חתום.
+ההחלטה מכאן — שלך (תזכורת טלפונית / החזרה לתיקון / פסילה) במסך הניהול.</p>
+<table style="border-collapse:collapse;">
+<tr><th style="{TH}">מס׳</th><th style="{TH}">חשבון פורטל</th><th style="{TH}">שם העסק בהצהרה</th>
+<th style="{TH}">זרם</th><th style="{TH}">נשלח אל</th><th style="{TH}">ימים בהמתנה</th><th style="{TH}">תזכורות</th></tr>
+{rows}</table>
+<p style="color:#777;">נשלח אוטומטית על ידי פורטל אקו-אויל.</p></div>"""
+    n = len(items)
+    subject = (f"הצהרה מס׳ {items[0][0].id} לא נחתמה אחרי שתי תזכורות" if n == 1
+               else f"{n} הצהרות לא נחתמו אחרי שתי תזכורות")
+    return subject, html
+
+
+@reminders.route("/admin/declaration-signature-reminders", methods=["POST"])
+@ecooil_bridge_required
+def declaration_signature_reminders():
+    """שלב אחד לכל הצהרה ממתינה, לכל היותר, בכל הרצה. dry_run=true — רק מדווח."""
+    from datetime import datetime
+    from .db import ProducerDeclaration
+
+    dry = bool((request.get_json(silent=True) or {}).get("dry_run"))
+    now = datetime.utcnow()
+    gap = timedelta(days=SIGN_REMINDER_DAYS)
+    decls = (ProducerDeclaration.query
+             .filter(ProducerDeclaration.status == "released",
+                     ProducerDeclaration.submitted_by_user_id.isnot(None),
+                     ProducerDeclaration.signed_scan_at.is_(None))
+             .order_by(ProducerDeclaration.id).all())
+    clients = {c.id: c.name for c in Client.query.all()}
+    out, stale = [], []
+    for d in decls:
+        base = d.released_at or d.issued_at
+        days = (now - base).days if base else 0
+        submitter = db.session.get(User, d.submitted_by_user_id)
+        email = submitter.email if submitter and submitter.is_active and submitter.email else None
+        item = {"id": d.id, "client": clients.get(d.client_id), "producer": d.producer_name,
+                "days": days, "to": email}
+        if d.sign_reminder1_at is None:
+            step = "reminder1" if base and now - base >= gap else None
+        elif d.sign_reminder2_at is None:
+            step = "reminder2" if now - d.sign_reminder1_at >= gap else None
+        elif d.sign_stale_alert_at is None:
+            step = "office_alert" if now - d.sign_reminder2_at >= gap else None
+        else:
+            step = None
+        if step is None:
+            continue
+        item["step"] = step
+        if step == "office_alert":
+            stale.append((d, clients.get(d.client_id, ""), email or "—", days))
+            out.append(item)
+            continue
+        if not email:
+            item["result"] = "אין מייל פעיל למגיש"
+            out.append(item)
+            continue
+        if dry:
+            item["result"] = "dry_run"
+            out.append(item)
+            continue
+        subject, html = _sign_reminder_email(d, days, second=(step == "reminder2"))
+        ok = send_office_email(subject=subject, html=html, to=email)
+        item["result"] = "נשלח" if ok else "כשל בשליחה"
+        if ok:
+            if step == "reminder1":
+                d.sign_reminder1_at = now
+            else:
+                d.sign_reminder2_at = now
+        out.append(item)
+    if stale and not dry:
+        subject, html = _stale_alert_email(stale)
+        if send_office_email(subject=subject, html=html):
+            for d, *_ in stale:
+                d.sign_stale_alert_at = now
+    if not dry:
+        db.session.commit()
+    return jsonify({"dry_run": dry, "actions": out})
