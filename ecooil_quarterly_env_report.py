@@ -45,7 +45,7 @@ from email.mime.text import MIMEText
 from email.utils import formataddr
 
 import openpyxl
-from openpyxl.styles import Alignment, Border, Font, Side
+from openpyxl.styles import Alignment, Border, Font, PatternFill, Side
 
 # ---------------------------------------------------------------- settings ---
 ENV_FILE = r"C:\eco_oil_platform_git\.env"
@@ -141,6 +141,13 @@ def clean_code(v):
     return t
 
 
+def package_name(v):
+    """'קוביות-3' → 'קוביות'; 'מיכלית' → 'ביובית' (Limor 24/09: the term מיכלית
+    is retired, everything pumped is ביובית)."""
+    t = re.sub(r"\s*-\s*\d+\s*$", "", s(v))
+    return "ביובית" if t == "מיכלית" else t
+
+
 def as_int(v):
     """ח.פ. / permit numbers: keep ints as ints, numeric strings → int."""
     if v is None or s(v) == "":
@@ -191,7 +198,7 @@ def read_rikuz_quarter(year, quarter):
                     "customer": s(vals[5]), "address": s(vals[6]),
                     "stream_raw": s(vals[8]), "stream": stream,
                     "tons": round((net or 0) / 1000.0, 3),
-                    "package": re.sub(r"\s*-\s*\d+\s*$", "", s(vals[13])),   # 'קוביות-3' → 'קוביות'
+                    "package": package_name(vals[13]),
                     "month": month, "serial": vals[0],
                     "date": s(vals[2]),
                 })
@@ -287,10 +294,12 @@ def lookup(customer, exact, loose, decl, hist):
 # ------------------------------------------------------------------- build ---
 THIN = Side(style="thin")
 BORDER = Border(left=THIN, right=THIN, top=THIN, bottom=THIN)
+# a cell the script could not fill = Limor's turn (bright yellow, Limor 24/09)
+NEEDS_LIMOR = PatternFill("solid", fgColor="FFFF00")
 
 
 def build_rows(events, exact, loose, decl, hist):
-    rows, missing, sources = [], [], {}
+    rows, missing, sources, flag_rows = [], [], {}, []
     for e in events:
         info, how = lookup(e["customer"], exact, loose, decl, hist)
         sources[how] = sources.get(how, 0) + 1
@@ -300,13 +309,33 @@ def build_rows(events, exact, loose, decl, hist):
         waste = info["waste"].get(e["stream"], "") if info else ""
         if info is None or hp is None or not waste:
             missing.append((e, how, hp, permit, waste))
+        # which cells are Limor's turn (yellow): an unknown producer → identity
+        # cells; a known producer with no permit in the מסד is simply a producer
+        # without a permit (73 such rows in Q2 2026) and stays white.
+        flags = set()
+        if info is None:
+            flags.update({2, 3, 4})
+        if hp is None:
+            flags.add(3)
+        if not waste:
+            flags.update({6, 9})
+        if e["stream"] not in STREAM_CONST:
+            flags.update({7, 8, 10, 11, 12, 13})
+        if not e["tons"]:
+            flags.add(14)
+        if not e["package"]:
+            flags.add(15)
+        if not e["address"]:
+            flags.add(2)
         rows.append([e["customer"], e["address"], hp, permit, e["stream"], waste,
                      const[0], const[1], waste, const[2], const[3], const[4], const[5],
                      e["tons"], e["package"]])
+        flag_rows.append(flags)
+    build_rows.flags = flag_rows
     return rows, missing, sources
 
 
-def write_report(path, year, quarter, rows):
+def write_report(path, year, quarter, rows, flag_rows=None):
     wb = openpyxl.Workbook()
     ws = wb.active
     ws.title = "גיליון1"
@@ -334,6 +363,8 @@ def write_report(path, year, quarter, rows):
             cell.alignment = Alignment(horizontal="right", vertical="center", wrap_text=(r == 5))
             if c == 14 and r >= 5:
                 cell.number_format = "0.000"
+            if r > 5 and flag_rows and c in flag_rows[r - 6]:
+                cell.fill = NEEDS_LIMOR
     wb.save(path)
     chk = openpyxl.load_workbook(path, read_only=True)
     try:
@@ -403,6 +434,7 @@ def main():
         exact, loose, decl = read_masad()
         hist = read_earlier_reports(target)
         rows, missing, sources = build_rows(events, exact, loose, decl, hist)
+        flag_rows = build_rows.flags
         log(f"events {len(events)}; sources {sources}; incomplete rows {len(missing)}; unknown streams {unknown}")
 
         if args.dry_run:
@@ -417,7 +449,7 @@ def main():
                 if has_data_rows(target):
                     out = os.path.join(REPORTS_BASE, str(year), f"רבעון {QUARTER_NAMES[quarter]}_{year} (אוטומטי).xlsx")
                     log(f"existing file already has rows — writing beside it: {os.path.basename(out)}")
-        write_report(out, year, quarter, rows)
+        write_report(out, year, quarter, rows, flag_rows)
         log(f"written: {out} ({len(rows)} rows, {sum(r[13] for r in rows):,.3f} tons)")
 
         lines = [f"הדוח הרבעוני למשרד להגנת הסביבה, רבעון {QUARTER_NAMES[quarter]} {year}, מוכן.",
