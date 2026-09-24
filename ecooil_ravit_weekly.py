@@ -519,11 +519,11 @@ def process_month(year, month, run_day, ledger, env, dry_run, no_mail):
 
     full_rows = [r["values"] for r in src_rows]
     week_rows = [r["values"] for r in fixed_rows] + [r["values"] for r in new_rows]
-    if not week_rows and not os.path.exists(rpath):
-        return None
-    if not week_rows and dry_run:
-        log(f"{mk}: nothing new (dry-run: month file left as is)")
-        return {"month": mk, "new": 0, "fixed": 0, "title": None, "file": rpath}
+    if not week_rows:
+        # nothing new and nothing fixed: the month file is left untouched
+        # (rebuilding 'ריכוז מלא' alone would change a file nobody is told about)
+        log(f"{mk}: nothing new — month file left as is")
+        return {"month": mk, "new": 0, "fixed": 0, "title": None, "file": rpath} if os.path.exists(rpath) else None
 
     title = week_title(run_day, year, month, bool(fixed_rows))
     out, title = write_month_file(rpath, week_rows, title if week_rows else None, full_rows, dry_run)
