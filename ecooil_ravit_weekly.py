@@ -16,8 +16,8 @@ What this script does instead, every Thursday from Task Scheduler on Limor's PC:
     3. new complete rows → a new weekly sheet in the month's file for Ravit
        (same columns, formats and formulas as her sheets); rows that were sent
        before and changed since are added to the same sheet first, with an
-       automatic "תיקון: <fields> (היה: ...)" note — exactly like Limor's
-       "+תוספות" sheets;
+       short automatic note in Limor's wording ("תוקן משקל", "התקבל טופס
+       מלווה, הופק אישור") — exactly like her "+תוספות" sheets;
     4. rebuilds the 'ריכוז מלא' sheet (whole month so far) on every run;
     5. backs the month file up to C: before writing, then mails the file to
        Ravit (cc Yoav + office) from the portal mailbox.
@@ -414,6 +414,58 @@ def send_pending(ledger, env):
     ledger["pending_mail"] = still
 
 
+
+# ------------------------------------------------------- correction notes ---
+# Short, human wording for Ravit (Limor 24/09: "התקבל טופס מלווה, הופק אישור"
+# rather than field names and old values). One phrase per kind of change,
+# joined with " + " like Limor's own "הוחלף הגורם המחוייב + תוקן משקל".
+CHANGE_PHRASES = [
+    ((9, 10), "תוקן משקל"),
+    ((7,), "הוחלף הגורם המחוייב"),
+    ((3, 4), "שונה המוביל"),
+    ((5,), "שונה שם הלקוח"),
+    ((6,), "שונתה הכתובת"),
+    ((8,), "שונה סיווג החומר"),
+    ((13, 14), "תוקנה האריזה"),
+    ((2,), "תוקן התאריך"),
+    ((15,), "תוקנה שעת היציאה"),
+]
+# a note that said "no certificate yet, X missing" and is now gone = X arrived
+MISSING_DOC_PHRASES = [
+    ("טופס מלווה", "התקבל טופס מלווה, הופק אישור"),
+    ("הצהרת יצרן", "התקבלה הצהרת יצרן, הופק אישור"),
+    ("הצהרה", "התקבלה הצהרה, הופק אישור"),
+]
+
+
+def change_note(prev_fp, fp):
+    changed = {i for i in COMPARE_IDX if prev_fp.get(str(i), "") != fp[str(i)]}
+    parts = []
+    for idxs, phrase in CHANGE_PHRASES:
+        if changed.intersection(idxs):
+            parts.append(phrase)
+    if 0 in changed:
+        parts.append(f"מס' התעודה היה {prev_fp.get('0', '')}")
+    if 16 in changed:
+        old_note, new_note = prev_fp.get("16", ""), fp["16"]
+        if old_note and not new_note:
+            for key, phrase in MISSING_DOC_PHRASES:
+                if "ללא אישור" in old_note and key in old_note:
+                    parts.append(phrase)
+                    break
+            else:
+                parts.append("ההערה הקודמת בוטלה")
+        elif not parts:
+            parts.append("עודכנה ההערה")
+    return " + ".join(parts) if parts else "עודכן"
+
+
+def join_note(current, note):
+    """Ravit's notes column: the row's own note first, then what changed."""
+    cur = norm(current)
+    return f"{cur} | {note}" if cur else note
+
+
 # ------------------------------------------------------------------- month ---
 def process_month(year, month, run_day, ledger, env, dry_run, no_mail):
     mk = month_key(year, month)
@@ -434,14 +486,9 @@ def process_month(year, month, run_day, ledger, env, dry_run, no_mail):
         if prev is None:
             new_rows.append(row)
         elif prev["fp"] != fp:
-            changed = [i for i in COMPARE_IDX if prev["fp"].get(str(i), "") != fp[str(i)]]
-            parts = []
-            for i in changed:
-                old = prev["fp"].get(str(i), "")
-                parts.append(f"{FIELD_NAMES[i]} (היה: {old if old else 'ריק'})")
-            note = "תיקון: " + ", ".join(parts)
+            note = change_note(prev["fp"], fp)
             vals = list(row["values"])
-            vals[16] = f"{norm(vals[16])} | {note}" if norm(vals[16]) else note
+            vals[16] = join_note(vals[16], note)
             fixed_rows.append({"key": row["key"], "values": vals, "fp": fp, "note": note})
     # A row whose date / vehicle / customer / stream / exit time was edited gets
     # a NEW certificate code (the code is computed from those fields), so it
@@ -459,14 +506,9 @@ def process_month(year, month, run_day, ledger, env, dry_run, no_mail):
                 still_new.append(row)
                 continue
             prev = gone.pop(old_key)
-            changed = [i for i in COMPARE_IDX if prev["fp"].get(str(i), "") != fp[str(i)]]
-            parts = [f"קוד (היה: {old_key.split('#')[0]})"]
-            for i in changed:
-                old = prev["fp"].get(str(i), "")
-                parts.append(f"{FIELD_NAMES[i]} (היה: {old if old else 'ריק'})")
-            note = "תיקון: " + ", ".join(parts)
+            note = change_note(prev["fp"], fp)
             vals = list(row["values"])
-            vals[16] = f"{norm(vals[16])} | {note}" if norm(vals[16]) else note
+            vals[16] = join_note(vals[16], note)
             fixed_rows.append({"key": row["key"], "values": vals, "fp": fp, "note": note, "old_key": old_key})
         new_rows = still_new
     log(f"{mk}: source {len(src_rows)} complete rows; new {len(new_rows)}; corrected {len(fixed_rows)}")
