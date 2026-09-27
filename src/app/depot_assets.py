@@ -453,7 +453,9 @@ def submit_release_batch():
     הלקוחות): הלקוח מסמן כמה מכלים ברשימה וממלא תיבה אחת (מוביל, טווח איסוף,
     הערה). לכל מכל נוצרת בקשה משלה — הגשר של יעל מטפל בכל אחת לחוד, בדיוק
     כמו היום — והמשרד מקבל מייל אחד עם טבלת כל המכלים.
-    הכול-או-כלום: אם מכל אחד לא תקין, לא נוצרת אף בקשה, והלקוח רואה איזה."""
+    הכול-או-כלום: אם מכל אחד לא תקין, לא נוצרת אף בקשה, והלקוח רואה איזה.
+    לימור 27/09: לכל מכל אפשר תאריך/טווח ומוביל משלו (פריט עם requested_date /
+    requested_date_to / carrier דורס את הערך הכללי; ריק = כמו הכללי)."""
     client = _depot_client_for_request()
     if client is None:
         return jsonify(error="depot customers only"), 403
@@ -465,7 +467,7 @@ def submit_release_batch():
     if len(items) > 60:
         return jsonify(error="אפשר לבקש עד 60 מכלים בבת אחת"), 400
 
-    fields, err = _release_fields(data)
+    shared, err = _release_fields(data)
     if err:
         return jsonify(error=err), 400
 
@@ -483,15 +485,26 @@ def submit_release_batch():
         a, err = _release_target(client, visit_id, tank)
         if err:
             errors.append({"tank": tank, "error": err})
-        else:
-            targets.append((visit_id, a))
+            continue
+        # פרטים לכל מכל: מה שמולא בשורה דורס את הכללי; ריק = כמו הכללי
+        merged = {k: data.get(k) for k in ("requested_date", "requested_date_to", "carrier", "notes")}
+        for k in ("requested_date", "requested_date_to", "carrier"):
+            if (str(it.get(k) or "")).strip():
+                merged[k] = it.get(k)
+        if (str(it.get("requested_date") or "")).strip() and not (str(it.get("requested_date_to") or "")).strip():
+            merged["requested_date_to"] = None   # תאריך משלו בלי "עד" = יום אחד, לא הטווח הכללי
+        fields, err = _release_fields(merged)
+        if err:
+            errors.append({"tank": tank, "error": err})
+            continue
+        targets.append((visit_id, a, fields))
     if errors:
         return jsonify(error="חלק מהמכלים לא ניתנים לשחרור — לא נשלחה אף בקשה",
                        errors=errors), 409
 
     uid = int(get_jwt_identity())
     rows = []
-    for visit_id, a in targets:
+    for visit_id, a, fields in targets:
         row = DepotReleaseRequest(client_id=client.id, submitted_by_user_id=uid,
                                   visit_id=visit_id, tank=a.tank, action="release",
                                   **fields)
@@ -562,20 +575,19 @@ def _notify_office_batch(rows, client, assets):
     submitter = db.session.get(User, first.submitted_by_user_id or 0)
     n = len(rows)
     tank_rows = "".join(
-        "<tr>" + td(i + 1) + td(r.tank) + td(r.visit_id)
+        "<tr>" + td(i + 1) + td(r.tank) + td(r.visit_id) + td(_req_range(r)) + td(r.carrier)
         + td(assets[r.id].status if r.id in assets else None) + "</tr>"
         for i, r in enumerate(rows))
+    # תאריך ומוביל לכל מכל (לימור 27/09) — הטבלה למטה; למעלה רק מה שמשותף באמת
     html = f"""<div dir="rtl" style="font-family:Arial,sans-serif">
 <p>התקבלה בפורטל הדיפו <b>בקשת שחרור ל-{n} מכלים</b> של {client.name} — הסטטוס של כל מכל
-יתעדכן אוטומטית ע"י הגשר, כל מכל לחוד.</p>
+יתעדכן אוטומטית ע"י הגשר, כל מכל לחוד. תאריך האיסוף והמוביל מופיעים לכל מכל בטבלה.</p>
 <table style="border-collapse:collapse">
-<tr>{td("תאריך איסוף מבוקש", True)}{td(_req_range(first))}</tr>
-<tr>{td("מוביל אוסף", True)}{td(first.carrier)}</tr>
 <tr>{td("הערות הלקוח", True)}{td(first.notes)}</tr>
 <tr>{td("הוגש על ידי", True)}{td(submitter.email if submitter else None)}</tr>
 </table>
 <table style="border-collapse:collapse;margin-top:14px">
-<tr>{td("#", True)}{td("מספר מכל", True)}{td("מס' ביקור", True)}{td("מצב נוכחי בקובץ", True)}</tr>
+<tr>{td("#", True)}{td("מספר מכל", True)}{td("מס' ביקור", True)}{td("תאריך איסוף מבוקש", True)}{td("מוביל אוסף", True)}{td("מצב נוכחי בקובץ", True)}</tr>
 {tank_rows}
 </table>
 <p style="margin-top:14px"><a href="https://depot.eco-oil.co.il/depot-admin"

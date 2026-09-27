@@ -51,8 +51,16 @@
   .selbar.on{display:flex}
   .selbar b{color:var(--teal-dark)}
   .selbar .act[disabled]{opacity:.45;cursor:default}
-  #dlgTanks{display:none;flex-wrap:wrap;gap:6px;margin-top:8px}
-  #dlgTanks span{display:inline-block;background:#EDF3F2;border-radius:8px;padding:1px 9px;font-size:13px;font-weight:600;letter-spacing:.4px}
+  #dlg.wide{width:min(700px,94vw);max-height:92vh;overflow-y:auto}
+  /* פרטים לכל מכל (לימור 27/09): תאריך, עד, מוביל — ריק = כמו הכללי */
+  #dlgTanks{display:none;margin-top:12px}
+  #dlgTanks table{width:100%;border-collapse:collapse;font-size:13px}
+  #dlgTanks th{background:#EDF3F2;color:var(--navy);padding:5px 6px;text-align:right;font-family:var(--fh);font-weight:500}
+  #dlgTanks td{padding:4px 4px;border-bottom:1px solid #eee}
+  #dlgTanks .tank{font-size:13px}
+  #dlg #dlgTanks input{padding:5px 7px;font-size:13px;border-radius:7px;min-width:0}
+  #dlgTanks input.pd{width:135px}
+  #dlgTanks input::placeholder{color:#aaa}
   #toast{position:fixed;bottom:22px;right:50%;transform:translateX(50%);background:var(--navy);color:#fff;border-radius:10px;padding:11px 20px;font-size:14px;display:none;z-index:30}
   /* ── פס "מה קרה אצלכם" (המסך המשולב — אישור יואב 04/09/2026) ── */
   .feed{background:#F4F8F7;border:1.5px solid #d8e6e3;border-radius:14px;padding:14px 18px;margin-top:18px;display:none}
@@ -202,11 +210,15 @@
   <div id="dlg">
     <h3>בקשת שחרור — <span id="dlgTank"></span></h3>
     <div class="muted" id="dlgHint">המכל יעבור להכנה לשחרור, והמשרד יקבל את הבקשה מיידית.</div>
-    <div id="dlgTanks"></div>
     <div class="row"><label>תאריך איסוף מבוקש *</label><input type="date" id="fDate"></div>
     <div class="row"><label>עד תאריך (אם האיסוף נמשך כמה ימים)</label><input type="date" id="fDateTo"></div>
     <div class="row"><label>מוביל אוסף *</label><input type="text" id="fCarrier" maxlength="200"></div>
     <div class="row"><label>הערות למשרד (רשות)</label><input type="text" id="fNotes" maxlength="400"></div>
+    <div id="dlgTanks">
+      <div class="muted" style="margin-bottom:6px">פרטים לכל מכל — משאירים ריק כשזה כמו למעלה; ממלאים רק למכל שהתאריך או המוביל שלו שונים.</div>
+      <table><thead><tr><th>מכל</th><th>תאריך איסוף</th><th>עד תאריך</th><th>מוביל אוסף</th></tr></thead>
+      <tbody id="dlgTankRows"></tbody></table>
+    </div>
     <div class="btns">
       <button class="btn" onclick="sendRelease()">שליחת הבקשה</button>
       <button class="btn soft" onclick="closeDlg()">ביטול</button>
@@ -515,9 +527,17 @@ function openDlgMulti(){
   DLG_VISIT=null; DLG_TANK=null; DLG_ITEMS=items;
   document.getElementById('dlgTank').textContent=items.length+' מכלים';
   document.getElementById('dlgHint').textContent='כל המכלים יעברו להכנה לשחרור, והמשרד יקבל בקשה אחת עם כולם. כל מכל נקלט או נדחה לחוד.';
-  var box=document.getElementById('dlgTanks'); box.innerHTML='';
-  items.forEach(function(it){ var sp=document.createElement('span'); sp.textContent=it.tank; box.appendChild(sp); });
-  box.style.display='flex';
+  var tb=document.getElementById('dlgTankRows'); tb.innerHTML='';
+  items.forEach(function(it,i){
+    var tr=document.createElement('tr');
+    tr.innerHTML='<td class="tank">'+esc(it.tank)+'</td>'+
+      '<td><input type="date" class="pd" id="rd_'+i+'"></td>'+
+      '<td><input type="date" class="pd" id="rt_'+i+'"></td>'+
+      '<td><input type="text" id="rc_'+i+'" maxlength="200" placeholder="כמו למעלה"></td>';
+    tb.appendChild(tr);
+  });
+  document.getElementById('dlgTanks').style.display='block';
+  document.getElementById('dlg').classList.add('wide');
   resetDlgFields();
 }
 
@@ -542,6 +562,7 @@ function openDlg(visit, tank){
   document.getElementById('dlgTank').textContent=tank;
   document.getElementById('dlgHint').textContent='המכל יעבור להכנה לשחרור, והמשרד יקבל את הבקשה מיידית.';
   document.getElementById('dlgTanks').style.display='none';
+  document.getElementById('dlg').classList.remove('wide');
   resetDlgFields();
 }
 function resetDlgFields(){
@@ -570,6 +591,18 @@ async function sendRelease(){
   var items=DLG_ITEMS.slice();
   var r, d={};
   if(items.length>1){
+    /* פרטים לכל מכל: רק מה שמולא נשלח; ריק = כמו הכללי */
+    for(var i=0;i<items.length;i++){
+      var rd=(document.getElementById('rd_'+i)||{}).value||'', rt=(document.getElementById('rt_'+i)||{}).value||'',
+          rc=((document.getElementById('rc_'+i)||{}).value||'').trim();
+      var baseFrom=rd||dt;
+      if(rt && rt<baseFrom){ toast('במכל '+items[i].tank+' תאריך הסיום קודם לתאריך ההתחלה'); return; }
+      var it={visit_id:items[i].visit_id, tank:items[i].tank};
+      if(rd) it.requested_date=rd;
+      if(rt) it.requested_date_to=rt;
+      if(rc) it.carrier=rc;
+      items[i]=it;
+    }
     var body=Object.assign({items:items}, common);
     r=await api('/depot/portal/release-requests/batch',{method:'POST',body:JSON.stringify(body)});
     try{ d=await r.json(); }catch(e){}
