@@ -9,10 +9,15 @@
   @page { size: A4 landscape; margin: 7mm; }
   *{box-sizing:border-box;margin:0;padding:0}
   body{background:#d9d9d9;font-family:'Rubik',Arial,sans-serif;color:#111;padding:14px}
-  .toolbar{max-width:1040px;margin:0 auto 12px;text-align:center}
+  .toolbar{margin:0 auto 12px;text-align:center}
+  .toolbar .zoom{display:inline-flex;align-items:center;gap:6px;margin-inline-start:14px;vertical-align:middle}
+  .toolbar .zoom button{padding:9px 13px;min-width:38px}
+  .toolbar .zoom .pct{display:inline-block;min-width:46px;font-size:13px;color:#333;font-weight:500}
+  /* תצוגה על המסך: הדף (1040px) מוגדל להתאים לרוחב החלון; ההדפסה לא מושפעת (לימור 27/09) */
+  .stage{position:relative;margin:0 auto;width:1040px}
   .toolbar button{background:#5B9E96;color:#fff;border:none;border-radius:8px;padding:9px 18px;font-size:14px;cursor:pointer;font-family:inherit}
   .msg{max-width:1040px;margin:0 auto 12px;background:#fff3cd;border:1px solid #f0d98a;border-radius:8px;padding:8px 14px;font-size:12.5px;color:#7a5d1a;text-align:center;display:none}
-  .sheet{width:1040px;min-height:735px;background:#fff;margin:0 auto;padding:10px 14px 80px;box-shadow:0 2px 14px rgba(0,0,0,.25);display:flex;flex-direction:column;position:relative}
+  .sheet{width:1040px;min-height:735px;background:#fff;margin:0;padding:10px 14px 80px;box-shadow:0 2px 14px rgba(0,0,0,.25);display:flex;flex-direction:column;position:absolute;top:0;left:0;transform-origin:top left}
   .hdr{display:flex;align-items:center;justify-content:space-between;border-bottom:1.5px solid #2F5F59;padding-bottom:6px}
   .hdr img.logo{height:86px} .hdr img.min{height:80px}
   .hdr .ttl{text-align:center;flex:1}
@@ -34,14 +39,15 @@
   .sigline{border-top:1px solid #000;margin-top:2px;padding-top:3px;font-size:10px}
   .sigcap{font-size:9.5px;color:#444}
   .ftr{position:absolute;left:0;right:0;bottom:10px;text-align:center}.ftr img{width:773px;height:60px;display:inline-block}
-  @media print{ body{background:#fff;padding:0} .toolbar,.msg{display:none !important} .sheet{box-shadow:none;width:auto;margin:0} }
+  @media print{ body{background:#fff;padding:0} .toolbar,.msg{display:none !important} .stage{width:auto !important;height:auto !important} .sheet{box-shadow:none;width:auto;margin:0;position:static;transform:none !important} }
 </style>
 {% endraw %}
 </head><body>
 
-<div class="toolbar"><button onclick="window.print()">🖨️ הדפסה / שמירה כ-PDF</button></div>
+<div class="toolbar"><button onclick="window.print()">🖨️ הדפסה / שמירה כ-PDF</button><span class="zoom"><button type="button" onclick="zoomStep(-1)" title="הקטנת התצוגה">−</button><span class="pct" id="zoomPct">100%</span><button type="button" onclick="zoomStep(1)" title="הגדלת התצוגה">+</button><button type="button" onclick="zoomFit()" title="התאמה לרוחב החלון">↔ לרוחב החלון</button></span></div>
 <div class="msg" id="msg"></div>
 
+<div class="stage" id="stage">
 <div class="sheet" id="sheet" style="visibility:hidden">
   <div class="hdr">
     <img class="logo" src="{{ url_for('static', filename='decl_logo.png') }}" alt="אקו-אויל">
@@ -96,9 +102,24 @@
 
   <div class="ftr"><img src="{{ url_for('static', filename='decl_footer.png') }}"></div>
 </div>
+</div>
 
 {% raw %}
 <script>
+/* זום פנימי של המסמך בלבד (לא של הדפדפן): ברירת המחדל = התאמה לרוחב החלון (לימור 27/09) */
+var Z={s:1,manual:false};
+function applyZoom(s){
+  var sheet=document.getElementById('sheet'), stage=document.getElementById('stage');
+  Z.s=s; sheet.style.transform='scale('+s+')';
+  stage.style.width=Math.round(1040*s)+'px'; stage.style.height=Math.round(sheet.offsetHeight*s)+'px';
+  document.getElementById('zoomPct').textContent=Math.round(s*100)+'%';
+}
+function fitScale(){ return Math.min(2.6,Math.max(0.5,(document.documentElement.clientWidth-28)/1040)); }
+function zoomFit(){ Z.manual=false; applyZoom(fitScale()); }
+function zoomStep(d){ Z.manual=true; applyZoom(Math.min(2.6,Math.max(0.5,Math.round((Z.s+d*0.1)*10)/10))); }
+window.addEventListener('resize',function(){ applyZoom(Z.manual?Z.s:fitScale()); });
+if(document.fonts&&document.fonts.ready){ document.fonts.ready.then(function(){ applyZoom(Z.s); }); }
+window.addEventListener('load',function(){ applyZoom(Z.s); });
 function esc(s){ return (s==null||s===''?'—':String(s)); }
 function show(m){ var e=document.getElementById('msg'); e.textContent=m; e.style.display='block'; }
 async function api(url){
@@ -143,6 +164,7 @@ async function api(url){
   /* שם הקובץ בשמירה כ-PDF = כותרת הדף (לימור 17/08), נבנה בשרת */
   document.title=d.file_name||('הצהרת יצרן — '+esc(d.producer_name));
   document.getElementById('sheet').style.visibility='visible';
+  zoomFit();
 })();
 </script>
 {% endraw %}
