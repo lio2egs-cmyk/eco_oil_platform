@@ -463,7 +463,7 @@ def submit_release_batch():
     data = request.get_json(silent=True) or {}
     items = data.get("items")
     if not isinstance(items, list) or not items:
-        return jsonify(error="לא סומן אף מכל"), 400
+        return jsonify(error="לא נבחר אף מכל"), 400
     if len(items) > 60:
         return jsonify(error="אפשר לבקש עד 60 מכלים בבת אחת"), 400
 

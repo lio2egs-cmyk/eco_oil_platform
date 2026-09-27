@@ -174,15 +174,15 @@
          מסמנים כמה מכלים שבאחסנה, ממלאים תיבה אחת (מוביל, טווח איסוף, הערה),
          והמשרד מקבל מייל אחד. כל מכל נקלט או נדחה לחוד — כמו בבקשה בודדת. -->
     <div class="selbar" id="selbar">
-      <span>☑ אפשר לסמן כמה מכלים ברשימה ולבקש שחרור לכולם בבת אחת · סומנו: <b id="selN">0</b></span>
-      <button class="act" id="selBtn" type="button" disabled onclick="openDlgMulti()">🚚 בקשו שחרור למסומנים</button>
-      <button class="act" id="selClr" type="button" style="display:none" onclick="clearPicks()">ניקוי הסימון</button>
+      <span>☑ בחירה מרובה — סמנו כמה מכלים ברשימה ובקשו שחרור לכולם בבת אחת · נבחרו: <b id="selN">0</b></span>
+      <button class="act" id="selBtn" type="button" disabled onclick="openDlgMulti()">🚚 בקשו שחרור לנבחרים</button>
+      <button class="act" id="selClr" type="button" style="display:none" onclick="clearPicks()">ניקוי הבחירה</button>
     </div>
 
     <div class="tblwrap">
       <table id="tbl" style="display:none">
         <thead><tr>
-          <th><input type="checkbox" class="pick" id="pickAll" title="סימון כל המכלים שבאחסנה" onchange="pickAll(this.checked)">מספר מכל</th><th>חומר אחרון</th><th>הגיע אלינו</th><th>מצב</th><th>תעודה</th><th>פעולות</th>
+          <th><input type="checkbox" class="pick" id="pickAll" title="בחירה מרובה — מסמן את כל המכלים שבאחסנה" onchange="pickAll(this.checked)">מספר מכל</th><th>חומר אחרון</th><th>הגיע אלינו</th><th>מצב</th><th>תעודה</th><th>פעולות</th>
         </tr></thead>
         <tbody id="rows"></tbody>
       </table>
@@ -514,7 +514,7 @@ function updatePickBar(){
   var n=Object.keys(PICKED).length;
   document.getElementById('selN').textContent=n;
   document.getElementById('selBtn').disabled=(n===0);
-  document.getElementById('selBtn').textContent=n>1?('🚚 בקשו שחרור ל-'+n+' המכלים המסומנים'):'🚚 בקשו שחרור למסומנים';
+  document.getElementById('selBtn').textContent=n>1?('🚚 בקשו שחרור ל-'+n+' המכלים שנבחרו'):'🚚 בקשו שחרור לנבחרים';
   document.getElementById('selClr').style.display=n?'inline-block':'none';
   var boxes=document.querySelectorAll('#rows input.pick'), all=boxes.length>0;
   boxes.forEach(function(b){ if(!b.checked) all=false; });
@@ -522,7 +522,7 @@ function updatePickBar(){
 }
 function openDlgMulti(){
   var items=Object.keys(PICKED).map(function(k){ return PICKED[k]; });
-  if(!items.length){ toast('לא סומן אף מכל'); return; }
+  if(!items.length){ toast('לא נבחר אף מכל'); return; }
   if(items.length===1){ openDlg(items[0].visit_id, items[0].tank); return; }
   DLG_VISIT=null; DLG_TANK=null; DLG_ITEMS=items;
   document.getElementById('dlgTank').textContent=items.length+' מכלים';
