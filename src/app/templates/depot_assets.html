@@ -44,6 +44,15 @@
   .btn{background:var(--teal);color:#fff;border:none;border-radius:10px;padding:10px 20px;font-family:var(--fh);font-size:14px;cursor:pointer}
   .btn:hover{background:var(--teal-dark)}
   .btn.soft{background:#fff;color:var(--teal-dark);border:1.5px solid var(--teal)}
+  /* שחרור מרובה (לימור 27/09/2026): תיבת סימון בשורות שבאחסנה + פס סימון מעל הטבלה */
+  .pick{width:17px;height:17px;vertical-align:middle;margin-inline-end:8px;cursor:pointer;accent-color:var(--teal)}
+  .pick-gap{display:inline-block;width:25px}
+  .selbar{display:none;align-items:center;gap:10px;flex-wrap:wrap;background:#EDF3F2;border:1.5px solid #cfe0dd;border-radius:10px;padding:8px 12px;margin-top:12px;font-size:14px}
+  .selbar.on{display:flex}
+  .selbar b{color:var(--teal-dark)}
+  .selbar .act[disabled]{opacity:.45;cursor:default}
+  #dlgTanks{display:none;flex-wrap:wrap;gap:6px;margin-top:8px}
+  #dlgTanks span{display:inline-block;background:#EDF3F2;border-radius:8px;padding:1px 9px;font-size:13px;font-weight:600;letter-spacing:.4px}
   #toast{position:fixed;bottom:22px;right:50%;transform:translateX(50%);background:var(--navy);color:#fff;border-radius:10px;padding:11px 20px;font-size:14px;display:none;z-index:30}
   /* ── פס "מה קרה אצלכם" (המסך המשולב — אישור יואב 04/09/2026) ── */
   .feed{background:#F4F8F7;border:1.5px solid #d8e6e3;border-radius:14px;padding:14px 18px;margin-top:18px;display:none}
@@ -153,10 +162,19 @@
       <input type="text" id="q" placeholder="🔍 חיפוש לפי מספר מכל…" oninput="renderRows()">
     </div>
 
+    <!-- שחרור מרובה (לימור 27/09/2026, בעקבות בקשת טנקו 22/09 — נכון לכל הלקוחות):
+         מסמנים כמה מכלים שבאחסנה, ממלאים תיבה אחת (מוביל, טווח איסוף, הערה),
+         והמשרד מקבל מייל אחד. כל מכל נקלט או נדחה לחוד — כמו בבקשה בודדת. -->
+    <div class="selbar" id="selbar">
+      <span>☑ אפשר לסמן כמה מכלים ברשימה ולבקש שחרור לכולם בבת אחת · סומנו: <b id="selN">0</b></span>
+      <button class="act" id="selBtn" type="button" disabled onclick="openDlgMulti()">🚚 בקשו שחרור למסומנים</button>
+      <button class="act" id="selClr" type="button" style="display:none" onclick="clearPicks()">ניקוי הסימון</button>
+    </div>
+
     <div class="tblwrap">
       <table id="tbl" style="display:none">
         <thead><tr>
-          <th>מספר מכל</th><th>חומר אחרון</th><th>הגיע אלינו</th><th>מצב</th><th>תעודה</th><th>פעולות</th>
+          <th><input type="checkbox" class="pick" id="pickAll" title="סימון כל המכלים שבאחסנה" onchange="pickAll(this.checked)">מספר מכל</th><th>חומר אחרון</th><th>הגיע אלינו</th><th>מצב</th><th>תעודה</th><th>פעולות</th>
         </tr></thead>
         <tbody id="rows"></tbody>
       </table>
@@ -183,7 +201,8 @@
   <div id="overlay" onclick="closeDlg()"></div>
   <div id="dlg">
     <h3>בקשת שחרור — <span id="dlgTank"></span></h3>
-    <div class="muted">המכל יעבור להכנה לשחרור, והמשרד יקבל את הבקשה מיידית.</div>
+    <div class="muted" id="dlgHint">המכל יעבור להכנה לשחרור, והמשרד יקבל את הבקשה מיידית.</div>
+    <div id="dlgTanks"></div>
     <div class="row"><label>תאריך איסוף מבוקש *</label><input type="date" id="fDate"></div>
     <div class="row"><label>עד תאריך (אם האיסוף נמשך כמה ימים)</label><input type="date" id="fDateTo"></div>
     <div class="row"><label>מוביל אוסף *</label><input type="text" id="fCarrier" maxlength="200"></div>
@@ -222,11 +241,13 @@ async function api(url, opts){
 
 var CLIENT_ID=new URLSearchParams(location.search).get('client_id')||'';
 var ASSETS=[], DLG_VISIT=null, DLG_TANK=null;
+var DLG_ITEMS=[];      // המכלים שבתיבה הפתוחה: אחד (כפתור בשורה) או כמה (סימון)
+var PICKED={};         // "ביקור|מכל" → {visit_id, tank} — הסימון נשמר גם אחרי חיפוש/רענון
 
 function toast(msg){
   var t=document.getElementById('toast');
   t.textContent=msg; t.style.display='block';
-  clearTimeout(t._h); t._h=setTimeout(function(){ t.style.display='none'; }, 5200);
+  clearTimeout(t._h); t._h=setTimeout(function(){ t.style.display='none'; }, msg.length>80?11000:5200);
 }
 function esc(s){ return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/"/g,'&quot;'); }
 
@@ -415,7 +436,12 @@ function renderRows(){
     var certCell=a.cert_id
       ? '<button class="act" title="הורדת תעודת השטיפה" onclick="openCert('+a.cert_id+',\'save\',event)">📄</button>'
       : '<span class="muted">—</span>';
-    tr.innerHTML='<td><span class="arrow">▶</span><span class="tank">'+esc(a.tank)+'</span></td>'+
+    var k=pickKey(a.visit_id,a.tank);
+    var pick=a.can_release
+      ? '<input type="checkbox" class="pick" data-k="'+esc(k)+'"'+(PICKED[k]?' checked':'')+
+        ' onclick="event.stopPropagation()" onchange="togglePick(this,\''+esc(a.visit_id)+'\',\''+esc(a.tank)+'\')">'
+      : '<span class="pick-gap"></span>';
+    tr.innerHTML='<td>'+pick+'<span class="arrow">▶</span><span class="tank">'+esc(a.tank)+'</span></td>'+
       '<td>'+esc(a.material||'—')+'</td>'+
       '<td>'+(a.arrival_date||'—')+'</td>'+
       '<td><span class="'+stClass(a.status)+'">'+esc(a.status)+'</span></td>'+
@@ -445,6 +471,54 @@ function renderRows(){
   document.getElementById('tbl').style.display=list.length?'table':'none';
   document.getElementById('empty').style.display=(ASSETS.length===0)?'block':'none';
   document.getElementById('invBox').style.display=ASSETS.length?'block':'none';
+  /* הסימון: רק מכלים שעדיין אפשר לשחרר נשארים מסומנים; הפס מוצג כשיש מה לסמן */
+  var releasable={};
+  ASSETS.forEach(function(a){ if(a.can_release) releasable[pickKey(a.visit_id,a.tank)]=true; });
+  Object.keys(PICKED).forEach(function(k){ if(!releasable[k]) delete PICKED[k]; });
+  document.getElementById('selbar').className='selbar'+(Object.keys(releasable).length>1?' on':'');
+  updatePickBar(list);
+}
+
+/* ── שחרור מרובה (27/09/2026) ── */
+function pickKey(visit,tank){ return visit+'|'+tank; }
+function togglePick(box,visit,tank){
+  var k=pickKey(visit,tank);
+  if(box.checked) PICKED[k]={visit_id:visit,tank:tank}; else delete PICKED[k];
+  updatePickBar();
+}
+function pickAll(on){
+  var q=(document.getElementById('q').value||'').toUpperCase().replace(/\s/g,'');
+  ASSETS.forEach(function(a){
+    if(!a.can_release) return;
+    if(q && (a.tank||'').toUpperCase().replace(/\s/g,'').indexOf(q)===-1) return;
+    var k=pickKey(a.visit_id,a.tank);
+    if(on) PICKED[k]={visit_id:a.visit_id,tank:a.tank}; else delete PICKED[k];
+  });
+  document.querySelectorAll('#rows input.pick').forEach(function(b){ b.checked=!!PICKED[b.getAttribute('data-k')]; });
+  updatePickBar();
+}
+function clearPicks(){ PICKED={}; pickAll(false); }
+function updatePickBar(){
+  var n=Object.keys(PICKED).length;
+  document.getElementById('selN').textContent=n;
+  document.getElementById('selBtn').disabled=(n===0);
+  document.getElementById('selBtn').textContent=n>1?('🚚 בקשו שחרור ל-'+n+' המכלים המסומנים'):'🚚 בקשו שחרור למסומנים';
+  document.getElementById('selClr').style.display=n?'inline-block':'none';
+  var boxes=document.querySelectorAll('#rows input.pick'), all=boxes.length>0;
+  boxes.forEach(function(b){ if(!b.checked) all=false; });
+  var pa=document.getElementById('pickAll'); if(pa){ pa.checked=all; pa.disabled=(boxes.length===0); }
+}
+function openDlgMulti(){
+  var items=Object.keys(PICKED).map(function(k){ return PICKED[k]; });
+  if(!items.length){ toast('לא סומן אף מכל'); return; }
+  if(items.length===1){ openDlg(items[0].visit_id, items[0].tank); return; }
+  DLG_VISIT=null; DLG_TANK=null; DLG_ITEMS=items;
+  document.getElementById('dlgTank').textContent=items.length+' מכלים';
+  document.getElementById('dlgHint').textContent='כל המכלים יעברו להכנה לשחרור, והמשרד יקבל בקשה אחת עם כולם. כל מכל נקלט או נדחה לחוד.';
+  var box=document.getElementById('dlgTanks'); box.innerHTML='';
+  items.forEach(function(it){ var sp=document.createElement('span'); sp.textContent=it.tank; box.appendChild(sp); });
+  box.style.display='flex';
+  resetDlgFields();
 }
 
 function renderReqs(reqs){
@@ -464,8 +538,13 @@ function renderReqs(reqs){
 }
 
 function openDlg(visit, tank){
-  DLG_VISIT=visit; DLG_TANK=tank;
+  DLG_VISIT=visit; DLG_TANK=tank; DLG_ITEMS=[{visit_id:visit,tank:tank}];
   document.getElementById('dlgTank').textContent=tank;
+  document.getElementById('dlgHint').textContent='המכל יעבור להכנה לשחרור, והמשרד יקבל את הבקשה מיידית.';
+  document.getElementById('dlgTanks').style.display='none';
+  resetDlgFields();
+}
+function resetDlgFields(){
   document.getElementById('fDate').value='';
   document.getElementById('fDateTo').value='';
   document.getElementById('fCarrier').value='';
@@ -476,7 +555,7 @@ function openDlg(visit, tank){
 function closeDlg(){
   document.getElementById('overlay').style.display='none';
   document.getElementById('dlg').style.display='none';
-  DLG_VISIT=null;
+  DLG_VISIT=null; DLG_ITEMS=[];
 }
 
 async function sendRelease(){
@@ -485,13 +564,31 @@ async function sendRelease(){
   if(!document.getElementById('fCarrier').value.trim()){ toast('חסר מוביל אוסף'); return; }
   var dtTo=document.getElementById('fDateTo').value;
   if(dtTo && dtTo<dt){ toast('תאריך הסיום קודם לתאריך ההתחלה'); return; }
-  var r=await api('/depot/portal/release-requests',{method:'POST',body:JSON.stringify({
-    action:'release', visit_id:DLG_VISIT, tank:DLG_TANK, requested_date:dt, requested_date_to:dtTo,
+  var common={requested_date:dt, requested_date_to:dtTo,
     carrier:document.getElementById('fCarrier').value.trim(),
-    notes:document.getElementById('fNotes').value.trim()})});
-  var d={}; try{ d=await r.json(); }catch(e){}
+    notes:document.getElementById('fNotes').value.trim()};
+  var items=DLG_ITEMS.slice();
+  var r, d={};
+  if(items.length>1){
+    var body=Object.assign({items:items}, common);
+    r=await api('/depot/portal/release-requests/batch',{method:'POST',body:JSON.stringify(body)});
+    try{ d=await r.json(); }catch(e){}
+    closeDlg();
+    if(r.ok){
+      PICKED={};
+      toast('בקשת השחרור ל-'+(d.count||items.length)+' מכלים נשלחה ✓ המשרד קיבל אותה');
+      await load();
+    } else if(d.errors && d.errors.length){
+      toast((d.error||'לא נשלחה אף בקשה')+': '+d.errors.map(function(e){ return e.tank+' — '+e.error; }).join(' · '));
+      await load();
+    } else { toast(d.error||'השליחה נכשלה — נסו שוב'); }
+    return;
+  }
+  r=await api('/depot/portal/release-requests',{method:'POST',body:JSON.stringify(Object.assign({
+    action:'release', visit_id:items[0].visit_id, tank:items[0].tank}, common))});
+  try{ d=await r.json(); }catch(e){}
   closeDlg();
-  if(r.ok){ toast('בקשת השחרור נשלחה ✓ המשרד קיבל אותה'); await load(); }
+  if(r.ok){ delete PICKED[pickKey(items[0].visit_id, items[0].tank)]; toast('בקשת השחרור נשלחה ✓ המשרד קיבל אותה'); await load(); }
   else{ toast(d.error||'השליחה נכשלה — נסו שוב'); }
 }
 

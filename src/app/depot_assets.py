@@ -332,6 +332,58 @@ def my_assets():
     return jsonify(out)
 
 
+def _release_target(client, visit_id, tank):
+    """הנכס שמאחורי (ביקור, מכל) של הלקוח המחובר — או הודעת שגיאה בעברית.
+    בדיקה אחת לשחרור בודד ולשחרור מרובה (27/09/2026)."""
+    # העוגן = (ביקור, מכל): מספרי ביקור כפולים קיימים בקובץ מהעבר
+    a = DepotAssetSnapshot.query.filter_by(visit_id=visit_id, tank=tank).first()
+    if a is None or _norm(a.storage_payer) not in _client_payer_keys(client):
+        return None, "הנכס לא נמצא ברשימה שלכם"
+    open_req = (DepotReleaseRequest.query
+                .filter(DepotReleaseRequest.visit_id == visit_id,
+                        DepotReleaseRequest.tank == tank,
+                        DepotReleaseRequest.status.in_(OPEN_STATES)).first())
+    if open_req is not None:
+        return a, "כבר יש בקשה פתוחה לנכס הזה — היא בטיפול המשרד"
+    if a.status != "באחסון":
+        return a, "בקשת שחרור אפשרית רק לנכס שנמצא באחסנה"
+    return a, None
+
+
+def _release_fields(data):
+    """תאריך איסוף (חובה), סוף טווח (רשות), מוביל (חובה), הערות — אותם כללים
+    בשחרור בודד ובמרובה. מחזיר (dict, error)."""
+    req_date = None
+    req_date_to = None
+    if (data.get("requested_date") or "").strip():
+        try:
+            req_date = date.fromisoformat(str(data["requested_date"]).strip())
+        except ValueError:
+            return None, "תאריך איסוף לא תקין"
+    if req_date is None:
+        return None, "חסר תאריך איסוף מבוקש"
+    # טווח איסוף (רשות): "10 מכולות לאורך 3 ימים" — לימור 22/09/2026
+    if (data.get("requested_date_to") or "").strip():
+        try:
+            req_date_to = date.fromisoformat(str(data["requested_date_to"]).strip())
+        except ValueError:
+            return None, "תאריך סיום הטווח לא תקין"
+        if req_date_to < req_date:
+            return None, "תאריך סיום הטווח קודם לתאריך ההתחלה"
+        if req_date_to == req_date:
+            req_date_to = None
+    # מוביל יציאה = חובה מהיום הראשון (לימור 22/09/2026), כמו התאריך
+    carrier = (data.get("carrier") or "").strip()[:200]
+    if not carrier:
+        return None, "חסר מוביל אוסף"
+    return {
+        "requested_date": req_date,
+        "requested_date_to": req_date_to,
+        "carrier": carrier,
+        "notes": (data.get("notes") or "").strip()[:400] or None,
+    }, None
+
+
 @depot_assets.route("/depot/portal/release-requests", methods=["POST"])
 @jwt_required()
 def submit_release_request():
@@ -348,51 +400,32 @@ def submit_release_request():
     if action not in ("release", "cancel") or not visit_id or not tank:
         return jsonify(error="בקשה לא תקינה"), 400
 
-    # העוגן = (ביקור, מכל): מספרי ביקור כפולים קיימים בקובץ מהעבר
-    a = DepotAssetSnapshot.query.filter_by(visit_id=visit_id, tank=tank).first()
-    if a is None or _norm(a.storage_payer) not in _client_payer_keys(client):
-        return jsonify(error="הנכס לא נמצא ברשימה שלכם"), 404
-
-    open_req = (DepotReleaseRequest.query
-                .filter(DepotReleaseRequest.visit_id == visit_id,
-                        DepotReleaseRequest.tank == tank,
-                        DepotReleaseRequest.status.in_(OPEN_STATES)).first())
-    if open_req is not None:
-        return jsonify(error="כבר יש בקשה פתוחה לנכס הזה — היא בטיפול המשרד"), 409
-
     if action == "release":
-        if a.status != "באחסון":
-            return jsonify(error="בקשת שחרור אפשרית רק לנכס שנמצא באחסנה"), 409
-        req_date = None
-        req_date_to = None
-        if (data.get("requested_date") or "").strip():
-            try:
-                req_date = date.fromisoformat(str(data["requested_date"]).strip())
-            except ValueError:
-                return jsonify(error="תאריך איסוף לא תקין"), 400
-        if req_date is None:
-            return jsonify(error="חסר תאריך איסוף מבוקש"), 400
-        # טווח איסוף (רשות): "10 מכולות לאורך 3 ימים" — לימור 22/09/2026
-        if (data.get("requested_date_to") or "").strip():
-            try:
-                req_date_to = date.fromisoformat(str(data["requested_date_to"]).strip())
-            except ValueError:
-                return jsonify(error="תאריך סיום הטווח לא תקין"), 400
-            if req_date_to < req_date:
-                return jsonify(error="תאריך סיום הטווח קודם לתאריך ההתחלה"), 400
-            if req_date_to == req_date:
-                req_date_to = None
-        # מוביל יציאה = חובה מהיום הראשון (לימור 22/09/2026), כמו התאריך
-        if not (data.get("carrier") or "").strip():
-            return jsonify(error="חסר מוביל אוסף"), 400
+        a, err = _release_target(client, visit_id, tank)
+        if err:
+            return jsonify(error=err), (404 if a is None else 409)
+        fields, err = _release_fields(data)
+        if err:
+            return jsonify(error=err), 400
     else:
+        # העוגן = (ביקור, מכל): מספרי ביקור כפולים קיימים בקובץ מהעבר
+        a = DepotAssetSnapshot.query.filter_by(visit_id=visit_id, tank=tank).first()
+        if a is None or _norm(a.storage_payer) not in _client_payer_keys(client):
+            return jsonify(error="הנכס לא נמצא ברשימה שלכם"), 404
+        open_req = (DepotReleaseRequest.query
+                    .filter(DepotReleaseRequest.visit_id == visit_id,
+                            DepotReleaseRequest.tank == tank,
+                            DepotReleaseRequest.status.in_(OPEN_STATES)).first())
+        if open_req is not None:
+            return jsonify(error="כבר יש בקשה פתוחה לנכס הזה — היא בטיפול המשרד"), 409
         if a.status == READY_STATUS:
             # כלל לימור 02/09: אחרי שהעובד סימן מוכן — רק דרך המשרד
             return jsonify(error="הנכס כבר הוכן לאיסוף — לביטול פנו למשרד"), 409
         if a.status != "הכנה לשחרור":
             return jsonify(error="אין לנכס הזה שחרור פתוח לביטול"), 409
-        req_date = None
-        req_date_to = None
+        fields = {"requested_date": None, "requested_date_to": None,
+                  "carrier": (data.get("carrier") or "").strip()[:200] or None,
+                  "notes": (data.get("notes") or "").strip()[:400] or None}
 
     row = DepotReleaseRequest(
         client_id=client.id,
@@ -400,10 +433,7 @@ def submit_release_request():
         visit_id=visit_id,
         tank=a.tank,
         action=action,
-        requested_date=req_date,
-        requested_date_to=req_date_to,
-        carrier=(data.get("carrier") or "").strip()[:200] or None,
-        notes=(data.get("notes") or "").strip()[:400] or None,
+        **fields,
     )
     db.session.add(row)
     db.session.commit()
@@ -414,6 +444,67 @@ def submit_release_request():
         current_app.logger.error("release-request office notification failed: %s", exc)
 
     return jsonify(id=row.id, tank=row.tank), 201
+
+
+@depot_assets.route("/depot/portal/release-requests/batch", methods=["POST"])
+@jwt_required()
+def submit_release_batch():
+    """שחרור מרובה (לימור 27/09/2026, בעקבות בקשת עמית/טנקו 22/09 — נכון לכל
+    הלקוחות): הלקוח מסמן כמה מכלים ברשימה וממלא תיבה אחת (מוביל, טווח איסוף,
+    הערה). לכל מכל נוצרת בקשה משלה — הגשר של יעל מטפל בכל אחת לחוד, בדיוק
+    כמו היום — והמשרד מקבל מייל אחד עם טבלת כל המכלים.
+    הכול-או-כלום: אם מכל אחד לא תקין, לא נוצרת אף בקשה, והלקוח רואה איזה."""
+    client = _depot_client_for_request()
+    if client is None:
+        return jsonify(error="depot customers only"), 403
+
+    data = request.get_json(silent=True) or {}
+    items = data.get("items")
+    if not isinstance(items, list) or not items:
+        return jsonify(error="לא סומן אף מכל"), 400
+    if len(items) > 60:
+        return jsonify(error="אפשר לבקש עד 60 מכלים בבת אחת"), 400
+
+    fields, err = _release_fields(data)
+    if err:
+        return jsonify(error=err), 400
+
+    targets, errors, seen = [], [], set()
+    for it in items:
+        it = it if isinstance(it, dict) else {}
+        visit_id = (str(it.get("visit_id") or "")).strip()
+        tank = (str(it.get("tank") or "")).strip()
+        if not visit_id or not tank:
+            errors.append({"tank": tank or "?", "error": "בקשה לא תקינה"})
+            continue
+        if (visit_id, tank) in seen:
+            continue
+        seen.add((visit_id, tank))
+        a, err = _release_target(client, visit_id, tank)
+        if err:
+            errors.append({"tank": tank, "error": err})
+        else:
+            targets.append((visit_id, a))
+    if errors:
+        return jsonify(error="חלק מהמכלים לא ניתנים לשחרור — לא נשלחה אף בקשה",
+                       errors=errors), 409
+
+    uid = int(get_jwt_identity())
+    rows = []
+    for visit_id, a in targets:
+        row = DepotReleaseRequest(client_id=client.id, submitted_by_user_id=uid,
+                                  visit_id=visit_id, tank=a.tank, action="release",
+                                  **fields)
+        db.session.add(row)
+        rows.append((row, a))
+    db.session.commit()
+
+    try:
+        _notify_office_batch([r for r, _ in rows], client, {r.id: a for r, a in rows})
+    except Exception as exc:
+        current_app.logger.error("release-batch office notification failed: %s", exc)
+
+    return jsonify(count=len(rows), tanks=[r.tank for r, _ in rows]), 201
 
 
 def _req_range(r):
@@ -453,6 +544,44 @@ def _notify_office(row, client, asset):
 style="background:#5B9E96;color:#fff;padding:9px 18px;border-radius:8px;
 text-decoration:none;font-weight:bold">לצפייה — מסך ניהול הדיפו</a></p></div>"""
     send_office_email(subject=f"{kind} — {row.tank} ({client.name})",
+                      html=html, to="shtifot@eco-oil.co.il")
+
+
+def _notify_office_batch(rows, client, assets):
+    """מייל אחד למשרד על שחרור מרובה — אותה טבלה RTL עם מסגרות, שורה לכל מכל
+    (27/09/2026). הפרטים המשותפים (תאריך, מוביל, הערות) מופיעים פעם אחת."""
+    from .mailer import send_office_email
+
+    def td(v, bold=False):
+        style = "border:1px solid #999;padding:6px 10px"
+        if bold:
+            style += ";background:#EDF3F2;font-weight:bold"
+        return f'<td style="{style}">{v if v not in (None, "") else "—"}</td>'
+
+    first = rows[0]
+    submitter = db.session.get(User, first.submitted_by_user_id or 0)
+    n = len(rows)
+    tank_rows = "".join(
+        "<tr>" + td(i + 1) + td(r.tank) + td(r.visit_id)
+        + td(assets[r.id].status if r.id in assets else None) + "</tr>"
+        for i, r in enumerate(rows))
+    html = f"""<div dir="rtl" style="font-family:Arial,sans-serif">
+<p>התקבלה בפורטל הדיפו <b>בקשת שחרור ל-{n} מכלים</b> של {client.name} — הסטטוס של כל מכל
+יתעדכן אוטומטית ע"י הגשר, כל מכל לחוד.</p>
+<table style="border-collapse:collapse">
+<tr>{td("תאריך איסוף מבוקש", True)}{td(_req_range(first))}</tr>
+<tr>{td("מוביל אוסף", True)}{td(first.carrier)}</tr>
+<tr>{td("הערות הלקוח", True)}{td(first.notes)}</tr>
+<tr>{td("הוגש על ידי", True)}{td(submitter.email if submitter else None)}</tr>
+</table>
+<table style="border-collapse:collapse;margin-top:14px">
+<tr>{td("#", True)}{td("מספר מכל", True)}{td("מס' ביקור", True)}{td("מצב נוכחי בקובץ", True)}</tr>
+{tank_rows}
+</table>
+<p style="margin-top:14px"><a href="https://depot.eco-oil.co.il/depot-admin"
+style="background:#5B9E96;color:#fff;padding:9px 18px;border-radius:8px;
+text-decoration:none;font-weight:bold">לצפייה — מסך ניהול הדיפו</a></p></div>"""
+    send_office_email(subject=f"בקשת שחרור — {n} מכלים ({client.name})",
                       html=html, to="shtifot@eco-oil.co.il")
 
 
