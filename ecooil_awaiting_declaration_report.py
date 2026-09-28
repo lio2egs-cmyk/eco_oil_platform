@@ -118,10 +118,9 @@ def build_html(rows, today):
         if has_pdf:
             todo = ('לעדכן את ההערה בשורה (למשל "אישור שוחרר '
                     f'{today:%d.%m.%y} - לאחר הסדרת הצהרת יצרן"), ולרוקן את '
-                    '"הערות למערכת פורטל" אם מלאה. הפורטל יפתח את הקובץ בסבב הבא.')
+                    '"הערות למערכת פורטל" אם מלאה.')
         else:
-            todo = ("אין קובץ אישור לשורה הזאת. להפיק את האישור ולתייק, ואז לעדכן "
-                    "את ההערה בשורה.")
+            todo = "להפיק את האישור ולתייק, ואז לעדכן את ההערה בשורה."
         ev_date = ev.event_date.strftime("%d/%m/%Y") if hasattr(ev.event_date, "strftime") else str(ev.event_date)
         trs.append("<tr>" + _td(ev_date) + _td(ev.customer or "") + _td(ev.stream_norm or "")
                    + _td(vu.strftime("%d/%m/%Y")) + _td(where)
@@ -133,10 +132,9 @@ def build_html(rows, today):
     return f"""<div dir="rtl" style="font-family:Arial,sans-serif;color:#222;">
 <p><b>מה קרה:</b> {'שורה אחת חסומה' if n == 1 else f'{n} שורות חסומות'} בפורטל בגלל
 "אין הצהרת יצרן", אבל במסד כבר יש ללקוח הצהרה בתוקף לזרם הזה.</p>
-<p><b>מה לעשות:</b> לפי העמודה האחרונה בטבלה. הפורטל לא משחרר לבד — רק שינוי ההערה
-בריכוז פותח את הקובץ ללקוח.</p>
+<p><b>מה לעשות:</b> לעדכן את ההערה בריכוז לפי העמודה האחרונה בטבלה.</p>
 <table dir="rtl" style="border-collapse:collapse;"><tr>{head}</tr>{"".join(trs)}</table>
-<p style="color:#555;">כל שורה מופיעה במייל פעם אחת. קבצי הריכוז: Z:\\Eco_General\\ריכוז חודשי\\&lt;שנה&gt;\\</p>
+<p style="color:#555;">קבצי הריכוז: Z:\\Eco_General\\ריכוז חודשי\\&lt;שנה&gt;\\</p>
 </div>"""
 
 
