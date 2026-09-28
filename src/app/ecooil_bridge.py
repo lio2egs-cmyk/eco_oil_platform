@@ -448,12 +448,42 @@ def masad_feed_pending():
             "pollutant_type": d.pollutant_type,
             "concentration_range": d.concentration_range,
             "addressed_to": d.addressed_to,
+            # "מכותב" במסד = הנושא באחריות המשפטית (לימור 28/09/2026): שם
+            # המנכ"ל / אחראי ההיתר שהוזן בהצהרה (שדה חובה בטופס).
+            "ceo_name": d.ceo_name,
             "producer_email": d.client_email,
             "valid_from": d.valid_from.isoformat() if d.valid_from else None,
             "valid_until": d.valid_until.isoformat() if d.valid_until else None,
         }
 
     return jsonify({"declarations": [row(d) for d in decls]})
+
+
+@ecooil_bridge.route("/masad-feed/index", methods=["GET"])
+@ecooil_bridge_required
+def masad_feed_index():
+    """קריאה בלבד: כל ההצהרות המאושרות שהוזנו למסד — לזיהוי שורות היומן
+    ולהשלמת עמודת "מכותב" בשורות שנכתבו לפני 28/09/2026 בלי שם האחראי."""
+    from .db import ProducerDeclaration
+
+    decls = (ProducerDeclaration.query
+             .filter(ProducerDeclaration.status == "approved",
+                     ProducerDeclaration.submitted_by_user_id.isnot(None))
+             .order_by(ProducerDeclaration.id.asc()).all())
+    return jsonify({"declarations": [{
+        "id": d.id,
+        "producer_name": d.producer_name,
+        "business_id": d.business_id,
+        "permit_number": d.permit_number,
+        "material_name": d.material_name,
+        "material_classification": d.material_classification,
+        "ceo_name": d.ceo_name,
+        "addressed_to": d.addressed_to,
+        "valid_from": d.valid_from.isoformat() if d.valid_from else None,
+        "valid_until": d.valid_until.isoformat() if d.valid_until else None,
+        "masad_log_at": d.masad_log_at.isoformat() if d.masad_log_at else None,
+        "masad_summary_at": d.masad_summary_at.isoformat() if d.masad_summary_at else None,
+    } for d in decls]})
 
 
 # ---------------------------------------------------------------------------
@@ -704,19 +734,18 @@ def masad_feed_ack():
             for d, note in alerts)
         n = len(alerts)
         html = f"""<div dir="rtl" style="font-family:Arial,sans-serif;color:#222;">
-<p>רשמתי את ההצהרות המאושרות למסד.
-{'הצהרה אחת נרשמה' if n == 1 else f'{n} הצהרות נרשמו'} רק חלקית
-{'ודורשת' if n == 1 else 'ודורשות'} השלמה ידנית שלך.</p>
+<p>רשמתי למסד את ההצהרות שאושרו.
+{'בהצהרה אחת' if n == 1 else f'ב-{n} הצהרות'} נשאר דבר אחד שרק את יכולה להכריע.
+לכל שורה בטבלה כתוב מה קרה ומה לעשות.</p>
 <p style="background:#EEF3F7;border:1px solid #B9CBDA;border-radius:8px;padding:8px 12px;">
-<b>הקובץ לעדכון:</b><br>{_html.escape(masad_path)}<br>
-<span style="color:#555;">שם הגיליון והשורה מופיעים בעמודה "מה חסר ומה לעשות".</span></p>
+<b>הקובץ:</b><br>{_html.escape(masad_path)}</p>
 <table dir="rtl" style="border-collapse:collapse;">
 <tr><td style="border:1px solid #999;padding:6px 12px;background:#eef3f2;"><b>העסק</b></td>
 <td style="border:1px solid #999;padding:6px 12px;background:#eef3f2;"><b>זרם</b></td>
-<td style="border:1px solid #999;padding:6px 12px;background:#eef3f2;"><b>מה חסר ומה לעשות</b></td></tr>
+<td style="border:1px solid #999;padding:6px 12px;background:#eef3f2;"><b>מה קרה ומה לעשות</b></td></tr>
 {rows}</table>
-<p>אחרי שתעדכני בקובץ — אין צורך לעשות דבר נוסף. ההזנה תושלם לבד
-בסיבוב השעתי הבא (בין 07:00 ל-18:00).</p></div>"""
+<p>אחרי שתתקני בקובץ אין צורך לעשות דבר נוסף. ההזנה תושלם לבד
+בסבב השעתי הבא (בין 07:00 ל-18:00).</p></div>"""
         try:
             emailed = send_office_email(
                 subject=("מסד ההצהרות — הצהרה אחת ממתינה לך" if n == 1

@@ -144,12 +144,16 @@ def resolve_summary_row(rows, d):
     אצל K.L.A כל האתרים חולקים היתר); בלי מבחין — שם האתר מכריע.
 
     rows = [(row_idx, name, permit, hp)] מכל הגיליון.
-    מחזיר (row_idx, None) | (None, note) | ('NEW', None) — בלי ניחושים."""
+    מחזיר (row_idx, None, fill) | (None, note, False) | ('NEW', None, False) —
+    בלי ניחושים. fill=True = השורה נמצאה לפי שם ותא הח.פ. שלה ריק: הגשר
+    ממלא בה בעצמו את הח.פ. (ואת ההיתר אם ריק) מתוך ההצהרה — לימור 28/09/2026,
+    מקרה אם.אי. סולפונציה: "בגיליון 'הצהרות' המערכת רשמה את המספרים בעצמה,
+    ובגיליון ליד היא נתקעה עליהם". ח.פ. שונה (לא ריק) = סתירה אמיתית → הערה."""
     biz = _digits(d.get("business_id"))
     by_hp = [r for r in rows if _digits(r[3]) and _digits(r[3]) == biz]
 
     if len(by_hp) == 1:
-        return by_hp[0][0], None
+        return by_hp[0][0], None, False
     if not by_hp:
         # לפני פתיחת שורה חדשה: אולי החברה קיימת עם תא ח.פ. ריק/שונה — לא משכפלים.
         # משווים גם מול שם הכרטיס וצורות הכתיב שלו (19/08, גדות פי גלילות:
@@ -164,11 +168,23 @@ def resolve_summary_row(rows, d):
             name_keys = name_keys | _account_forms(d)
         name_hits = [r for r in rows if _norm(r[1]) in name_keys]
         if name_hits:
+            empty_hp = [r for r in name_hits if not _digits(r[3])]
+            if len(name_hits) == 1 and empty_hp:
+                # שורה אחת באותו שם ובלי ח.פ. — המספר ידוע מההצהרה: ממלאים.
+                return name_hits[0][0], None, True
+            if len(name_hits) == 1:
+                r = name_hits[0]
+                return None, (
+                    f'גיליון "{SUMMARY_SHEET}", שורה {r[0]}: אותו שם, אבל ח.פ. אחר. '
+                    f"בגיליון כתוב {_digits(r[3])}, בהצהרה כתוב {biz}. "
+                    "מה לעשות: אם הגיליון טועה, תקני שם את הח.פ. וההזנה תושלם לבד. "
+                    "אם ההצהרה טועה, רשמי את תוקף ההצהרה ידנית באותה שורה."), False
+            sites = "; ".join(f"שורה {r[0]}" for r in name_hits)
             return None, (
-                f'בגיליון "{SUMMARY_SHEET}", שורה {name_hits[0][0]}: קיימת שורה '
-                "באותו שם אך הח.פ. בה ריק או שונה. השלימי שם את הח.פ., "
-                "או עדכני ידנית את תאריך התוקף באותה שורה.")
-        return "NEW", None
+                f'גיליון "{SUMMARY_SHEET}": יש כמה שורות באותו שם ({sites}) ובאף '
+                f"אחת אין הח.פ. שבהצהרה ({biz}). מה לעשות: מלאי את הח.פ. בשורה "
+                "הנכונה וההזנה תושלם לבד."), False
+        return "NEW", None, False
 
     # כמה אתרים: קודם היתר רעלים (אם יש בהצהרה), אחר כך שם האתר
     cand = by_hp
@@ -176,7 +192,7 @@ def resolve_summary_row(rows, d):
     if p:
         by_permit = [r for r in cand if _digits(r[2]) == p]
         if len(by_permit) == 1:
-            return by_permit[0][0], None
+            return by_permit[0][0], None, False
         if by_permit:
             cand = by_permit
     # שם האתר יושב בגיליון בתוך תא הלקוח ("גלבוע ... בע"מ, אתר ספיר"), ואילו
@@ -186,7 +202,7 @@ def resolve_summary_row(rows, d):
     keys = _site_keys(d)
     by_name = [r for r in cand if _norm(r[1]) in keys]
     if len(by_name) == 1:
-        return by_name[0][0], None
+        return by_name[0][0], None, False
 
     # השוואת מילות-האתר בלבד (לימור 18/08, מקרה גלבוע/מגן שאול): מסירים
     # מכל שורה את המילים המשותפות לכל שורות אותה חברה — מה שנשאר מבדיל בין
@@ -196,14 +212,14 @@ def resolve_summary_row(rows, d):
     # עדיין בלי ניחוש: חייבת להיות בדיוק שורה אחת מתאימה.
     site_row = _match_by_site_words(cand, d)
     if site_row is not None:
-        return site_row, None
+        return site_row, None, False
     sites = "; ".join(f'שורה {r[0]} — "{r[1]}"' for r in cand)
     return None, (
-        f'בגיליון "{SUMMARY_SHEET}": לחברה יש כמה שורות-אתרים ולא ניתן לקבוע '
-        f"לאיזה אתר שייכת ההצהרה. השורות: {sites}. "
-        "עדכני ידנית את תאריך התוקף בשורה הנכונה. "
-        "כדי שזה יזוהה אוטומטית בפעם הבאה — מלאי מספר היתר רעלים בשורות, "
-        "או ודאי ששם האתר בתא הלקוח זהה לכתובת שנרשמה בהצהרה.")
+        f'גיליון "{SUMMARY_SHEET}": לחברה יש כמה שורות (אתרים) ולא ברור לאיזו '
+        f"שייכת ההצהרה: {sites}. "
+        "מה לעשות: רשמי את תוקף ההצהרה בשורה הנכונה. "
+        "כדי שבפעם הבאה ייקלט לבד: מלאי מספר היתר רעלים בכל שורה, "
+        "או כתבי בתא הלקוח את שם האתר כפי שנרשם בכתובת שבהצהרה."), False
 
 
 def _fmt_date(iso):
@@ -224,6 +240,102 @@ def _xl_serial(dt):
     return (dt - datetime(1899, 12, 30)).total_seconds() / 86400.0
 
 
+def _code_text(code):
+    """קוד סיווג לתא: קוד שכולו ספרות ומתחיל ב-0 (060106) נכתב כטקסט מאולץ,
+    אחרת אקסל הופך אותו למספר ומאבד את האפס (60106) — ואימות הכתיבה נכשל."""
+    s = str(code or "").strip()
+    if s.isdigit() and s.startswith("0"):
+        return "'" + s
+    return s
+
+
+def _cell_date(v):
+    """תא תאריך כפי שחוזר מ-COM (pywintypes datetime) או כמספר סידורי → date."""
+    if v in (None, ""):
+        return None
+    if isinstance(v, (int, float)):
+        from datetime import timedelta
+        return (datetime(1899, 12, 30) + timedelta(days=float(v))).date()
+    try:
+        return datetime(v.year, v.month, v.day).date()
+    except Exception:
+        return None
+
+
+def _log_key(name, business_id, material, valid_until_date):
+    """מפתח הזיהוי של שורת יומן שהפורטל כתב: יצרן + ח.פ. + זרם + תוקף."""
+    return (_norm(name), _digits(business_id), " ".join(str(material or "").split()),
+            valid_until_date)
+
+
+def _existing_portal_log_rows(ws_log):
+    """כל שורות היומן שנרשמו ע"י הפורטל (AB="פורטל") → {מפתח: מספר שורה}.
+    נקרא פעם אחת בתחילת הסבב; מונע רישום כפול של אותה הצהרה כשהאישור לענן
+    לא הגיע (27/09/2026)."""
+    last = _com(ws_log.Cells(ws_log.Rows.Count, 2).End, XL_UP).Row
+    if last < 2:
+        return {}
+    grid = _com(ws_log.Range, ws_log.Cells(2, 1), ws_log.Cells(last, 28)).Value
+    grid = grid if isinstance(grid, tuple) else (grid,)
+    found = {}
+    for i, r in enumerate(grid):
+        if str(r[27] or "").strip() != "פורטל" or not r[1]:
+            continue
+        found.setdefault(_log_key(r[1], r[3], r[6], _cell_date(r[25])), i + 2)
+    return found
+
+
+# --------------------------------------------------------------- ack
+PENDING_ACK_PATH = r"C:\eco_oil_portal\_masad_feed_pending_ack.json"
+
+
+def _post_ack(api_base, headers, payload, attempts=3):
+    """שולח את דיווח הביצוע לענן; עד 3 ניסיונות (הענן לא ענה ב-27/09 14:02)."""
+    import json
+    last = None
+    for i in range(attempts):
+        try:
+            r = requests.post(api_base + "/bridge/ecooil/masad-feed/ack",
+                              headers=headers, json=payload, timeout=60)
+            if r.status_code == 200:
+                return r.json()
+            last = f"{r.status_code}: {r.text[:200]}"
+        except requests.RequestException as exc:
+            last = str(exc)[:200]
+        if i < attempts - 1:
+            time.sleep(10)
+    print(f"ERROR: ack failed after {attempts} attempts: {last}")
+    return None
+
+
+def _replay_pending_ack(api_base, headers):
+    """אישור שנשמר מקומית כי הענן לא ענה — משדרים לפני שמושכים עבודה חדשה."""
+    import json
+    if not os.path.exists(PENDING_ACK_PATH):
+        return
+    try:
+        with open(PENDING_ACK_PATH, encoding="utf-8") as f:
+            payload = json.load(f)
+    except Exception as exc:
+        print(f"pending ack unreadable ({exc}) — removing")
+        os.remove(PENDING_ACK_PATH)
+        return
+    body = _post_ack(api_base, headers, payload, attempts=1)
+    if body is not None:
+        os.remove(PENDING_ACK_PATH)
+        print(f"replayed pending ack: updated={body.get('updated')}")
+    else:
+        print("pending ack still not delivered — will retry next cycle")
+
+
+def _save_pending_ack(payload):
+    import json
+    os.makedirs(os.path.dirname(PENDING_ACK_PATH), exist_ok=True)
+    with open(PENDING_ACK_PATH, "w", encoding="utf-8") as f:
+        json.dump(payload, f, ensure_ascii=False)
+    print(f"ack saved locally for the next cycle: {PENDING_ACK_PATH}")
+
+
 # --------------------------------------------------------------- planning
 def _account_forms(d):
     """כל צורות הכתיב של החשבון, מנורמלות: שם הכרטיס + צורות הכתיב שבו."""
@@ -239,8 +351,8 @@ def plan_client_type(d):
     שם המוביל כשהמוביל מילא עבור לקוחו;
     ריק + הערה כשהיצרן העקיף הגיש בעצמו (המוביל לא ידוע למערכת)."""
     if d.get("account_type") == "indirect":
-        return "", (f'בגיליון "{SUMMARY_SHEET}": נוספה שורת לקוח חדשה — השלימי '
-                    'את עמודת "סוג לקוח" (שם המוביל).')
+        return "", (f'גיליון "{SUMMARY_SHEET}": פתחתי שורה חדשה ללקוח, וחסר בה '
+                    '"סוג לקוח" (המוביל שהביא אותו). מה לעשות: מלאי את התא.')
     if _norm(d.get("producer_name")) in _account_forms(d):
         return "ישיר", None
     return d.get("account_name") or "", None
@@ -253,6 +365,12 @@ def run(api_base, masad_path, dry_run=False):
         print("ERROR: ECOOIL_BRIDGE_TOKEN missing from .env")
         return 1
     headers = {"Authorization": "Bearer " + token}
+
+    # אישור שלא הגיע לענן בסבב קודם (27/09/2026: הענן לא ענה ב-14:02 אחרי
+    # שהשורות כבר נכתבו, וב-15:00 הן נכתבו שוב — 8 כפילויות). קודם כול
+    # משדרים אותו; אם גם עכשיו אין תשובה ממשיכים — בדיקת "כבר רשום" בגיליון
+    # מונעת את הכפילות בכל מקרה.
+    _replay_pending_ack(api_base, headers)
 
     r = requests.get(api_base + "/bridge/ecooil/masad-feed", headers=headers, timeout=60)
     if r.status_code != 200:
@@ -334,19 +452,31 @@ def run(api_base, masad_path, dry_run=False):
         def _curated_referrer(d):
             """עמודת "סוג לקוח" מהגיליון המסכם עבור היצרן — או ריק."""
             try:
-                target, _n = resolve_summary_row(_sum_rows_ix, d)
+                target, _n, _fill = resolve_summary_row(_sum_rows_ix, d)
             except Exception:
                 return ""
             return _sum_col_a.get(target, "") if isinstance(target, int) else ""
+
+        # שורות שהפורטל כבר רשם ביומן — כדי לא לרשום פעמיים (27/09/2026)
+        portal_log_rows = _existing_portal_log_rows(ws_log)
 
         for d in decls:
             res = results[d["id"]]
             note_parts = []
             try:
-                # ---- half 1: the ledger — always a new row ----
+                # ---- half 1: the ledger — a new row, unless it is already there ----
                 if d["log_pending"]:
+                    vu_d = _parse_dt(d.get("valid_until"))
+                    key = _log_key(d.get("producer_name"), d.get("business_id"),
+                                   d.get("material_name"), vu_d.date() if vu_d else None)
+                    dup_row = portal_log_rows.get(key)
+                if d["log_pending"] and dup_row:
+                    res["log_done"] = True
+                    print(f"  #{d['id']} log: already in row {dup_row} — not writing again")
+                elif d["log_pending"]:
                     last = _com(ws_log.Cells(ws_log.Rows.Count, 2).End, XL_UP).Row
                     row = last + 1
+                    portal_log_rows[key] = row
                     vals = {
                         2: d.get("producer_name"), 3: d.get("address"),
                         4: d.get("business_id"), 5: d.get("permit_number"),
@@ -358,7 +488,11 @@ def run(api_base, masad_path, dry_run=False):
                         17: d.get("d_code"), 18: d.get("quantity"),
                         19: d.get("packaging"), 20: d.get("characteristic"),
                         21: d.get("pollutant_type"), 22: d.get("concentration_range"),
-                        23: d.get("addressed_to"), 24: d.get("producer_email"),
+                        # W "מכותב" = הנושא באחריות המשפטית (לימור 28/09/2026):
+                        # שם המנכ"ל / אחראי ההיתר שהוזן בהצהרה — שדה חובה בטופס,
+                        # ולכן תמיד קיים. addressed_to נשאר רק לנתוני ה-API הישן.
+                        23: d.get("addressed_to") or d.get("ceo_name"),
+                        24: d.get("producer_email"),
                         # גרש מוביל = טקסט מאולץ; בלעדיו אקסל הופך "10/08/2026"
                         # לתאריך בפרשנות אמריקאית (8 באוקטובר!)
                         25: "'" + _fmt_date(d.get("valid_from")),
@@ -384,8 +518,12 @@ def run(api_base, masad_path, dry_run=False):
                                       d["id"], "log"))
                     if not aa_val:
                         note_parts.append(
-                            f'בגיליון "{LOG_SHEET}" שורה {row}: השלימי את '
-                            'עמודת "מטעם" (שם המוביל של הלקוח העקיף)')
+                            f'גיליון "{LOG_SHEET}", שורה {row}: חסר "מטעם" (המוביל של '
+                            'הלקוח העקיף). מה לעשות: מלאי את התא.')
+                    if not vals.get(23):
+                        note_parts.append(
+                            f'גיליון "{LOG_SHEET}", שורה {row}: חסר "מכותב" (שם האחראי '
+                            'בהצהרה). מה לעשות: מלאי את התא.')
                     print(f"  #{d['id']} log row {row}: {d['producer_name']} / {d['material_name']}")
 
                 # ---- half 2: the validity summary — update by ח.פ. ----
@@ -394,14 +532,15 @@ def run(api_base, masad_path, dry_run=False):
                     biz = _digits(d.get("business_id"))
                     if stream_col is None:
                         note_parts.append(
-                            f'בגיליון "{SUMMARY_SHEET}": הזרם '
-                            f"'{d.get('material_classification')}' אינו אחד מזרמי "
-                            "העמודות בגיליון, ולכן לא ידעתי באיזו עמודה לרשום. "
-                            "עדכני ידנית את תאריך התוקף בעמודת הזרם המתאימה.")
+                            f'גיליון "{SUMMARY_SHEET}": הזרם '
+                            f"'{d.get('material_classification')}' אינו אחת מעמודות "
+                            "הגיליון. מה לעשות: רשמי את תוקף ההצהרה ידנית בעמודת "
+                            "הזרם המתאימה.")
                     elif not biz:
                         note_parts.append(
-                            f'בגיליון "{SUMMARY_SHEET}": אין ח.פ. בהצהרה ולכן לא '
-                            "ניתן לאתר את שורת החברה. עדכני ידנית את תאריך התוקף.")
+                            f'גיליון "{SUMMARY_SHEET}": בהצהרה אין ח.פ., ולכן לא מצאתי '
+                            "את שורת החברה. מה לעשות: רשמי את תוקף ההצהרה ידנית "
+                            "בשורת החברה.")
                     else:
                         last_sum = max(
                             _com(ws_sum.Cells(ws_sum.Rows.Count, 2).End, XL_UP).Row,
@@ -421,9 +560,18 @@ def run(api_base, masad_path, dry_run=False):
                              if (r[1] is not None and str(r[1]).strip())
                              or (r[4] is not None and str(r[4]).strip())),
                             default=1)
-                        target, note = resolve_summary_row(rows_ix, d)
+                        target, note, fill_hp = resolve_summary_row(rows_ix, d)
                         vu = _parse_dt(d.get("valid_until"))
                         wnum = d.get("waste_stream_number") or ""
+                        if fill_hp and isinstance(target, int):
+                            # שורה קיימת באותו שם בלי ח.פ. — ממלאים מההצהרה
+                            # (ואת ההיתר אם גם הוא ריק), ואז ממשיכים כרגיל.
+                            _com(setattr, ws_sum.Cells(target, 5), "Value", d.get("business_id"))
+                            cur_permit = next((r[2] for r in rows_ix if r[0] == target), None)
+                            if not _digits(cur_permit) and d.get("permit_number"):
+                                _com(setattr, ws_sum.Cells(target, 3), "Value", d.get("permit_number"))
+                            print(f"  #{d['id']} summary row {target}: filled ח.פ. {biz}"
+                                  + ("" if _digits(cur_permit) else f" + permit {d.get('permit_number')}"))
                         if note:
                             note_parts.append(note)
                         elif target == "NEW":
@@ -432,7 +580,7 @@ def run(api_base, masad_path, dry_run=False):
                             newvals = {2: d.get("producer_name"),
                                        3: d.get("permit_number"),
                                        5: d.get("business_id"),
-                                       stream_col + 1: wnum}
+                                       stream_col + 1: _code_text(wnum)}
                             if ctype:
                                 newvals[1] = ctype
                             for col, v in newvals.items():
@@ -449,7 +597,7 @@ def run(api_base, masad_path, dry_run=False):
                             row = target
                             if vu:
                                 _com(setattr, ws_sum.Cells(row, stream_col), "Value2", _xl_serial(vu))
-                            _com(setattr, ws_sum.Cells(row, stream_col + 1), "Value", wnum)
+                            _com(setattr, ws_sum.Cells(row, stream_col + 1), "Value", _code_text(wnum))
                             sentinels.append((SUMMARY_SHEET, row, stream_col + 1, wnum,
                                               d["id"], "summary"))
                             print(f"  #{d['id']} summary row {row}: {d['material_classification']}"
@@ -491,18 +639,19 @@ def run(api_base, masad_path, dry_run=False):
             results[decl_id]["log_done" if kind == "log" else "summary_done"] = True
         else:
             prev = results[decl_id].get("note")
-            msg = "אימות הכתיבה נכשל — ראי לוג גשר"
+            msg = ("הכתיבה לקובץ לא אומתה אחרי השמירה. מה לעשות: כלום — "
+                   "הגשר ינסה שוב בסבב הבא; אם זה חוזר, ראי את יומן הגשר.")
             results[decl_id]["note"] = f"{prev}; {msg}" if prev else msg
 
     # --- ack to the cloud (alerts email fires there on new notes) ---
-    # masad_path נשלח כדי שהמייל יוכל לומר במפורש לאיזה קובץ ללכת (לימור 18/08)
-    r = requests.post(api_base + "/bridge/ecooil/masad-feed/ack", headers=headers,
-                      json={"results": list(results.values()),
-                            "masad_path": masad_path}, timeout=60)
-    if r.status_code != 200:
-        print(f"ERROR: ack failed {r.status_code}: {r.text[:200]}")
+    # masad_path נשלח כדי שהמייל יוכל לומר במפורש לאיזה קובץ ללכת (לימור 18/08).
+    # אין תשובה מהענן אחרי 3 ניסיונות → שומרים מקומית ומשדרים בסבב הבא;
+    # השורות שכבר נכתבו לא יירשמו שוב (בדיקת "כבר רשום" בתחילת הסבב).
+    payload = {"results": list(results.values()), "masad_path": masad_path}
+    body = _post_ack(api_base, headers, payload)
+    if body is None:
+        _save_pending_ack(payload)
         return 1
-    body = r.json()
     print(f"ack: updated={body.get('updated')} alert_emailed={body.get('alert_emailed')}")
     return 0
 
