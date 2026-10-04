@@ -298,6 +298,10 @@ def week_title(run_day, year, month, has_fixes):
     sunday = run_day - timedelta(days=(run_day.weekday() + 1) % 7)
     first = date(year, month, 1)
     last = (date(year + (month == 12), month % 12 + 1, 1) - timedelta(days=1))
+    if sunday > last:
+        # the run week has no day of this month: late additions to a month that
+        # is already over get their own name (Limor 04/10/2026)
+        return f"השלמות {HEB_MONTHS[month - 1]}"
     start = max(sunday, first)
     end = min(run_day, last)
     if end < start:
@@ -444,8 +448,6 @@ def change_note(prev_fp, fp):
     for idxs, phrase in CHANGE_PHRASES:
         if changed.intersection(idxs):
             parts.append(phrase)
-    if 0 in changed:
-        parts.append(f"מס' התעודה היה {prev_fp.get('0', '')}")
     if 16 in changed:
         old_note, new_note = prev_fp.get("16", ""), fp["16"]
         if old_note and not new_note:
@@ -458,6 +460,12 @@ def change_note(prev_fp, fp):
         elif not parts:
             parts.append("עודכנה ההערה")
     return " + ".join(parts) if parts else "עודכן"
+
+
+def diff_fields(prev_fp, fp):
+    """Fields that differ, ignoring the serial (col A = row position): a row
+    pushed down by rows inserted above it is not a correction (Limor 04/10/2026)."""
+    return {i for i in COMPARE_IDX if i != 0 and prev_fp.get(str(i), "") != fp[str(i)]}
 
 
 def join_note(current, note):
@@ -479,29 +487,47 @@ def process_month(year, month, run_day, ledger, env, dry_run, no_mail):
         log(f"{mk}: ledger seeded from {os.path.basename(rpath) if seeded else 'nothing'} ({len(seeded)} rows)")
     sent = ledger["months"][mk]["rows"]
 
-    new_rows, fixed_rows = [], []
+    new_rows, fixed_rows, shifted = [], [], []
     for row in src_rows:
         fp = fingerprint(row["values"])
         prev = sent.get(row["key"])
         if prev is None:
             new_rows.append(row)
         elif prev["fp"] != fp:
+            if not diff_fields(prev["fp"], fp):
+                shifted.append((row["key"], fp))   # only the serial moved
+                continue
             note = change_note(prev["fp"], fp)
             vals = list(row["values"])
             vals[16] = join_note(vals[16], note)
             fixed_rows.append({"key": row["key"], "values": vals, "fp": fp, "note": note})
     # A row whose date / vehicle / customer / stream / exit time was edited gets
     # a NEW certificate code (the code is computed from those fields), so it
-    # looks like "one row gone + one new row". Pair them by serial + date and
-    # report a correction instead of a fresh row.
+    # looks like "one row gone + one new row". Pair them by content and report
+    # a correction instead of a fresh row: first the same unload (same date,
+    # vehicle and exit time — e.g. "ממתין לפירוט" that got its details), then
+    # the gone row that differs in the fewest fields (at most 3). Not by serial:
+    # rows inserted above move the serials, and an inserted row can land on a
+    # gone row's number.
     src_keys = {r["key"] for r in src_rows}
     gone = {k: v for k, v in sent.items() if k not in src_keys}
     if gone:
-        by_serial = {(v["fp"].get("0"), v["fp"].get("2")): k for k, v in gone.items()}
-        still_new = []
-        for row in new_rows:
+        pairs = []
+        for i, row in enumerate(new_rows):
             fp = fingerprint(row["values"])
-            old_key = by_serial.pop((fp["0"], fp["2"]), None)
+            for k, v in gone.items():
+                same_unload = all(v["fp"].get(c, "") == fp[c] and fp[c] for c in ("2", "3", "15"))
+                n_diff = len(diff_fields(v["fp"], fp))
+                if same_unload or n_diff <= 3:
+                    pairs.append((not same_unload, n_diff, i, k))
+        paired = {}
+        for _, _, i, k in sorted(pairs):
+            if i not in paired and k not in paired.values():
+                paired[i] = k
+        still_new = []
+        for i, row in enumerate(new_rows):
+            fp = fingerprint(row["values"])
+            old_key = paired.get(i)
             if old_key is None:
                 still_new.append(row)
                 continue
@@ -511,7 +537,8 @@ def process_month(year, month, run_day, ledger, env, dry_run, no_mail):
             vals[16] = join_note(vals[16], note)
             fixed_rows.append({"key": row["key"], "values": vals, "fp": fp, "note": note, "old_key": old_key})
         new_rows = still_new
-    log(f"{mk}: source {len(src_rows)} complete rows; new {len(new_rows)}; corrected {len(fixed_rows)}")
+    log(f"{mk}: source {len(src_rows)} complete rows; new {len(new_rows)}; corrected {len(fixed_rows)}"
+        f"; serial moved only {len(shifted)}")
     if gone:
         # sent earlier, now missing from the live sheet and not re-paired — a
         # deleted row; Ravit still has it, so this deserves a human look
@@ -523,6 +550,10 @@ def process_month(year, month, run_day, ledger, env, dry_run, no_mail):
         # nothing new and nothing fixed: the month file is left untouched
         # (rebuilding 'ריכוז מלא' alone would change a file nobody is told about)
         log(f"{mk}: nothing new — month file left as is")
+        if shifted and not dry_run:
+            for k, fp in shifted:
+                sent[k]["fp"] = fp
+            save_ledger(ledger)
         return {"month": mk, "new": 0, "fixed": 0, "title": None, "file": rpath} if os.path.exists(rpath) else None
 
     title = week_title(run_day, year, month, bool(fixed_rows))
@@ -535,6 +566,8 @@ def process_month(year, month, run_day, ledger, env, dry_run, no_mail):
 
     # the rows are in Ravit's file now — record that before anything else
     stamp = run_day.isoformat()
+    for k, fp in shifted:     # new serial remembered quietly, nothing was sent
+        sent[k]["fp"] = fp
     for r in new_rows:
         sent[r["key"]] = {"fp": fingerprint(r["values"]), "sent_on": stamp, "sheet": title}
     for r in fixed_rows:
