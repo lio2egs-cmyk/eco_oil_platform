@@ -76,8 +76,12 @@ def find_released(events, masad_rows, today):
         if stream not in CHECKABLE_STREAMS:
             continue
         cust = _norm(ev.customer)
+        # ללקוח שיש לו שורה משלו במסד (שם זהה) מצליבים רק מולה. הכלת-שם היא
+        # גיבוי ללקוח בלי שורה זהה — אחרת "נמל מספנות ישראל" מקבל את התוקף של
+        # "מספנות ישראל", חברה אחרת עם ח.פ. אחר (לימור 04/10/2026).
+        exact = [(nname, r) for nname, r in idx if cust and nname == cust]
         best = None
-        for nname, r in idx:
+        for nname, r in (exact or idx):
             if not _name_match(cust, nname):
                 continue
             vu = _parse_ddmmyyyy(r["streams"].get(stream) or "")
