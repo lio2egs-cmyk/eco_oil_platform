@@ -7,7 +7,9 @@ PC (same pattern as the hourly bridge). Auth: ECOOIL_BRIDGE_TOKEN bearer.
 Email is sent over the existing Resend channel (Railway blocks SMTP).
 """
 import os
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
+from difflib import get_close_matches
+from zoneinfo import ZoneInfo
 
 from flask import Blueprint, jsonify, request, current_app
 from sqlalchemy import func, or_
@@ -20,8 +22,30 @@ digest = Blueprint("digest", __name__)
 DIGEST_TO = "office@eco-oil.co.il"
 
 
+IL_TZ = ZoneInfo("Asia/Jerusalem")
+
+
 def _fmt(dt):
-    return dt.strftime("%d/%m/%Y %H:%M") if dt else ""
+    """DB timestamps are naive UTC; the office reads Israel time (Limor 04/10/2026)."""
+    if not dt:
+        return ""
+    return dt.replace(tzinfo=timezone.utc).astimezone(IL_TZ).strftime("%d/%m/%Y %H:%M")
+
+
+def _unknown_note(em, by_email):
+    """Why an 'unknown' address is in the list (Limor 04/10/2026: the same
+    address showed in both tables and it read as a contradiction)."""
+    u = by_email.get(em)
+    if u and u.is_active:
+        if u.last_login_at:
+            return "נפתח חשבון בינתיים — נכנס בהצלחה"
+        return "נפתח חשבון בינתיים — טרם נכנס"
+    if u:
+        return "חשבון קיים אך לא פעיל"
+    close = get_close_matches(em, [e for e in by_email if by_email[e].is_active], n=1, cutoff=0.88)
+    if close:
+        return f"כנראה שגיאת הקלדה של {close[0]}"
+    return "אין חשבון"
 
 
 @digest.route("/admin/user-login-diagnosis", methods=["POST"])
@@ -79,7 +103,9 @@ def user_login_diagnosis():
 @digest.route("/admin/weekly-login-digest", methods=["POST"])
 @ecooil_bridge_required
 def weekly_login_digest():
-    days = int((request.get_json(silent=True) or {}).get("days", 7))
+    body = request.get_json(silent=True) or {}
+    days = int(body.get("days", 7))
+    dry_run = bool(body.get("dry_run"))
     since = datetime.utcnow() - timedelta(days=days)
     logs = (LoginAuditLog.query.filter(LoginAuditLog.created_at >= since)
             .order_by(LoginAuditLog.created_at).all())
@@ -97,7 +123,8 @@ def weekly_login_digest():
             elif not l.success:
                 d["fail"] += 1
         elif l.email_attempted:
-            unknown[l.email_attempted] = unknown.get(l.email_attempted, 0) + 1
+            em = l.email_attempted.strip().lower()
+            unknown[em] = unknown.get(em, 0) + 1
 
     users = {u.id: u for u in User.query.filter(User.id.in_(per_user.keys())).all()} if per_user else {}
     clients = {c.id: c.name for c in Client.query.all()}
@@ -119,12 +146,15 @@ def weekly_login_digest():
         rows_html = '<tr><td colspan="6">לא הייתה פעילות כניסה השבוע</td></tr>'
 
     unknown_html = ""
-    for em, n in sorted(unknown.items(), key=lambda kv: -kv[1]):
-        unknown_html += f"<tr><td>{em}</td><td>{n}</td></tr>"
+    if unknown:
+        by_email = {(u.email or "").strip().lower(): u
+                    for u in User.query.filter(User.email.isnot(None)).all()}
+        for em, n in sorted(unknown.items(), key=lambda kv: -kv[1]):
+            unknown_html += f"<tr><td>{em}</td><td>{n}</td><td>{_unknown_note(em, by_email)}</td></tr>"
 
     total_ok = sum(d["ok"] for d in per_user.values())
     total_req = sum(d["req"] for d in per_user.values())
-    period = f"{(datetime.utcnow() - timedelta(days=days)).strftime('%d/%m/%Y')} — {datetime.utcnow().strftime('%d/%m/%Y')}"
+    period = f"{_fmt(since)[:10]} — {_fmt(datetime.utcnow())[:10]}"
 
     td = "border:1px solid #999;padding:6px 10px;text-align:right;"
     th = td + "background:#D9E2F3;font-weight:bold;"
@@ -138,10 +168,13 @@ def weekly_login_digest():
     if unknown_html:
         html += f"""<h3 style="color:#B45309;">נסיונות כניסה של מיילים לא מוכרים</h3>
 <table style="border-collapse:collapse;">
-<tr><th style="{th}">מייל</th><th style="{th}">נסיונות</th></tr>
+<tr><th style="{th}">מייל</th><th style="{th}">נסיונות</th><th style="{th}">הסבר</th></tr>
 {unknown_html.replace('<td>', f'<td style="{td}">')}
 </table>"""
-    html += "<p style='color:#777;'>נשלח אוטומטית על ידי פורטל אקו-אויל.</p></div>"
+    html += "<p style='color:#777;'>השעות לפי שעון ישראל. נשלח אוטומטית על ידי פורטל אקו-אויל.</p></div>"
+
+    if dry_run:
+        return jsonify({"sent": False, "dry_run": True, "html": html})
 
     resend_key = os.environ.get("RESEND_API_KEY")
     from_addr = os.environ.get("MAIL_FROM_ADDRESS", os.environ.get("MAIL_USERNAME", ""))
