@@ -119,6 +119,11 @@ def submit_prearrival():
             expected = date.fromisoformat(f["expected_date"].strip())
         except ValueError:
             errors["expected_date"] = "תאריך הגעה לא תקין"
+        # יום/חודש שהתחלפו בדפדפן באנגלית (מקרה TARGET LOGISTICS 04/10/2026: 04/10 נשלח
+        # כ-10 באפריל). שבוע אחורה מותר — טופס שמוגש אחרי שהנכס כבר הגיע.
+        if expected and (date.today() - expected).days > 7:
+            errors["expected_date"] = ("תאריך ההגעה שנבחר (%s) כבר עבר — בדקו שהיום והחודש לא התחלפו"
+                                       % expected.strftime("%d/%m/%Y"))
 
     svc_photos = (f.get("svc_photos") or "").strip()
     if f.get("svc_photos_on") == "1" and svc_photos not in PHOTO_SETS:

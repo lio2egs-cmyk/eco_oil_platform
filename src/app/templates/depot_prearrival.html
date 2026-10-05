@@ -120,7 +120,8 @@
 
     <div class="fld" id="f_date"><span class="num">8</span>
       <label>תאריך הגעה משוער</label>
-      <input type="date" id="expDate">
+      <input type="date" id="expDate" onchange="dateEcho()">
+      <div class="okmark" id="dateEcho"></div>
       <div class="hint">לא חובה — עוזר לנו להיערך לקליטת הנכס.</div>
       <div class="err" id="e_date"></div>
     </div>
@@ -249,6 +250,23 @@ function tankLive(){
   if(t.length<11){ fld.classList.remove('bad'); ok.style.display='none'; return; }
   if(isoOk(t)){ fld.classList.remove('bad'); ok.style.display='block'; }
   else{ ok.style.display='none'; setErr('tank','מספר האיזוטנק לא עובר את בדיקת ספרת הביקורת — בדקו את ההקלדה'); }
+}
+/* התאריך שנבחר מוצג חזרה במילים (לימור 05/10/2026, מקרה TARGET LOGISTICS): שדה התאריך
+   מוצג לפי שפת הדפדפן — בדפדפן באנגלית אמריקאית החודש קודם ליום, ולקוח שהקליד 04/10
+   שלח בפועל 10 באפריל. השורה הזו אינה תלויה בשפת הדפדפן. */
+function dateEcho(){
+  var v=document.getElementById('expDate').value, el=document.getElementById('dateEcho');
+  document.getElementById('f_date').classList.remove('bad');
+  document.getElementById('e_date').style.display='none';
+  if(!v){ el.style.display='none'; return; }
+  var p=v.split('-'), d=new Date(+p[0],+p[1]-1,+p[2]);
+  var txt=d.toLocaleDateString('he-IL',{weekday:'long',day:'numeric',month:'long',year:'numeric'});
+  var t=new Date(); t.setHours(0,0,0,0);
+  var days=Math.round((d-t)/86400000);
+  if(days<-7 || days>60){
+    el.style.display='none';
+    setErr('date','שימו לב — בחרתם '+txt+(days<0?' (תאריך שכבר עבר)':' (בעוד יותר מחודשיים)')+'. בדקו שהיום והחודש לא התחלפו.');
+  } else { el.textContent='📅 '+txt; el.style.display='block'; }
 }
 function pChange(){
   document.getElementById('pOther').classList.toggle('show', document.getElementById('rOther').checked);
