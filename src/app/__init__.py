@@ -16,6 +16,7 @@ from .depot_portal import depot_portal
 from .depot_certs import depot_certs
 from .depot_assets import depot_assets
 from .depot_amend import depot_amend
+from .depot_announce import depot_announce
 from .depot_daily import depot_daily
 from .file_gate import file_gate
 from .db import db
@@ -278,6 +279,7 @@ def create_app():
     app.register_blueprint(depot_certs)
     app.register_blueprint(depot_assets)
     app.register_blueprint(depot_amend)
+    app.register_blueprint(depot_announce)
     app.register_blueprint(depot_daily)
     app.register_blueprint(file_gate)
 
