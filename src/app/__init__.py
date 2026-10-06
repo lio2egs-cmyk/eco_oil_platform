@@ -15,6 +15,7 @@ from .depot_admin import depot_admin
 from .depot_portal import depot_portal
 from .depot_certs import depot_certs
 from .depot_assets import depot_assets
+from .depot_amend import depot_amend
 from .depot_daily import depot_daily
 from .file_gate import file_gate
 from .db import db
@@ -138,6 +139,8 @@ def create_app():
             "ALTER TABLE depot_prearrivals ADD COLUMN cancelled_at TIMESTAMP",
             # טווח תאריכי איסוף בבקשת שחרור (לימור 22/09/2026)
             "ALTER TABLE depot_release_requests ADD COLUMN requested_date_to DATE",
+            # מרכז רווח בתמונת המלאי — תיקון פרטים מהפורטל (לימור 06/10/2026)
+            "ALTER TABLE depot_asset_snapshots ADD COLUMN profit_center VARCHAR(100)",
             "CREATE INDEX IF NOT EXISTS ix_ecooil_unload_events_nat_key ON ecooil_unload_events(nat_key)",
         ):
             try:
@@ -274,6 +277,7 @@ def create_app():
     app.register_blueprint(depot_portal)
     app.register_blueprint(depot_certs)
     app.register_blueprint(depot_assets)
+    app.register_blueprint(depot_amend)
     app.register_blueprint(depot_daily)
     app.register_blueprint(file_gate)
 

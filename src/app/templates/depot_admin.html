@@ -81,6 +81,13 @@
     <div id="rrList" class="muted" style="overflow-x:auto">טוען…</div>
   </div>
 
+  <!-- תיקון פרטים אחרי שליחה (לימור 06/10/2026): מרכז רווח / מוביל שהלקוח תיקן בפורטל.
+       הגשר כותב לשורה הקיימת בקובץ (הפורטל דורס); כאן רואים מה תוקן ומה נדחה. -->
+  <div class="card">
+    <h3>✎ תיקוני פרטים מהפורטל <span class="pill" id="amCount"></span></h3>
+    <div id="amList" class="muted" style="overflow-x:auto">טוען…</div>
+  </div>
+
   <div class="card hidden" id="newCard">
     <h3>הקמת חברת דיפו חדשה</h3>
     <div class="row"><input type="text" id="newName" placeholder="שם החברה — כפי שמופיע בעמודת גורם מחוייב בקובץ"></div>
@@ -266,6 +273,7 @@ async function reload(){
   render(); renderStaff(); renderActions();
   loadPrearrivals();
   loadReleaseRequests();
+  loadAmendments();
   loadCerts();
 }
 
@@ -287,6 +295,24 @@ async function loadReleaseRequests(){
        '<td '+cls+'>'+esc(q.status_heb)+(q.bridge_note?('<div class="muted" style="font-size:11.5px">'+esc(q.bridge_note)+'</div>'):'')+'</td></tr>';
   });
   document.getElementById('rrList').innerHTML=h+'</table>';
+}
+
+async function loadAmendments(){
+  var r=await api('/depot/admin/amendments');
+  if(!r||!r.ok){ document.getElementById('amList').textContent='שגיאה בטעינת התיקונים'; return; }
+  var d=await r.json(); var rows=d.amendments||[];
+  document.getElementById('amCount').textContent=rows.length?(''+rows.length+' תיקונים'):'';
+  if(!rows.length){ document.getElementById('amList').textContent='עוד לא תוקנו פרטים מהפורטל.'; return; }
+  var h='<table><tr><th>מתי</th><th>לקוח</th><th>מכל</th><th>איפה</th><th>מה תוקן</th><th>היה</th><th>חדש</th><th>מצב</th></tr>';
+  rows.forEach(function(q){
+    var cls=q.status==='posted'?'style="color:#2c7a52"':(q.status==='rejected'||q.status==='error')?'style="color:#b3261e"':'';
+    h+='<tr><td>'+fmtDT(q.created_at)+'</td><td><b>'+esc(q.client_name)+'</b>'+
+       (q.submitted_by?'<div class="muted" style="font-size:11.5px">'+esc(q.submitted_by)+'</div>':'')+'</td>'+
+       '<td>'+esc(q.tank)+'</td><td>'+esc(q.where)+'</td><td>'+esc(q.field_heb)+'</td>'+
+       '<td class="muted">'+esc(q.old_value||'ריק')+'</td><td><b>'+esc(q.new_value)+'</b>'+(q.carrier_is_new?'<div class="muted" style="font-size:11.5px">מוביל שלא ברשימה — לבדיקה</div>':'')+'</td>'+
+       '<td '+cls+'>'+esc(q.status_heb)+(q.bridge_note?('<div class="muted" style="font-size:11.5px">'+esc(q.bridge_note)+'</div>'):'')+'</td></tr>';
+  });
+  document.getElementById('amList').innerHTML=h+'</table>';
 }
 
 async function loadCerts(){

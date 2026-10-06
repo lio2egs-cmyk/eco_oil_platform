@@ -35,12 +35,15 @@
   #loading{text-align:center;color:#777;padding:30px 0}
   /* תיבת בקשת שחרור */
   #overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.35);z-index:20}
-  #dlg{display:none;position:fixed;top:50%;right:50%;transform:translate(50%,-50%);background:#fff;border-radius:16px;box-shadow:0 14px 50px rgba(0,0,0,.25);padding:26px 24px;width:min(420px,92vw);z-index:21}
-  #dlg h3{font-family:var(--fh);font-weight:600;font-size:17px;color:var(--navy);margin-bottom:4px}
-  #dlg .row{margin-top:12px}
-  #dlg label{font-size:13.5px;color:#444;display:block;margin-bottom:4px}
-  #dlg input{width:100%;padding:9px 11px;border:1.5px solid #cfd8d6;border-radius:9px;font-family:var(--fb);font-size:14px}
-  #dlg .btns{display:flex;gap:10px;margin-top:18px}
+  #dlg,#edlg{display:none;position:fixed;top:50%;right:50%;transform:translate(50%,-50%);background:#fff;border-radius:16px;box-shadow:0 14px 50px rgba(0,0,0,.25);padding:26px 24px;width:min(420px,92vw);z-index:21}
+  #dlg h3,#edlg h3{font-family:var(--fh);font-weight:600;font-size:17px;color:var(--navy);margin-bottom:4px}
+  #dlg .row,#edlg .row{margin-top:12px}
+  #dlg label,#edlg label{font-size:13.5px;color:#444;display:block;margin-bottom:4px}
+  #dlg input,#edlg input{width:100%;padding:9px 11px;border:1.5px solid #cfd8d6;border-radius:9px;font-family:var(--fb);font-size:14px}
+  #dlg .btns,#edlg .btns{display:flex;gap:10px;margin-top:18px}
+  /* תיקון פרטים אחרי שליחה (לימור 06/10/2026): שורת מצב קטנה מתחת לערך */
+  .amend{display:block;font-size:11.5px;color:#888;white-space:nowrap}
+  .amend.bad{color:#b3261e}
   .btn{background:var(--teal);color:#fff;border:none;border-radius:10px;padding:10px 20px;font-family:var(--fh);font-size:14px;cursor:pointer}
   .btn:hover{background:var(--teal-dark)}
   .btn.soft{background:#fff;color:var(--teal-dark);border:1.5px solid var(--teal)}
@@ -182,7 +185,7 @@
     <div class="tblwrap">
       <table id="tbl" style="display:none">
         <thead><tr>
-          <th><input type="checkbox" class="pick" id="pickAll" title="בחירה מרובה — מסמן את כל המכלים שבאחסנה" onchange="pickAll(this.checked)">מספר מכל</th><th>חומר אחרון</th><th>הגיע אלינו</th><th>מצב</th><th>תעודה</th><th>פעולות</th>
+          <th><input type="checkbox" class="pick" id="pickAll" title="בחירה מרובה — מסמן את כל המכלים שבאחסנה" onchange="pickAll(this.checked)">מספר מכל</th><th>חומר אחרון</th><th>מרכז רווח</th><th>הגיע אלינו</th><th>מצב</th><th>תעודה</th><th>פעולות</th>
         </tr></thead>
         <tbody id="rows"></tbody>
       </table>
@@ -222,6 +225,18 @@
     <div class="btns">
       <button class="btn" onclick="sendRelease()">שליחת הבקשה</button>
       <button class="btn soft" onclick="closeDlg()">ביטול</button>
+    </div>
+  </div>
+  <!-- תיקון פרטים אחרי שליחה (לימור 06/10/2026): מרכז רווח לכל נכס; מוביל אוסף כשיש בקשת שחרור.
+       הערך החדש דורס את מה שבקובץ, והמשרד מקבל הודעה. אותו ✎ כמו בטופס המקדים. -->
+  <div id="edlg">
+    <h3>תיקון פרטים — <span id="edTank"></span></h3>
+    <div class="muted">אפשר לתקן או להשלים גם אחרי השליחה. הערך החדש מחליף את הקודם אצלנו, והמשרד מקבל הודעה.</div>
+    <div class="row"><label>מספרנו — מרכז רווח</label><input type="text" id="edRef" maxlength="100" placeholder="ריק = לא הוזן"></div>
+    <div class="row" id="edCarrierRow"><label>מוביל אוסף (של בקשת השחרור)</label><input type="text" id="edCarrier" maxlength="200"></div>
+    <div class="btns">
+      <button class="btn" onclick="saveEdit()">שמירת התיקון</button>
+      <button class="btn soft" onclick="closeEdit()">ביטול</button>
     </div>
   </div>
   <div id="toast"></div>
@@ -442,6 +457,9 @@ function renderRows(){
     } else if(a.note){
       acts='<span class="muted">'+esc(a.note)+'</span>';
     }
+    /* תיקון פרטים אחרי שליחה (לימור 06/10/2026) — אותו ✎ באותה עמודה כמו בטופס המקדים */
+    if(a.can_amend) acts='<button class="act" title="תיקון או השלמה של מרכז רווח / מוביל אוסף" onclick="event.stopPropagation();openEdit(\''+esc(a.visit_id)+'\',\''+esc(a.tank)+'\')">✎</button>'+acts;
+    var pc=esc(a.profit_center||'—')+amendLine(a.amend&&a.amend.internal_ref);
     var tr=document.createElement('tr');
     tr.className='asset';
     tr.onclick=function(){ toggleTl(tr,'tl_'+idx); };
@@ -455,6 +473,7 @@ function renderRows(){
       : '<span class="pick-gap"></span>';
     tr.innerHTML='<td>'+pick+'<span class="arrow">▶</span><span class="tank">'+esc(a.tank)+'</span></td>'+
       '<td>'+esc(a.material||'—')+'</td>'+
+      '<td>'+pc+'</td>'+
       '<td>'+(a.arrival_date||'—')+'</td>'+
       '<td><span class="'+stClass(a.status)+'">'+esc(a.status)+'</span></td>'+
       '<td>'+certCell+'</td>'+
@@ -475,7 +494,7 @@ function renderRows(){
       (CLIENT_ID?('&client_id='+CLIENT_ID):'');
     var tlr=document.createElement('tr');
     tlr.className='tl-row'; tlr.id='tl_'+idx;
-    tlr.innerHTML='<td colspan="6"><div class="tl-title">📜 מה עבר על המכל אצלנו</div>'+
+    tlr.innerHTML='<td colspan="7"><div class="tl-title">📜 מה עבר על המכל אצלנו</div>'+
       '<div class="tl">'+items+'</div>'+
       '<a class="tl-arch" href="'+archUrl+'" onclick="event.stopPropagation()">📚 לכל התעודות של המכל — ארכיון התעודות</a></td>';
     tb.appendChild(tlr);
@@ -576,6 +595,7 @@ function resetDlgFields(){
 function closeDlg(){
   document.getElementById('overlay').style.display='none';
   document.getElementById('dlg').style.display='none';
+  document.getElementById('edlg').style.display='none'; ED=null;
   DLG_VISIT=null; DLG_ITEMS=[];
 }
 
@@ -623,6 +643,50 @@ async function sendRelease(){
   closeDlg();
   if(r.ok){ delete PICKED[pickKey(items[0].visit_id, items[0].tank)]; toast('בקשת השחרור נשלחה ✓ המשרד קיבל אותה'); await load(); }
   else{ toast(d.error||'השליחה נכשלה — נסו שוב'); }
+}
+
+/* תיקון פרטים אחרי שליחה (לימור 06/10/2026) */
+var ED=null;
+function amendLine(a){
+  if(!a) return '';
+  var bad=(a.status==='rejected'||a.status==='error');
+  return '<span class="amend'+(bad?' bad':'')+'">'+(bad?'⚠ ':'')+esc(a.status_heb)+(a.status!=='posted'?' → '+esc(a.value):'')+'</span>';
+}
+function openEdit(visit, tank){
+  var a=null; ASSETS.forEach(function(x){ if(x.visit_id===visit && x.tank===tank) a=x; });
+  if(!a) return;
+  ED=a;
+  document.getElementById('edTank').textContent=a.tank;
+  var pend=a.amend&&a.amend.internal_ref&&a.amend.internal_ref.status!=='posted'?a.amend.internal_ref.value:null;
+  document.getElementById('edRef').value=pend!==null?pend:(a.profit_center||'');
+  var cr=document.getElementById('edCarrierRow');
+  if(a.release_carrier!==null && a.release_carrier!==undefined){
+    cr.style.display='block';
+    document.getElementById('edCarrier').value=a.release_carrier||'';
+  } else cr.style.display='none';
+  document.getElementById('overlay').style.display='block';
+  document.getElementById('edlg').style.display='block';
+}
+function closeEdit(){
+  document.getElementById('overlay').style.display='none';
+  document.getElementById('edlg').style.display='none';
+  ED=null;
+}
+async function saveEdit(){
+  if(!ED) return;
+  var body={visit_id:ED.visit_id, tank:ED.tank};
+  var ref=document.getElementById('edRef').value.trim();
+  var cur=ED.amend&&ED.amend.internal_ref&&ED.amend.internal_ref.status!=='posted'?ED.amend.internal_ref.value:(ED.profit_center||'');
+  if(ref!==cur) body.internal_ref=ref;
+  if(ED.release_carrier!==null && ED.release_carrier!==undefined){
+    var car=document.getElementById('edCarrier').value.trim();
+    if(car!==(ED.release_carrier||'')) body.carrier=car;
+  }
+  if(!('internal_ref' in body) && !('carrier' in body)){ toast('לא שונה דבר'); return; }
+  var r=await api('/depot/portal/assets/amend',{method:'POST',body:JSON.stringify(body)});
+  var d={}; try{ d=await r.json(); }catch(e){}
+  if(r.ok){ closeEdit(); toast('התיקון נקלט ✓ הקובץ שלנו יתעדכן בסבב הקרוב, והמשרד קיבל הודעה'); await load(); }
+  else{ toast(d.error||'התיקון לא נקלט — נסו שוב'); }
 }
 
 async function cancelRelease(visit, tank){

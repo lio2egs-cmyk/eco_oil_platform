@@ -1087,6 +1087,7 @@ class DepotAssetSnapshot(db.Model):
     exit_date = db.Column(db.Date)                              # יציאה (S ואם ריק K) — רק ביציאות טריות
     exit_time = db.Column(db.String(5))                         # שעת יציאה (AJ)
     exited = db.Column(db.Boolean, default=False, nullable=False)  # יציאה טרייה: בפס האירועים, לא בטבלה
+    profit_center = db.Column(db.String(100))                   # מרכז רווח / "מספרנו" (C) — תיקון פרטים, 06/10/2026
 
 
 class DepotReleaseRequest(db.Model):
@@ -1111,6 +1112,46 @@ class DepotReleaseRequest(db.Model):
 
     # pending → fetched (הגשר משך) → posted (הסטטוס עודכן בקובץ) /
     # rejected (נפסל בבדיקת-האמת — למשל כבר סומן מוכן) / error
+    status = db.Column(db.String(20), default="pending", nullable=False, index=True)
+    bridge_note = db.Column(db.String(400))
+    posted_at = db.Column(db.DateTime)
+
+    client = db.relationship("Client")
+
+
+class DepotAmendment(db.Model):
+    """תיקון / השלמת פרט אחרי שליחה (לימור 06/10/2026, חיוב ספטמבר של הי טנק:
+    נכסים בלי מרכז רווח — חלקם הוגשו בפורטל והנציג לא הקליד, ובקשות שחרור
+    שהמוביל שלהן נודע רק למחרת). הכרעת לימור: אפשרות א' — הלקוח מתקן בפורטל,
+    רק מרכז רווח ומוביל, והפורטל דורס מה שיש בקובץ.
+
+    אותו צינור כמו ביטול הגעה: רשומה בענן → הגשר של יעל מושך, כותב לשורה
+    הקיימת בקובץ החי (לא שורה חדשה) ומאשר. כל שדה שהשתנה = רשומה אחת, עם
+    הערך הישן לעקבות.
+
+    kind: prearrival (עוגן = ההגשה; השורה בקובץ נמצאת לפי המכל, חוק הביקור
+    הפתוח) · asset (עוגן = (ביקור, מכל) מתמונת המלאי).
+    field: internal_ref (מרכז רווח → C) · carrier_in (מוביל מביא → G; מוביל
+    שלא ברשימה → הערה לבדיקת המשרד, חוק 47ג) · carrier_out (מוביל אוסף של
+    בקשת שחרור → הערה ב-AF; עמודת H נשארת למשרד, הכרעת 02/09)."""
+    __tablename__ = "depot_amendments"
+
+    id = db.Column(db.Integer, primary_key=True)
+    client_id = db.Column(db.Integer, db.ForeignKey("clients.id"), nullable=False, index=True)
+    submitted_by_user_id = db.Column(db.Integer, db.ForeignKey("users.id"))
+    created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False, index=True)
+
+    kind = db.Column(db.String(20), nullable=False)             # prearrival / asset
+    prearrival_id = db.Column(db.Integer, db.ForeignKey("depot_prearrivals.id"), index=True)
+    release_request_id = db.Column(db.Integer, db.ForeignKey("depot_release_requests.id"))
+    visit_id = db.Column(db.String(40), index=True)
+    tank = db.Column(db.String(40), nullable=False, index=True)
+    field = db.Column(db.String(30), nullable=False)            # internal_ref / carrier_in / carrier_out
+    old_value = db.Column(db.String(200))
+    new_value = db.Column(db.String(200))
+    carrier_is_new = db.Column(db.Boolean, default=False)       # מוביל שלא ברשימה הרשמית
+
+    # pending → fetched (bridge pulled) → posted (נכתב בקובץ) | rejected | error
     status = db.Column(db.String(20), default="pending", nullable=False, index=True)
     bridge_note = db.Column(db.String(400))
     posted_at = db.Column(db.DateTime)

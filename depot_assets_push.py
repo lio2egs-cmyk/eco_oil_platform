@@ -43,7 +43,8 @@ ONSITE = {"בדרך להיכנס", "באחסון", "בטיפול שטיפה", "�
 # M שעת שטיפה, R תאריך כניסה לאחסון (חלק מהשורות ממולאות רק בה — לימור
 # 04/09: 90 שורות הוצגו "—" בפורטל בגללה), S יציאה מאחסון, AI שעת כניסה,
 # AJ שעת יציאה, AK תאריך משוער ליציאה
-COL = dict(visit=0, tank=1, payer=3, material=5, status=8, arrival=9,
+# C מרכז רווח / "מספרנו" — מוצג ללקוח ומתוקן מהפורטל (תיקון פרטים, לימור 06/10/2026)
+COL = dict(visit=0, tank=1, profit=2, payer=3, material=5, status=8, arrival=9,
            site_exit=10, wash_date=11, wash_time=12, storage_entry=17,
            storage_exit=18, entry_time=34, exit_time=35, est_exit=36)
 
@@ -58,6 +59,15 @@ def _iso_date(v):
     if isinstance(v, date):
         return v.isoformat()
     return None
+
+
+def _cell_text(v):
+    """מרכז רווח כפי שהלקוח הקליד: מספר שלם בלי .0, טקסט כמו שהוא."""
+    if v in (None, ""):
+        return ""
+    if isinstance(v, float) and v.is_integer():
+        return str(int(v))
+    return str(v).strip()
 
 
 def _hm(v):
@@ -106,6 +116,7 @@ def read_snapshot():
                 "visit_id": vid,
                 "tank": tank,
                 "storage_payer": (str(row[COL["payer"]] or "")).strip(),
+                "profit_center": _cell_text(row[COL["profit"]]),
                 "status": status,
                 "material": (str(row[COL["material"]] or "")).strip(),
                 "arrival_date": _iso_date(row[COL["arrival"]])

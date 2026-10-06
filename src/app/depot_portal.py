@@ -16,7 +16,8 @@ from datetime import date, datetime
 from flask import Blueprint, Response, current_app, jsonify, request
 from flask_jwt_extended import get_jwt, get_jwt_identity, jwt_required
 
-from .db import db, Client, DepotArrivalCancel, DepotFormOptions, DepotPreArrival, User
+from .db import (db, Client, DepotAmendment, DepotArrivalCancel, DepotFormOptions,
+                 DepotPreArrival, User)
 from .field import bridge_required
 
 depot_portal = Blueprint("depot_portal", __name__, url_prefix="/depot/portal")
@@ -200,11 +201,19 @@ def my_prearrivals():
         .filter(DepotArrivalCancel.client_id == client.id,
                 DepotArrivalCancel.prearrival_id.in_([r.id for r in rows] or [0]))
         .order_by(DepotArrivalCancel.id).all())}
+    # תיקון פרטים אחרי שליחה (לימור 06/10/2026): התיקון האחרון לכל (הגשה, שדה)
+    amends = {}
+    for a in (DepotAmendment.query
+              .filter(DepotAmendment.kind == "prearrival",
+                      DepotAmendment.prearrival_id.in_([r.id for r in rows] or [0]))
+              .order_by(DepotAmendment.id).all()):
+        amends[(a.prearrival_id, a.field)] = a
     out = []
     for r in rows:
         c = open_cancels.get(r.id)
         status = heb.get(r.status, r.status)
         can_cancel = r.status in CANCELLABLE_STATES and c is None
+        can_amend = r.status in CANCELLABLE_STATES and c is None
         if c is not None and c.status in ("pending", "fetched"):
             status = "ביטול ההגעה בטיפול המשרד"
         elif c is not None and c.status == "rejected":
@@ -220,8 +229,28 @@ def my_prearrivals():
             "expected_date": r.expected_date.strftime("%d/%m/%Y") if r.expected_date else None,
             "status": status,
             "can_cancel": can_cancel,
+            "can_amend": can_amend,
+            "internal_ref": r.internal_ref or "",
+            "carrier": r.carrier or "",
+            "carrier_new": r.carrier_new or "",
+            "amend": {f: _amend_view(amends.get((r.id, f))) for f in ("internal_ref", "carrier_in")},
         })
     return jsonify(prearrivals=out)
+
+
+AMEND_STATUS_HEB = {
+    "pending": "ממתין לעדכון במשרד", "fetched": "ממתין לעדכון במשרד", "posted": "עודכן",
+    "rejected": "לא עודכן — פנו למשרד", "error": "בבירור מול המשרד",
+}
+
+
+def _amend_view(a):
+    """מה הלקוח רואה ליד פרט שתוקן: הערך החדש + מצב (None = לא תוקן)."""
+    if a is None:
+        return None
+    return {"value": a.new_value or "", "status": a.status,
+            "status_heb": AMEND_STATUS_HEB.get(a.status, a.status),
+            "note": a.bridge_note if a.status in ("rejected", "error") else None}
 
 
 # ---------------------------------------------------------- ביטול הגעה

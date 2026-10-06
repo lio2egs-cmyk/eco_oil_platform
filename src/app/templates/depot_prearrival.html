@@ -33,6 +33,21 @@
   .btn:disabled{opacity:.6;cursor:wait}
   .cancelBtn{background:#fff;color:#C0564F;border:1px solid #C0564F;border-radius:8px;padding:5px 10px;font-family:var(--fh);font-size:13px;cursor:pointer;white-space:nowrap}
   .cancelBtn:hover{background:#FBEDEC}
+  /* תיקון פרטים אחרי שליחה (לימור 06/10/2026) — אותו ✎ באותה עמודה כמו ב"הנכסים שלנו" */
+  .editBtn{background:#fff;color:var(--teal-dark);border:1.5px solid var(--teal);border-radius:8px;padding:5px 10px;font-family:var(--fh);font-size:13px;cursor:pointer;white-space:nowrap;margin-inline-end:6px}
+  .editBtn:hover{background:#EDF3F2}
+  .prev .amend{display:block;font-size:11.5px;color:#888;white-space:nowrap}
+  .prev .amend.bad{color:#B23B32}
+  #overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.35);z-index:20}
+  #edlg{display:none;position:fixed;top:50%;right:50%;transform:translate(50%,-50%);background:#fff;border-radius:16px;box-shadow:0 14px 50px rgba(0,0,0,.25);padding:26px 24px;width:min(440px,92vw);z-index:21;text-align:right}
+  #edlg h3{font-family:var(--fh);font-weight:600;font-size:17px;color:var(--navy);margin-bottom:4px}
+  #edlg .row{margin-top:12px}
+  #edlg label{font-size:13.5px;color:#444;display:block;margin-bottom:4px}
+  #edlg input,#edlg select{width:100%;padding:9px 11px;border:1.5px solid #cfd8d6;border-radius:9px;font-family:var(--fb);font-size:14px;background:#fff}
+  #edlg .btns{display:flex;gap:10px;margin-top:18px}
+  #edlg .btn{margin-top:0;width:auto;padding:10px 20px;font-size:14px;border-radius:10px}
+  #edlg .btn.soft{background:#fff;color:var(--teal-dark);border:1.5px solid var(--teal)}
+  #edlg .hint{font-size:12.5px;color:#888;margin-top:4px}
   .btnnote{text-align:center;font-size:12.5px;color:#888;margin-top:8px}
   .legend{font-size:13px;color:#666;margin-top:14px}
   .legend .must-ex{color:#B23B32;font-weight:700}
@@ -41,7 +56,9 @@
   #done h1{margin-bottom:10px}
   #done .sum{background:#EDF3F2;border-radius:12px;padding:14px 16px;text-align:right;font-size:14px;margin-top:16px}
   .btn2{display:inline-block;margin-top:22px;background:#fff;border:1.5px solid var(--teal);color:var(--teal-dark);border-radius:10px;padding:11px 24px;font-family:var(--fh);font-size:14px;cursor:pointer;text-decoration:none}
-  .prev{margin-top:26px;border-top:1px solid #e4e0d5;padding-top:16px}
+  .prev{margin-top:26px;border-top:1px solid #e4e0d5;padding-top:16px;overflow-x:auto}
+  .prev td{white-space:nowrap}
+  .prev td:nth-child(3),.prev td:nth-child(6){white-space:normal;min-width:110px}
   .prev h2{font-family:var(--fh);font-size:15px;color:var(--navy);margin-bottom:8px}
   .prev table{width:100%;border-collapse:collapse;font-size:13px}
   .prev th{background:#EDF3F2;color:var(--navy);padding:5px 8px;text-align:right}
@@ -191,6 +208,22 @@
     </div>
   </div>
 
+  <!-- תיקון פרטים אחרי שליחה (לימור 06/10/2026): רק מרכז רווח ומוביל; הערך החדש דורס את מה שבקובץ -->
+  <div id="overlay" onclick="closeEdit()"></div>
+  <div id="edlg">
+    <h3>תיקון פרטים — <span id="edTank"></span></h3>
+    <div class="hint">אפשר לתקן או להשלים גם אחרי השליחה. הערך החדש מחליף את הקודם אצלנו, והמשרד מקבל הודעה.</div>
+    <div class="row"><label>מספרנו — מרכז רווח</label><input type="text" id="edRef" maxlength="100" placeholder="ריק = לא הוזן"></div>
+    <div class="row"><label>מוביל מביא</label>
+      <select id="edCarrier"><option value="">בוחרים מהרשימה…</option></select>
+      <input type="text" id="edCarrierNew" maxlength="200" placeholder="או: מוביל חדש שלא ברשימה" style="margin-top:6px">
+    </div>
+    <div class="btns">
+      <button class="btn" onclick="saveEdit()">שמירת התיקון</button>
+      <button class="btn soft" onclick="closeEdit()">ביטול</button>
+    </div>
+  </div>
+
   <div class="card" id="done">
     <h1>✓ המידע נקלט</h1>
     <div class="sub">תודה! הנכס נרשם אצלנו כ"בדרך להיכנס" — אין צורך במייל מקדים.</div>
@@ -305,22 +338,31 @@ async function loadOptions(){
   var d=await r.json();
   var dl=document.getElementById('matList');
   (d.materials||[]).forEach(function(m){ var o=document.createElement('option'); o.value=m; dl.appendChild(o); });
-  var sel=document.getElementById('carrier');
-  (d.carriers||[]).forEach(function(c){ var o=document.createElement('option'); o.value=c; o.textContent=c; sel.appendChild(o); });
+  var sel=document.getElementById('carrier'), sel2=document.getElementById('edCarrier');
+  (d.carriers||[]).forEach(function(c){
+    var o=document.createElement('option'); o.value=c; o.textContent=c; sel.appendChild(o);
+    var o2=document.createElement('option'); o2.value=c; o2.textContent=c; sel2.appendChild(o2);
+  });
 }
 async function loadPrev(){
   var r=await api('/depot/portal/prearrivals');
   if(!r||!r.ok) return;
   var rows=(await r.json()).prearrivals||[];
   if(!rows.length) return;
-  var h='<tr><th>הוגש</th><th>איזוטנק</th><th>חומר</th><th>מצב</th><th></th></tr>';
+  PREV_ROWS=rows;
+  var h='<tr><th>הוגש</th><th>איזוטנק</th><th>חומר</th><th>מוביל</th><th>מרכז רווח</th><th>מצב</th><th></th></tr>';
   rows.slice(0,8).forEach(function(p){
     var d=(p.created_at||'').slice(0,10).split('-');
     /* ביטול הגעה (לימור 17/09/2026): הנכס לא יגיע — לחיצה אחת במקום מייל
        למשרד; שורת הצפי אצלנו מסומנת מבוטלת אוטומטית. */
     var act=p.can_cancel?'<button class="cancelBtn" onclick="cancelArrival('+p.id+',\''+p.tank_number+'\')">✖ ביטול הגעה</button>':'';
+    /* תיקון פרטים אחרי שליחה (לימור 06/10/2026): מרכז רווח ומוביל בלבד */
+    if(p.can_amend) act='<button class="editBtn" title="תיקון או השלמה של מרכז רווח / מוביל" onclick="openEdit('+p.id+')">✎ תיקון פרטים</button>'+act;
+    var carrier=p.carrier||(p.carrier_new?(p.carrier_new+' (חדש)'):'');
     h+='<tr><td>'+(d.length===3?d[2]+'/'+d[1]+'/'+d[0]:'')+'</td><td><b>'+p.tank_number+'</b></td>'+
-       '<td>'+(p.material||'')+'</td><td>'+(p.status||'')+'</td><td>'+act+'</td></tr>';
+       '<td>'+esc(p.material||'')+'</td><td>'+esc(carrier||'—')+amendLine(p.amend&&p.amend.carrier_in)+'</td>'+
+       '<td>'+esc(p.internal_ref||'—')+amendLine(p.amend&&p.amend.internal_ref)+'</td>'+
+       '<td>'+(p.status||'')+'</td><td>'+act+'</td></tr>';
   });
   document.getElementById('prevTable').innerHTML=h;
   document.getElementById('prevBox').style.display='block';
@@ -335,6 +377,52 @@ async function cancelArrival(id, tank){
   var d={}; try{ d=await r.json(); }catch(_){}
   if(r.ok){ alert('ביטול ההגעה נקלט ✓ המשרד קיבל את ההודעה.'); loadPrev(); }
   else alert(d.error||'הביטול לא נקלט — נסו שוב או פנו למשרד');
+}
+
+var PREV_ROWS=[], ED_ID=null;
+function esc(s){ return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+function amendLine(a){
+  if(!a) return '';
+  var bad=(a.status==='rejected'||a.status==='error');
+  return '<span class="amend'+(bad?' bad':'')+'">'+(bad?'⚠ ':'')+esc(a.status_heb)+(a.status!=='posted'?' → '+esc(a.value):'')+'</span>';
+}
+function openEdit(id){
+  var p=null; PREV_ROWS.forEach(function(r){ if(r.id===id) p=r; });
+  if(!p) return;
+  ED_ID=id;
+  document.getElementById('edTank').textContent=p.tank_number;
+  document.getElementById('edRef').value=p.internal_ref||'';
+  var sel=document.getElementById('edCarrier');
+  sel.value=p.carrier||'';
+  if(p.carrier && sel.value!==p.carrier){ var o=document.createElement('option'); o.value=p.carrier; o.textContent=p.carrier; sel.appendChild(o); sel.value=p.carrier; }
+  document.getElementById('edCarrierNew').value=p.carrier_new||'';
+  document.getElementById('overlay').style.display='block';
+  document.getElementById('edlg').style.display='block';
+}
+function closeEdit(){
+  document.getElementById('overlay').style.display='none';
+  document.getElementById('edlg').style.display='none';
+  ED_ID=null;
+}
+async function saveEdit(){
+  if(ED_ID===null) return;
+  var p=null; PREV_ROWS.forEach(function(r){ if(r.id===ED_ID) p=r; });
+  var ref=document.getElementById('edRef').value.trim();
+  var car=document.getElementById('edCarrier').value, carNew=document.getElementById('edCarrierNew').value.trim();
+  if(car && carNew){ alert('בוחרים מוביל מהרשימה או מקלידים מוביל חדש — לא שניהם'); return; }
+  var body={};
+  if(ref!==(p.internal_ref||'')) body.internal_ref=ref;
+  if((car||carNew)!==(p.carrier||p.carrier_new||'')){ body.carrier=car; body.carrier_new=carNew; }
+  if(!Object.keys(body).length){ alert('לא שונה דבר'); return; }
+  var r=await api('/depot/portal/prearrivals/'+ED_ID+'/amend',{method:'POST',
+    headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
+  if(!r) return;
+  var d={}; try{ d=await r.json(); }catch(_){}
+  if(r.ok){
+    closeEdit();
+    alert(d.live?'התיקון נשמר ✓ השורה תיפתח אצלנו עם הפרטים החדשים.':'התיקון נקלט ✓ הקובץ שלנו יתעדכן בסבב הקרוב, והמשרד קיבל הודעה.');
+    loadPrev();
+  } else alert(d.error||'התיקון לא נקלט — נסו שוב או פנו למשרד');
 }
 
 function togglePayers(){

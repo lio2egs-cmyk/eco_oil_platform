@@ -24,9 +24,10 @@ from flask import Blueprint, current_app, jsonify, request, send_file
 from flask_jwt_extended import get_jwt, get_jwt_identity, jwt_required
 
 from .auth import depot_admin_required
-from .db import db, Client, DepotAssetSnapshot, DepotReleaseRequest, DepotWashCert, User
+from .db import (db, Client, DepotAmendment, DepotAssetSnapshot, DepotReleaseRequest,
+                 DepotWashCert, User)
 from .depot_certs import _client_folders, _folder_client_map, _norm
-from .depot_portal import _depot_client_for_request
+from .depot_portal import _amend_view, _depot_client_for_request
 from .ecooil_bridge import ecooil_bridge_required
 from .field import bridge_required
 
@@ -82,7 +83,7 @@ def _client_for_view():
     return client, preview
 
 
-def _asset_dict(a, open_req, certs=None):
+def _asset_dict(a, open_req, certs=None, rel_req=None, amends=None):
     can_release = a.status == "באחסון" and open_req is None
     can_cancel = a.status == "הכנה לשחרור" and open_req is None
     note = None
@@ -98,6 +99,13 @@ def _asset_dict(a, open_req, certs=None):
         "can_release": can_release,
         "can_cancel": can_cancel,
         "note": note,
+        # תיקון פרטים אחרי שליחה (לימור 06/10/2026): מרכז רווח לכל נכס באתר;
+        # מוביל אוסף — רק כשיש בקשת שחרור חיה (שלא נדחתה)
+        "profit_center": a.profit_center or "",
+        "can_amend": not a.exited,
+        "release_carrier": (rel_req.carrier or "") if rel_req is not None else None,
+        "amend": {f: _amend_view((amends or {}).get(((a.visit_id, a.tank), f)))
+                  for f in ("internal_ref", "carrier_out")},
         # ציר הזמן של הנכס (המסך המשולב — אישור יואב 04/09/2026)
         "timeline": _timeline(a, open_req, certs or []),
     }
@@ -207,7 +215,7 @@ def _events_feed(rows, cert_rows, today):
 
 # ------------------------------------------------------------ המלאי לאקסל
 XLSX_MIME = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-INVENTORY_HEADERS = ["מספר מכל", "חומר אחרון", "תאריך הגעה", "מצב", "מספר ביקור"]
+INVENTORY_HEADERS = ["מספר מכל", "חומר אחרון", "תאריך הגעה", "מצב", "מספר ביקור", "מרכז רווח"]
 
 
 def build_inventory_xlsx(assets):
@@ -234,10 +242,10 @@ def build_inventory_xlsx(assets):
     for a in assets:
         ws.append([a.tank, a.material or "",
                    a.arrival_date.strftime("%d/%m/%Y") if a.arrival_date else "",
-                   STATUS_HEB.get(a.status, a.status), a.visit_id])
+                   STATUS_HEB.get(a.status, a.status), a.visit_id, a.profit_center or ""])
         for c in ws[ws.max_row]:
             c.border = border
-    for i, w in enumerate((16, 34, 14, 18, 18), start=1):
+    for i, w in enumerate((16, 34, 14, 18, 18, 16), start=1):
         ws.column_dimensions[get_column_letter(i)].width = w
     ws.freeze_panes = "A2"
     buf = BytesIO()
@@ -287,9 +295,17 @@ def my_assets():
             .order_by(DepotReleaseRequest.created_at.desc()).limit(50).all())
     # מפתח הבקשה = (ביקור, מכל) — בקובץ יש מספרי ביקור כפולים מהעבר
     open_by_key = {}
+    rel_by_key = {}     # בקשת השחרור החיה האחרונה (גם אחרי שנקלטה) — לתיקון המוביל האוסף
     for r in reqs:
         if r.status in OPEN_STATES and (r.visit_id, r.tank) not in open_by_key:
             open_by_key[(r.visit_id, r.tank)] = r
+        if (r.action == "release" and r.status in ("pending", "fetched", "posted")
+                and (r.visit_id, r.tank) not in rel_by_key):
+            rel_by_key[(r.visit_id, r.tank)] = r
+    amends = {}
+    for a in (DepotAmendment.query.filter_by(client_id=client.id, kind="asset")
+              .order_by(DepotAmendment.id).limit(300).all()):
+        amends[((a.visit_id, a.tank), a.field)] = a
 
     # תעודות הלקוח — לציר הזמן ולפס האירועים (המסך המשולב, 04/09)
     folders = _client_folders(client)
@@ -313,7 +329,10 @@ def my_assets():
     pushed = max((a.pushed_at for a in rows), default=None)
     out = {
         "assets": [_asset_dict(a, open_by_key.get((a.visit_id, a.tank)),
-                               certs_by_asset.get((a.visit_id, a.tank)))
+                               certs_by_asset.get((a.visit_id, a.tank)),
+                               rel_req=(rel_by_key.get((a.visit_id, a.tank))
+                                        if a.status in ("הכנה לשחרור", READY_STATUS) else None),
+                               amends=amends)
                    for a in mine],
         "feed": _events_feed(mine_all, recent_certs, today_il),
         "snapshot_at": pushed.isoformat() if pushed else None,
@@ -643,6 +662,7 @@ def bridge_replace_assets():
             exit_date=_d("exit_date"),
             exit_time=_t("exit_time"),
             exited=bool(it.get("exited")),
+            profit_center=(str(it.get("profit_center") or "")).strip()[:100] or None,
             pushed_at=now,
         ))
         added += 1
