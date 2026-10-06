@@ -23,8 +23,9 @@ from flask import Blueprint, current_app, jsonify, request
 from flask_jwt_extended import get_jwt_identity, jwt_required
 
 from .auth import depot_admin_required
-from .db import (db, DepotAmendment, DepotArrivalCancel, DepotAssetSnapshot,
+from .db import (db, DepotAmendment, DepotArrivalCancel, DepotAssetSnapshot, DepotBridgeStatus,
                  DepotFormOptions, DepotPreArrival, DepotReleaseRequest, User)
+from .ecooil_bridge import ecooil_bridge_required
 from .depot_assets import OPEN_STATES as REQ_OPEN_STATES, _client_payer_keys, _norm
 from .depot_portal import _depot_client_for_request
 from .field import bridge_required
@@ -256,6 +257,7 @@ def bridge_pending_amendments():
     """הגשר של יעל מושך תיקונים פתוחים. תיקון להגשה שעדיין לא נפתחה לה שורה
     (fetched) מחכה — יוגש רק אחרי ש-posted, כשיש שורה לכתוב אליה. כמו שאר
     הצינורות: גם fetched מוגש שוב (נמשך ולא אושר → חוזר בסבב הבא)."""
+    _touch("amendments_pull")
     rows = (DepotAmendment.query
             .filter(DepotAmendment.status.in_(AMEND_OPEN))
             .order_by(DepotAmendment.id).limit(50).all())
@@ -276,6 +278,27 @@ def bridge_pending_amendments():
         })
     db.session.commit()
     return jsonify(amendments=out)
+
+
+def _touch(key, value=None):
+    """דופק: הגשר של יעל קרא לצינור הזה עכשיו (UTC)."""
+    row = db.session.get(DepotBridgeStatus, key)
+    if row is None:
+        row = DepotBridgeStatus(key=key)
+        db.session.add(row)
+    row.value = value
+    row.updated_at = datetime.utcnow()
+
+
+@depot_amend.route("/depot/portal/bridge/amendments/status", methods=["GET"])
+@ecooil_bridge_required
+def bridge_amendments_status():
+    """למשרד (טוקן הגשר השעתי): מתי הגשר של יעל משך תיקונים לאחרונה + כמה
+    פתוחים. 'מעולם לא' = קוד הגשר אצל יעל עוד לא עודכן."""
+    row = db.session.get(DepotBridgeStatus, "amendments_pull")
+    open_n = DepotAmendment.query.filter(DepotAmendment.status.in_(AMEND_OPEN)).count()
+    return jsonify(last_pull_at=row.updated_at.isoformat() if row else None, open=open_n,
+                   now=datetime.utcnow().isoformat())
 
 
 @depot_amend.route("/depot/portal/bridge/amendments/ack", methods=["POST"])

@@ -1159,6 +1159,17 @@ class DepotAmendment(db.Model):
     client = db.relationship("Client")
 
 
+class DepotBridgeStatus(db.Model):
+    """דופק של הגשר במחשב יעל כפי שהענן רואה אותו: מתי לאחרונה משך כל צינור
+    (06/10/2026 — נולד כדי להוכיח שקוד הגשר החדש רץ אחרי עדכון_קוד, בלי גישה
+    למחשב של יעל: הגשר הישן לא קורא ל-bridge/amendments כלל)."""
+    __tablename__ = "depot_bridge_status"
+
+    key = db.Column(db.String(60), primary_key=True)             # למשל amendments_pull
+    value = db.Column(db.String(200))
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+
+
 class FieldInstructions(db.Model):
     """Phase-3 instructions engine (Yoav's rules 19/07): per-tank wash type,
     PPE level and material, keyed by tank number. Single row, JSON blob,
