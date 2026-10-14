@@ -416,16 +416,16 @@ def build_summary(path, title, rows, total_usd, total_ils):
     border = Border(left=thin, right=thin, top=thin, bottom=thin)
     head_fill = PatternFill("solid", fgColor="1F4E78")
     total_fill = PatternFill("solid", fgColor="DDEBF7")
-    ws.merge_cells("A1:H1")
+    ws.merge_cells("A1:G1")
     ws["A1"] = title
     ws["A1"].font = Font(bold=True, size=14)
     ws["A1"].alignment = Alignment(horizontal="right")
-    ws.merge_cells("A2:H2")
+    ws.merge_cells("A2:G2")
     ws["A2"] = ("מנויים ששולמו בכרטיס האשראי הפרטי של לימור טואג עבור אקו אויל. "
                 "השער = השער היציג של בנק ישראל ביום החיוב (או האחרון שפורסם לפניו).")
     ws["A2"].alignment = Alignment(horizontal="right", wrap_text=True)
     ws.row_dimensions[2].height = 32
-    headers = ["ספק", "תיאור", "מס' חשבונית", "תאריך חיוב", "סכום $", "שער יציג", "ליום", "סכום ₪"]
+    headers = ["ספק", "מס' חשבונית", "תאריך חיוב", "סכום $", "שער יציג", "שער ליום", "סכום ₪"]
     for c, h in enumerate(headers, 1):
         cell = ws.cell(row=4, column=c, value=h)
         cell.font = Font(bold=True, color="FFFFFF")
@@ -437,21 +437,21 @@ def build_summary(path, title, rows, total_usd, total_ils):
         for c, v in enumerate(row, 1):
             cell = ws.cell(row=r, column=c, value=v)
             cell.border = border
-            cell.alignment = Alignment(horizontal="center" if c != 2 else "right", vertical="center")
-        ws.cell(row=r, column=5).number_format = "#,##0.00"
-        ws.cell(row=r, column=6).number_format = "0.000"
-        ws.cell(row=r, column=8).number_format = "#,##0.00"
+            cell.alignment = Alignment(horizontal="center", vertical="center")
+        ws.cell(row=r, column=4).number_format = "#,##0.00"
+        ws.cell(row=r, column=5).number_format = "0.000"
+        ws.cell(row=r, column=7).number_format = "#,##0.00"
         r += 1
     ws.cell(row=r, column=1, value="סה\"כ").font = Font(bold=True)
-    ws.cell(row=r, column=5, value=total_usd).number_format = "#,##0.00"
-    ws.cell(row=r, column=8, value=total_ils).number_format = "#,##0.00"
-    for c in range(1, 9):
+    ws.cell(row=r, column=4, value=total_usd).number_format = "#,##0.00"
+    ws.cell(row=r, column=7, value=total_ils).number_format = "#,##0.00"
+    for c in range(1, 8):
         cell = ws.cell(row=r, column=c)
         cell.border = border
         cell.fill = total_fill
         cell.font = Font(bold=True)
         cell.alignment = Alignment(horizontal="center")
-    for col, w in zip("ABCDEFGH", [18, 30, 18, 13, 11, 10, 12, 12]):
+    for col, w in zip("ABCDEFG", [26, 18, 13, 11, 10, 12, 12]):
         ws.column_dimensions[col].width = w
     os.makedirs(os.path.dirname(path), exist_ok=True)
     wb.save(path)
@@ -606,7 +606,7 @@ def try_submit(env, ledger, items, no_mail):
         total_usd += it["amount"]
         total_ils += ils
         tag = "" if month_of(it) == target else f" (השלמה, {month_label(*month_of(it))})"
-        rows.append([SUPPLIERS[it["supplier"]]["name"] + tag, it["desc"] or "", it["invoice"],
+        rows.append([SUPPLIERS[it["supplier"]]["name"] + tag, it["invoice"],
                      d.strftime("%d/%m/%Y"), it["amount"], rate,
                      date.fromisoformat(rate_day).strftime("%d/%m/%Y"), ils])
         lines.append(f"• {SUPPLIERS[it['supplier']]['name']}{tag}: חשבונית {it['invoice']}, "
@@ -627,9 +627,9 @@ def try_submit(env, ledger, items, no_mail):
     outro = ["הפירוט בקובץ האקסל המצורף. החשבוניות והקבלות (PDF) מצורפות.", "",
              "תודה,", "לימור", "", "(נשלח אוטומטית מהפורטל. לשאלות: office@eco-oil.co.il)"]
     body = "\n".join(["שלום רוית,", "", intro, ""] + [l + "\n" for l in lines] + [total_line, ""] + outro)
-    table = [["ספק", "תיאור", "מס' חשבונית", "תאריך", "סכום $", "שער", "שער ליום", "סכום ₪"]] + [
-        [r[0], r[1], r[2], r[3], f"{r[4]:,.2f}", f"{r[5]:.3f}", r[6], f"{r[7]:,.2f}"] for r in rows]
-    total_row = ["סה\"כ", "", "", "", f"{total_usd:,.2f}", "", "", f"{total_ils:,.2f}"]
+    table = [["ספק", "מס' חשבונית", "תאריך", "סכום $", "שער", "שער ליום", "סכום ₪"]] + [
+        [r[0], r[1], r[2], f"{r[3]:,.2f}", f"{r[4]:.3f}", r[5], f"{r[6]:,.2f}"] for r in rows]
+    total_row = ["סה\"כ", "", "", f"{total_usd:,.2f}", "", "", f"{total_ils:,.2f}"]
     html = html_mail(["שלום רוית,", "", intro, "TABLE", total_line, ""] + outro, table, total_row)
     subject = f"{title} — לימור טואג, להחזר"
     sent = deliver(env, ledger, subject, body, MAIL_TO, MAIL_CC, [xlsx] + attachments, no_mail, html)
