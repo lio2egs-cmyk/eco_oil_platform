@@ -458,7 +458,32 @@ def build_summary(path, title, rows, total_usd, total_ils):
 
 
 # -------------------------------------------------------------------- mail ---
-def send_mail(env, subject, body, to, cc=(), attachments=()):
+def html_mail(paragraphs, table=None, total=None):
+    """RTL HTML body: paragraphs (text, '' = blank), an optional bordered table
+    (header row + rows) and a total row — the same look as the Excel summary."""
+    esc = lambda s: (str(s).replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;"))
+    td = "border:1px solid #999;padding:4px 8px;text-align:center;white-space:nowrap"
+    out = ['<html><body dir="rtl" style="font-family:Arial,Segoe UI,sans-serif;font-size:14px;color:#222">']
+    for p in paragraphs:
+        if p == "TABLE" and table:
+            out.append('<table dir="rtl" style="border-collapse:collapse;margin:10px 0">')
+            out.append("<tr>" + "".join(f'<th style="{td};background:#1F4E78;color:#fff">{esc(h)}</th>'
+                                         for h in table[0]) + "</tr>")
+            for row in table[1:]:
+                out.append("<tr>" + "".join(f'<td style="{td}">{esc(v)}</td>' for v in row) + "</tr>")
+            if total:
+                out.append("<tr>" + "".join(f'<td style="{td};background:#DDEBF7;font-weight:bold">{esc(v)}</td>'
+                                             for v in total) + "</tr>")
+            out.append("</table>")
+        elif p == "":
+            out.append("<br>")
+        else:
+            out.append(f'<p style="margin:0 0 6px 0">{esc(p)}</p>')
+    out.append("</body></html>")
+    return "\n".join(out)
+
+
+def send_mail(env, subject, body, to, cc=(), attachments=(), html=None):
     host, user, pw = env.get("MAIL_HOST"), env.get("MAIL_USERNAME"), env.get("MAIL_PASSWORD")
     from_addr = env.get("MAIL_FROM_ADDRESS") or user
     from_name = env.get("MAIL_FROM_NAME", "")
@@ -470,7 +495,13 @@ def send_mail(env, subject, body, to, cc=(), attachments=()):
     if cc:
         msg["Cc"] = ", ".join(cc)
     msg["Subject"] = Header(subject, "utf-8")
-    msg.attach(MIMEText(body, "plain", "utf-8"))
+    if html:
+        alt = MIMEMultipart("alternative")
+        alt.attach(MIMEText(body, "plain", "utf-8"))
+        alt.attach(MIMEText(html, "html", "utf-8"))
+        msg.attach(alt)
+    else:
+        msg.attach(MIMEText(body, "plain", "utf-8"))
     for path in attachments:
         sub = "pdf" if path.lower().endswith(".pdf") else "vnd.openxmlformats-officedocument.spreadsheetml.sheet"
         with open(path, "rb") as f:
@@ -487,24 +518,28 @@ def send_mail(env, subject, body, to, cc=(), attachments=()):
         s.sendmail(from_addr, list(to) + list(cc), msg.as_string())
 
 
-def deliver(env, ledger, subject, body, to, cc=(), attachments=(), no_mail=False):
+def deliver(env, ledger, subject, body, to, cc=(), attachments=(), no_mail=False, html=None):
     """Send now; if the channel fails, keep the mail pending for the next run."""
     preview_text = f"To: {to}\nCc: {cc}\nSubject: {subject}\nAttachments: {[os.path.basename(a) for a in attachments]}\n\n{body}"
     if DRY or no_mail:
         os.makedirs(PREVIEW_DIR, exist_ok=True)
-        fn = os.path.join(PREVIEW_DIR, f"mail_{TODAY:%Y%m%d}_{re.sub(r'[^\w]+', '_', subject)[:40]}.txt")
-        with open(fn, "w", encoding="utf-8") as f:
+        stem = os.path.join(PREVIEW_DIR, f"mail_{TODAY:%Y%m%d}_{re.sub(r'[^\w]+', '_', subject)[:40]}")
+        with open(stem + ".txt", "w", encoding="utf-8") as f:
             f.write(preview_text)
-        log(f"mail NOT sent ({'dry-run' if DRY else 'no-mail'}): {subject} → {fn}")
+        if html:
+            with open(stem + ".html", "w", encoding="utf-8") as f:
+                f.write(html)
+        log(f"mail NOT sent ({'dry-run' if DRY else 'no-mail'}): {subject} → {stem}.txt")
         return False
     try:
-        send_mail(env, subject, body, to, cc, attachments)
+        send_mail(env, subject, body, to, cc, attachments, html)
         log(f"mail sent to {to} cc {cc}: {subject}")
         return True
     except Exception as exc:
         log(f"mail failed ({exc}); kept pending: {subject}")
         ledger.setdefault("pending_mail", []).append(
-            {"subject": subject, "body": body, "to": list(to), "cc": list(cc), "attachments": list(attachments)})
+            {"subject": subject, "body": body, "to": list(to), "cc": list(cc),
+             "attachments": list(attachments), "html": html})
         return False
 
 
@@ -512,7 +547,7 @@ def send_pending(env, ledger):
     still = []
     for p in ledger.get("pending_mail", []):
         try:
-            send_mail(env, p["subject"], p["body"], p["to"], p.get("cc", ()), p.get("attachments", ()))
+            send_mail(env, p["subject"], p["body"], p["to"], p.get("cc", ()), p.get("attachments", ()), p.get("html"))
             log(f"pending mail sent: {p['subject']}")
         except Exception as exc:
             log(f"pending mail still failing: {p['subject']} — {exc}")
@@ -586,15 +621,18 @@ def try_submit(env, ledger, items, no_mail):
     out_dir = PREVIEW_DIR if DRY else os.path.join(PACKAGES_DIR, tkey)
     xlsx = os.path.join(out_dir, f"חשבוניות מנויים {label}.xlsx")
     build_summary(xlsx, title, rows, round(total_usd, 2), round(total_ils, 2))
-    body = (f"שלום רוית,\n\n"
-            f"מצורפות חשבוניות המנויים ששולמו בכרטיס האשראי הפרטי של לימור עבור אקו אויל, "
-            f"להחזר — {title}:\n\n" + "\n".join(lines) +
-            f"\n\nסה\"כ: {total_usd:,.2f} $ = {total_ils:,.2f} ₪ "
-            f"(לפי השער היציג של בנק ישראל ביום החיוב).\n"
-            f"הפירוט בקובץ האקסל המצורף; החשבוניות והקבלות (PDF) מצורפות.\n\n"
-            f"תודה,\nלימור\n\n(נשלח אוטומטית מהפורטל; לשאלות — office@eco-oil.co.il)")
+    intro = ("מצורפות חשבוניות המנויים ששולמו בכרטיס האשראי הפרטי של לימור עבור אקו אויל, להחזר. "
+             f"{title}:")
+    total_line = f"סה\"כ: {total_usd:,.2f} $ = {total_ils:,.2f} ₪ (לפי השער היציג של בנק ישראל ביום הוצאת כל חשבונית)."
+    outro = ["הפירוט בקובץ האקסל המצורף. החשבוניות והקבלות (PDF) מצורפות.", "",
+             "תודה,", "לימור", "", "(נשלח אוטומטית מהפורטל. לשאלות: office@eco-oil.co.il)"]
+    body = "\n".join(["שלום רוית,", "", intro, ""] + [l + "\n" for l in lines] + [total_line, ""] + outro)
+    table = [["ספק", "תיאור", "מס' חשבונית", "תאריך", "סכום $", "שער", "שער ליום", "סכום ₪"]] + [
+        [r[0], r[1], r[2], r[3], f"{r[4]:,.2f}", f"{r[5]:.3f}", r[6], f"{r[7]:,.2f}"] for r in rows]
+    total_row = ["סה\"כ", "", "", "", f"{total_usd:,.2f}", "", "", f"{total_ils:,.2f}"]
+    html = html_mail(["שלום רוית,", "", intro, "TABLE", total_line, ""] + outro, table, total_row)
     subject = f"{title} — לימור טואג, להחזר"
-    sent = deliver(env, ledger, subject, body, MAIL_TO, MAIL_CC, [xlsx] + attachments, no_mail)
+    sent = deliver(env, ledger, subject, body, MAIL_TO, MAIL_CC, [xlsx] + attachments, no_mail, html)
     if sent:
         if not DRY:
             os.makedirs(SUBMISSIONS_DIR, exist_ok=True)
@@ -616,11 +654,13 @@ def remind(env, ledger, target, missing, pending, no_mail):
     hints = [f"• {name}" + (f": {SUPPLIERS[k]['manual_hint']}" if SUPPLIERS[k]["manual"] else
                             " — הקבלה לא נמצאה במייל; לבדוק אם החיוב בוצע")
              for name in missing for k in SUPPLIERS if SUPPLIERS[k]["name"] == name]
-    body = (f"לימור שלום,\n\nהגשת חשבוניות המנויים לחודש {label} לרוית ממתינה: חסר —\n" +
-            "\n".join(hints) +
-            f"\n\nברגע שהקובץ יהיה בתיקייה, ההגשה תישלח אוטומטית בריצה היומית הבאה (08:30).\n"
-            f"מה שכבר מוכן: {len(pending)} פריטים.\n\n(תזכורת אוטומטית; חוזרת כל {REMINDER_EVERY_DAYS} ימים)")
-    if deliver(env, ledger, f"חשבוניות מנויים {label}: חסר {', '.join(missing)}", body, [OFFICE], (), (), no_mail):
+    paras = (["לימור שלום,", "", f"הגשת חשבוניות המנויים לחודש {label} לרוית ממתינה. חסר:"] + hints +
+             ["", "ברגע שהקובץ יהיה בתיקייה, ההגשה תישלח אוטומטית בריצה היומית הבאה (08:30).",
+              f"מה שכבר מוכן: {len(pending)} פריטים.", "",
+              f"(תזכורת אוטומטית. חוזרת כל {REMINDER_EVERY_DAYS} ימים)"])
+    body = "\n".join(paras)
+    if deliver(env, ledger, f"חשבוניות מנויים {label}: חסר {', '.join(missing)}", body, [OFFICE], (), (),
+               no_mail, html_mail(paras)):
         R[tkey] = TODAY.isoformat()
 
 
