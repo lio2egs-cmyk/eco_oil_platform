@@ -5,12 +5,13 @@ Protection (דוח קליטת פסולות רבעוני), built automatically (L
 
 What Limor did by hand each quarter: filter the ריכוז of the three months to the
 hazardous streams (everything except צמחי / סניטרי), copy customer + address,
-THE RULE (Limor 18/10/2026): the column 'סיווג החומר' alone decides. Every unload
-row classified in a hazardous stream goes into the report — with or without a
-certificate code, whatever the notes say ('לא לפרסם' / 'ללא אישור' concern the
-producer declaration, never the ministry report). The script never decides and
-never asks who is in; an unload with a customer and a weight but no
-classification is written too, with the stream cell yellow for Limor.
+Limor's definition (18/10/2026): from the three month sheets of the quarter take
+every row where material classified in a hazardous stream was unloaded — with or
+without a certificate code, whatever the notes say ('לא לפרסם' concerns the
+producer declaration, not this report). Packaging for destruction / transfers
+(no classification in the ריכוז) are not an unload here: we pass them on, we do
+not receive them — they are not reported. Map the row to the ministry columns,
+then complete ח.פ. / permit / waste numbers / treatment from the מסד.
 stream, declared tons and package type into the ministry's table, then go
 producer by producer and copy ח.פ., toxin-permit number and the waste number
 from the master workbook (מסד) — or from an earlier quarterly report.
@@ -196,15 +197,13 @@ def read_rikuz_quarter(year, quarter):
                 net = vals[11]
                 if net is None and vals[9] is not None:
                     net = (vals[9] or 0) - (vals[10] or 0)
-                if not stream and not s(vals[5]):
-                    continue                      # blank / template row (no customer at all)
+                if not stream:
+                    continue                      # no classification = no unload (packaging for destruction, blank rows)
                 # Limor 18/10/2026: classification decides, the certificate code
                 # does not — a classified unload without a code is still reported
                 if not s(vals[1]) or s(vals[1]) == "קוד_רנדומלי":
-                    log(f"{name} row {vals[0]}: no certificate code, reported anyway ({s(vals[5])}, {stream or 'לא מסווג'})")
-                if not stream:
-                    unknown_streams["לא מסווג"] = unknown_streams.get("לא מסווג", 0) + 1
-                elif stream not in STREAM_CONST:
+                    log(f"{name} row {vals[0]}: no certificate code, reported anyway ({s(vals[5])}, {stream})")
+                if stream not in STREAM_CONST:
                     unknown_streams[stream] = unknown_streams.get(stream, 0) + 1
                 events.append({
                     "customer": s(vals[5]), "address": s(vals[6]),
@@ -333,8 +332,6 @@ def build_rows(events, exact, loose, decl, hist):
             flags.update({6, 9})
         if e["stream"] not in STREAM_CONST:
             flags.update({7, 8, 10, 11, 12, 13})
-        if not e["stream"]:
-            flags.add(5)                          # unclassified unload: Limor names the stream
         if not e["tons"]:
             flags.add(14)
         if not e["package"]:
