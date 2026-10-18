@@ -5,6 +5,12 @@ Protection (דוח קליטת פסולות רבעוני), built automatically (L
 
 What Limor did by hand each quarter: filter the ריכוז of the three months to the
 hazardous streams (everything except צמחי / סניטרי), copy customer + address,
+THE RULE (Limor 18/10/2026): the column 'סיווג החומר' alone decides. Every unload
+row classified in a hazardous stream goes into the report — with or without a
+certificate code, whatever the notes say ('לא לפרסם' / 'ללא אישור' concern the
+producer declaration, never the ministry report). The script never decides and
+never asks who is in; an unload with a customer and a weight but no
+classification is written too, with the stream cell yellow for Limor.
 stream, declared tons and package type into the ministry's table, then go
 producer by producer and copy ח.פ., toxin-permit number and the waste number
 from the master workbook (מסד) — or from an earlier quarterly report.
@@ -21,7 +27,7 @@ are Yoav's rules, taken from the earlier reports (see STREAM_CONST).
 Stream sub-types ("מי שטיפה - בוצה") report as the base stream ("מי שטיפה").
 
 The result is ONE sheet in exactly the ministry layout (4 title rows, 15
-columns) saved as  דוחות_קליטת פסולות\<year>\רבעון <n>_<year>.xlsx.
+columns) saved as  דוחות_קליטת פסולות/<year>/רבעון <n>_<year>.xlsx.
 Rows whose producer could not be found anywhere get empty ח.פ./היתר/waste
 number cells and are listed in the notice so Limor completes them by hand.
 
@@ -184,16 +190,22 @@ def read_rikuz_quarter(year, quarter):
                 continue
             for r in wb[name].iter_rows(min_row=2, max_col=17, values_only=True):
                 vals = list(r) + [None] * (17 - len(r))
-                if not s(vals[1]) or s(vals[1]) == "קוד_רנדומלי":
-                    continue                      # incomplete row (no certificate code)
                 stream = base_stream(vals[8])
-                if not stream or stream in EXCLUDED_STREAMS:
-                    continue
-                if stream not in STREAM_CONST:
-                    unknown_streams[stream] = unknown_streams.get(stream, 0) + 1
+                if stream in EXCLUDED_STREAMS:
+                    continue                      # צמחי / סניטרי: not hazardous
                 net = vals[11]
                 if net is None and vals[9] is not None:
                     net = (vals[9] or 0) - (vals[10] or 0)
+                if not stream and not s(vals[5]):
+                    continue                      # blank / template row (no customer at all)
+                # Limor 18/10/2026: classification decides, the certificate code
+                # does not — a classified unload without a code is still reported
+                if not s(vals[1]) or s(vals[1]) == "קוד_רנדומלי":
+                    log(f"{name} row {vals[0]}: no certificate code, reported anyway ({s(vals[5])}, {stream or 'לא מסווג'})")
+                if not stream:
+                    unknown_streams["לא מסווג"] = unknown_streams.get("לא מסווג", 0) + 1
+                elif stream not in STREAM_CONST:
+                    unknown_streams[stream] = unknown_streams.get(stream, 0) + 1
                 events.append({
                     "customer": s(vals[5]), "address": s(vals[6]),
                     "stream_raw": s(vals[8]), "stream": stream,
@@ -321,6 +333,8 @@ def build_rows(events, exact, loose, decl, hist):
             flags.update({6, 9})
         if e["stream"] not in STREAM_CONST:
             flags.update({7, 8, 10, 11, 12, 13})
+        if not e["stream"]:
+            flags.add(5)                          # unclassified unload: Limor names the stream
         if not e["tons"]:
             flags.add(14)
         if not e["package"]:
@@ -465,7 +479,7 @@ def main():
                 what = [w for w, v in (("ח.פ.", hp), ("היתר", permit), ("מספר פסולת", waste)) if not v]
                 lines.append(f"  - {e['customer']} | {e['stream']} | חסר: {', '.join(what)}")
         if unknown:
-            lines.append("\nזרמים שאין להם קודים קבועים (נכנסו בלי קודי באזל): " + ", ".join(f"{k} ({v})" for k, v in unknown.items()))
+            lines.append("\nזרמים שאין להם קודים קבועים (נכנסו בלי קודי באזל, צהוב): " + ", ".join(f"{k} ({v})" for k, v in unknown.items()))
         body = "\n".join(lines)
         with open(os.path.join(os.path.dirname(out), "_notice.txt") if args.dry_run else os.path.join(WORK_DIR, f"notice_{year}-Q{quarter}.txt"), "w", encoding="utf-8") as f:
             f.write(body)
