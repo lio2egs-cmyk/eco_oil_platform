@@ -24,7 +24,7 @@ from flask_jwt_extended import get_jwt, jwt_required
 
 from .auth import depot_admin_required
 from .file_gate import signed_file_url, storage_configured
-from .db import db, Client, DepotWashCert, User
+from .db import db, AdminActionLog, Client, DepotWashCert, User
 from .depot_portal import _depot_client_for_request
 from .ecooil_bridge import ecooil_bridge_required
 from .mailer import send_office_email
@@ -182,6 +182,38 @@ def bridge_upsert_certs():
                 pass
     db.session.commit()
     return jsonify(ok=True, added=added, updated=updated)
+
+
+@depot_certs.route("/depot/portal/bridge/certs-cancel", methods=["POST"])
+@ecooil_bridge_required
+def bridge_cancel_cert():
+    """ביטול תעודה (20/10/2026, מקרה CXTU1088766 — תעודת שטיפה שגויה הגיעה ללקוח
+    ולא הייתה דרך למחוק את הרשומה; היא הופנתה ידנית לתיקיית "_בוטל_").
+    depot_certs_push.py --cancel <b2_key> קורא לכאן: הרשומה נמחקת באמת — הלקוח
+    לא רואה אותה יותר באף מסך (תעודות, ציר הזמן של הנכס, הסיכום היומי) —
+    והפעולה נרשמת ביומן הניהול על שם הגשר עם פרטי התעודה והסיבה.
+    הקובץ ב-B2 נמחק בצד המשרד, באותה פקודה. Body: {"b2_key": ..., "reason": ...}."""
+    body = request.get_json(silent=True) or {}
+    key = (body.get("b2_key") or "").strip()
+    reason = (body.get("reason") or "").strip()
+    if not key:
+        return jsonify(error="b2_key required"), 400
+    r = DepotWashCert.query.filter_by(b2_key=key).first()
+    if r is None:
+        return jsonify(ok=False, deleted=False, error="not found"), 404
+    info = _cert_dict(r)
+    info["folder"] = r.folder
+    info["b2_key"] = r.b2_key
+    info["notified_at"] = r.notified_at.isoformat() if r.notified_at else None
+    details = (f"{r.folder} | {r.tank or '—'} | {r.file_name}"
+               + (f" | סיבה: {reason}" if reason else "")
+               + (" | כבר נכלל בסיכום היומי" if r.notified_at else " | טרם נכלל בסיכום היומי"))
+    db.session.add(AdminActionLog(actor="גשר התעודות (depot_certs_push --cancel)",
+                                  division="eco_depot", action="ביטול תעודת שטיפה",
+                                  details=details[:400]))
+    db.session.delete(r)
+    db.session.commit()
+    return jsonify(ok=True, deleted=True, cert=info)
 
 
 def _digest_email(client_name, fresh):
