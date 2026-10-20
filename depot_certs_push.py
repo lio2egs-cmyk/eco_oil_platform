@@ -14,12 +14,24 @@
 בנוסף: פעם ביום (מהסבב הראשון אחרי 16:00) מפעיל את הסיכום היומי בענן —
 מייל אחד לכל לקוח שהצטברו לו תעודות חדשות (הכרעתה 23/08).
 
+20/10/2026 (מקרה CXTU1088766, הורייזן — תעודת שטיפה הופקה למכל 'אחסנה בלבד' והפורטל
+שלח עליה מייל ללקוח): שני שערים חדשים —
+  * תעודת שטיפה של איזוטנק (העץ החדש, שם קובץ {מכל}_{מס' ביקור}.pdf) שהשורה שלה
+    בקובץ החי בלי תאריך שטיפה (L) לא מועלית, לא נדחפת ולא נכנסת לסיכום היומי —
+    נרשמת ביומן כ"תעודה בלי שטיפה — לבדיקת המשרד". הקובץ החי נקרא קריאה-בלבד
+    (openpyxl); אם אי אפשר לקרוא אותו באותו סבב, תעודות חדשות ממתינות לסבב הבא.
+  * --cancel <b2_key>: ביטול תעודה שכבר בפורטל — מחיקת הרשומה בענן (נקודת הגשר
+    certs-cancel, נרשמת ביומן הניהול), מחיקת הקובץ מ-B2, הסרה מהמניפסט ורישום
+    ברשימת המבוטלים כך שהסורק לא יעלה אותו שוב. את ה-PDF בתיקיית הנכס על הכונן
+    המרכזי המשרד מזיז בעצמו — הסקריפט לא נוגע בקבצי פרודקשן.
+
 שימוש:
   python depot_certs_push.py                    # ריצה מלאה
   python depot_certs_push.py --dry-run          # בלי העלאות, בלי דחיפה
   python depot_certs_push.py --seed             # הטענה ראשונית: מחתים notified
   python depot_certs_push.py --digest-now       # מפעיל את הסיכום מיד
   python depot_certs_push.py --api-base http://127.0.0.1:5000
+  python depot_certs_push.py --cancel "depotcerts/לקוחות/.../X.pdf" [--reason "..."]
 """
 import argparse
 import json
@@ -51,6 +63,14 @@ MIN_YEAR = 2026
 # תיקיות ברמה העליונה שאינן תיקיית-לקוח
 EXCLUDE_TOP = {"_כל התעודות שהופקו", "אקסלים 2025", "ספקים לא פעילים"}
 MANIFEST_PATH = r"C:\for_eco-depot\_depot_certs_b2_manifest.json"
+# תעודות שבוטלו (--cancel): הסורק מדלג עליהן לעולמים, גם אם ה-PDF עדיין בתיקייה
+CANCELLED_PATH = r"C:\for_eco-depot\_depot_certs_cancelled.json"
+# הקובץ החי — קריאה בלבד (openpyxl), רק גיליון האיזוטנקים, רק עמודות A-L
+LIVE_PATH = r"O:\SHTIFOT\מערכת ניהול אקו דיפו\EcoDepot.xlsx"
+ISO_SHEET = "רישום תנועות איזוטנקים"
+# מס' ביקור בשם הקובץ ({מכל}_{מס' ביקור}.pdf — שם ייחודי פר-ביקור מ-05/08/2026);
+# שני הכתיבים שבקובץ: ISO-2026-07-026 וההיסטורי ISO-TEMP-0164
+VID_RE = re.compile(r"ISO-[A-Z0-9]+(?:-\d+)+", re.I)
 DIGEST_STATE_PATH = r"C:\for_eco-depot\_depot_certs_digest_last.txt"
 DIGEST_AFTER_HOUR = 16
 DEFAULT_API_BASE = "https://depot.eco-oil.co.il"
@@ -75,6 +95,97 @@ def save_manifest(m):
     with open(tmp, "w", encoding="utf-8") as f:
         json.dump(m, f, ensure_ascii=False)
     os.replace(tmp, MANIFEST_PATH)
+
+
+def load_cancelled():
+    if os.path.exists(CANCELLED_PATH):
+        with open(CANCELLED_PATH, encoding="utf-8") as f:
+            return json.load(f)
+    return {}
+
+
+def save_cancelled(c):
+    os.makedirs(os.path.dirname(CANCELLED_PATH), exist_ok=True)
+    tmp = CANCELLED_PATH + ".tmp"
+    with open(tmp, "w", encoding="utf-8") as f:
+        json.dump(c, f, ensure_ascii=False, indent=1)
+    os.replace(tmp, CANCELLED_PATH)
+
+
+def _norm_tank(t):
+    return str(t or "").strip().upper().replace(" ", "").replace("-", "")
+
+
+def load_wash_dates(path=LIVE_PATH):
+    """קריאה בלבד של גיליון האיזוטנקים: (מס' ביקור, מכל) → [(שורה, יש תאריך שטיפה?)].
+    מס' ביקור אינו ייחודי (הגעה קבוצתית חולקת מספר) — לכן המפתח כולל את המכל.
+    None = הקובץ לא נקרא הפעם (לא נגיש / באמצע שמירה) — תעודות חדשות ממתינות לסבב הבא."""
+    try:
+        import warnings
+        import openpyxl
+        warnings.filterwarnings("ignore")
+        wb = openpyxl.load_workbook(path, read_only=True, data_only=True)
+        ws = wb[ISO_SHEET]
+        out = {}
+        for i, row in enumerate(ws.iter_rows(min_row=2, max_col=12, values_only=True), 2):
+            vid, tank, wd = row[0], row[1], row[11]
+            if not vid or not tank:
+                continue
+            washed = wd is not None and str(wd).strip() != ""
+            out.setdefault((str(vid).strip().upper(), _norm_tank(tank)), []).append((i, washed))
+        wb.close()
+        return out
+    except Exception as e:
+        print(f"live workbook not readable ({type(e).__name__}: {e}) — "
+              f"new iso certs are held until the next cycle")
+        return None
+
+
+def wash_verdict(it, wash_map):
+    """'washed' / 'no-wash' (+שורות) / 'unknown' (אין איך לאמת) / 'n/a' (לא תעודת איזוטנק מהעץ החדש)."""
+    if not it["b2_key"].startswith(KEY_PREFIX_NEW):
+        return "n/a", []
+    m = VID_RE.search(it["file_name"])
+    if not m or not TANK_RE.search(it["tank"] or ""):
+        return "n/a", []          # רואדטנקר / שם ישן בלי מס' ביקור — אין מה לאמת
+    if wash_map is None:
+        return "unknown", []
+    rows = wash_map.get((m.group(0).upper(), _norm_tank(it["tank"])))
+    if not rows:
+        return "unknown", []      # הביקור לא נמצא בקובץ — לא חוסמים על סמך כלום
+    if any(w for _, w in rows):
+        return "washed", [r for r, _ in rows]
+    return "no-wash", [r for r, _ in rows]
+
+
+def wash_filter(items, wash_map, manifest):
+    """מסנן תעודות שטיפה של איזוטנק שהשורה שלהן בקובץ החי בלי תאריך שטיפה.
+    מחזיר (items_ok, held). כל תעודה מוחזקת נרשמת ביומן; מה שכבר בפורטל נרשם
+    עם פקודת הביטול — ההחלטה של המשרד, לא של הסקריפט."""
+    ok, held = [], []
+    stat = {"washed": 0, "no-wash": 0, "unknown": 0, "n/a": 0}
+    for it in items:
+        verdict, rows = wash_verdict(it, wash_map)
+        stat[verdict] += 1
+        in_portal = it["b2_key"] in manifest
+        if verdict == "no-wash":
+            held.append(it)
+            rel = it["b2_key"][len(KEY_PREFIX):]
+            where = "שורה " + "/".join(str(r) for r in rows)
+            if in_portal:
+                print(f"  ⛔ תעודה בלי שטיפה — לבדיקת המשרד (כבר בפורטל): {rel} ({where}) — "
+                      f"לביטול: depot_certs_push.py --cancel \"{it['b2_key']}\"")
+            else:
+                print(f"  ⛔ תעודה בלי שטיפה — לבדיקת המשרד: {rel} ({where}) — לא מועלית ולא נדחפת לפורטל")
+        elif verdict == "unknown" and wash_map is None and not in_portal:
+            held.append(it)       # הקובץ החי לא נקרא הפעם — תעודה חדשה ממתינה לסבב הבא
+            print(f"  ⏸ ממתינה לאימות שטיפה (הקובץ החי לא נקרא): {it['b2_key'][len(KEY_PREFIX):]}")
+        else:
+            ok.append(it)
+    print(f"wash check (live file {'read' if wash_map is not None else 'NOT read'}): "
+          f"washed {stat['washed']} | no wash date {stat['no-wash']} | unverifiable {stat['unknown']} | "
+          f"not applicable {stat['n/a']} | held {len(held)}")
+    return ok, held
 
 
 def b2_client():
@@ -272,6 +383,52 @@ def maybe_digest(api_base, token, force=False, dry_run=False):
             f.write(today)
 
 
+def cancel(b2_key, api_base, token, manifest, reason="", dry_run=False, s3=None):
+    """ביטול תעודה שכבר הגיעה לפורטל (20/10/2026). הסדר: קודם הענן (אם הוא לא
+    זמין — עוצרים לפני שנוגעים ב-B2, כך שהרצה חוזרת נקייה), אחר כך B2, המניפסט
+    ורשימת המבוטלים. ה-PDF על הכונן המרכזי נשאר — המשרד מזיז אותו בעצמו."""
+    key = (b2_key or "").strip()
+    if not key.startswith(KEY_PREFIX):
+        print(f"cancel: not a cert key (must start with {KEY_PREFIX}): {key}")
+        return 1
+    print(f"cancel: {key}" + (f" | reason: {reason}" if reason else "") + (" | DRY-RUN" if dry_run else ""))
+    if dry_run:
+        print("  would delete the portal record, the B2 object and the manifest entry; "
+              "would add the key to the cancelled list")
+        return 0
+    r = requests.post(f"{api_base}/depot/portal/bridge/certs-cancel",
+                      json={"b2_key": key, "reason": reason},
+                      headers={"Authorization": f"Bearer {token}"}, timeout=60)
+    if r.status_code == 404:
+        print("  portal: record not found (already removed) — continuing")
+    else:
+        r.raise_for_status()
+        d = r.json()
+        c = d.get("cert") or {}
+        print(f"  portal: record deleted (id {c.get('id')}, folder {c.get('folder')}, "
+              f"tank {c.get('tank')}, file {c.get('file_name')}) — logged in the admin log")
+    s3 = s3 or b2_client()
+    bucket = os.environ["B2_BUCKET_CERTS"]
+    try:
+        s3.delete_object(Bucket=bucket, Key=key)
+        print("  B2: object deleted")
+    except Exception as e:
+        print(f"  B2: delete failed: {type(e).__name__}: {e}")
+        return 1
+    if manifest.pop(key, None) is not None:
+        save_manifest(manifest)
+        print("  manifest: entry removed")
+    else:
+        print("  manifest: entry was not there")
+    cancelled = load_cancelled()
+    cancelled[key] = {"at": datetime.now().isoformat(timespec="seconds"), "reason": reason}
+    save_cancelled(cancelled)
+    print("  cancelled list: added — the scanner will skip this file from now on")
+    print("  reminder: the PDF in the asset folder on the central drive is NOT touched — "
+          "the office moves it (backup first)")
+    return 0
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--dry-run", action="store_true")
@@ -281,18 +438,32 @@ def main():
     ap.add_argument("--no-digest", action="store_true")
     ap.add_argument("--limit", type=int)
     ap.add_argument("--api-base", default=DEFAULT_API_BASE)
+    ap.add_argument("--cancel", metavar="B2_KEY",
+                    help="ביטול תעודה: מחיקה מהפורטל + מ-B2 + מהמניפסט, ורישום ברשימת המבוטלים")
+    ap.add_argument("--reason", default="", help="סיבת הביטול (נרשמת ביומן הניהול בפורטל)")
     args = ap.parse_args()
 
     token = os.environ.get("ECOOIL_BRIDGE_TOKEN")
     if not token:
         print("missing ECOOIL_BRIDGE_TOKEN")
         return 1
+    if args.cancel:
+        return cancel(args.cancel, args.api_base, token, load_manifest(),
+                      reason=args.reason, dry_run=args.dry_run)
     if not os.path.isdir(SRC):
         print(f"source folder unreachable: {SRC} — skipping this cycle")
         return 0
 
     items = scan() + scan_new()
     manifest = load_manifest()
+    cancelled = load_cancelled()
+    if cancelled:
+        before = len(items)
+        items = [it for it in items if it["b2_key"] not in cancelled]
+        if before != len(items):
+            print(f"cancelled certs skipped: {before - len(items)}")
+    # 20/10/2026: תעודת שטיפה רק לשורה שנשטפה — הקובץ החי נקרא קריאה-בלבד
+    items, _held = wash_filter(items, load_wash_dates(), manifest)
     upload(items, manifest, dry_run=args.dry_run, limit=args.limit)
     push(items, manifest, args.api_base, token,
          seed=args.seed, dry_run=args.dry_run)
