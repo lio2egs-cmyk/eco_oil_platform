@@ -171,6 +171,8 @@
 var CLIENTS=[], USERS=[];
 
 function esc(s){ return (s==null?'':String(s)).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+/* מחרוזת בתוך onclick='...': גרש בשם (צ'ק, ג'י) שבר את הכפתור בשקט (לימור 21/10) */
+function jsq(s){ return esc(String(s==null?'':s).replace(/\\/g,'\\\\').replace(/'/g,"\\'")); }
 function toast(m){ var t=document.getElementById('toast'); t.textContent=m; t.style.display='block';
   clearTimeout(t._h); t._h=setTimeout(function(){ t.style.display='none'; },3200); }
 
@@ -595,18 +597,18 @@ function declRow(d,i,g){
        '<td><button class="btn btn-soft" onclick="toggleDecl('+i+')">פרטים מלאים</button> '+
        ((d.status==='submitted'||d.status==='released')?'<button class="btn btn-soft" title="תיקון טעויות הקלדה בשדות הטקסט — בלי להחזיר ללקוח. אפשרי רק לפני חתימת הלקוח" onclick="editDecl('+i+')">✏ ערכי פרטים</button> ':'')+
        '<a class="btn btn-soft" target="_blank" href="/declaration-doc?id='+d.id+'" title="תצוגה בלבד: המסמך הרשמי (נספח 3) ממולא מהנתונים שהוגשו — לא שולח דבר ללקוח">👁 צפייה במסמך</a> '+
-       (d.status==='submitted'?'<button class="btn" title="אישור הנוסח: הלקוח יראה את המסמך בפורטל שלו ויוכל להוריד ולהדפיס לחתימה" onclick="releaseDecl('+d.id+',\''+esc(d.producer_name)+'\')">📤 שמרי לתא הלקוח</button> ':'')+
+       (d.status==='submitted'?'<button class="btn" title="אישור הנוסח: הלקוח יראה את המסמך בפורטל שלו ויוכל להוריד ולהדפיס לחתימה" onclick="releaseDecl('+d.id+',\''+jsq(d.producer_name)+'\')">📤 שמרי לתא הלקוח</button> ':'')+
        (d.has_signed_scan?'<button class="btn btn-soft" title="המסמך החתום שהתקבל — סריקה או צילום" onclick="viewScan('+d.id+')">📎 המסמך החתום</button> ':'')+
-       (d.status==='released'?'<button class="btn btn-soft" title="צירוף מסמך חתום שהגיע מחוץ לפורטל (ווטסאפ / מייל) — גם צילום טלפון מתקבל" onclick="attachScan('+d.id+',\''+esc(d.producer_name)+'\')">'+(d.has_signed_scan?'החליפי מסמך חתום':'📎 צרפי מסמך חתום')+'</button> ':'')+
-       (d.status==='released'&&d.has_signed_scan?'<button class="btn" title="האישור הסופי: ההצהרה נכנסת לתוקף. מותנה בבדיקה שלך — שם מלא, חתימה וחותמת, וצילום קריא" onclick="approveDecl('+d.id+',\''+esc(d.producer_name)+'\')">✔ אישור סופי</button> ':'')+
+       (d.status==='released'?'<button class="btn btn-soft" title="צירוף מסמך חתום שהגיע מחוץ לפורטל (ווטסאפ / מייל) — גם צילום טלפון מתקבל" onclick="attachScan('+d.id+',\''+jsq(d.producer_name)+'\')">'+(d.has_signed_scan?'החליפי מסמך חתום':'📎 צרפי מסמך חתום')+'</button> ':'')+
+       (d.status==='released'&&d.has_signed_scan?'<button class="btn" title="האישור הסופי: ההצהרה נכנסת לתוקף. מותנה בבדיקה שלך — שם מלא, חתימה וחותמת, וצילום קריא" onclick="approveDecl('+d.id+',\''+jsq(d.producer_name)+'\')">✔ אישור סופי</button> ':'')+
        (d.status==='approved'&&!d.agreement?'<button class="btn" title="פותח תצוגת טיוטה של מסמך ההסכמה — ההפקה, המספור והמייל ללקוח רק אחרי אישור נוסף שלך שם" onclick="window.open(\'/agreement-doc?declaration='+d.id+'\',\'_blank\')">📜 הפיקי מסמך הסכמה</button> ':'')+
        (d.agreement?'<a class="btn btn-soft" target="_blank" href="/agreement-doc?id='+d.agreement.id+'" title="מסמך ההסכמה שהופק — גם הלקוח רואה אותו בפורטל">📜 הסכמה מס\' '+d.agreement.number+'</a> ':'')+
-       (d.status==='approved'?'<button class="btn btn-soft" onclick="unapproveDecl('+d.id+',\''+esc(d.producer_name)+'\')">בטלי אישור</button> ':'')+
-       (d.status==='released'?'<button class="btn btn-soft" onclick="unreleaseDecl('+d.id+',\''+esc(d.producer_name)+'\')">בטלי שיתוף</button> ':'')+
-       ((d.status==='submitted'||d.status==='released')?'<button class="btn btn-soft" title="הכלי המרכזי להגשה עם פגם: ההערות שלך מוצגות ללקוח והטופס נפתח לו ממולא לתיקון" onclick="returnFixDecl('+d.id+',\''+esc(d.producer_name)+'\')">🛠 החזירי לתיקון</button> ':'')+
-       (d.status==='needs_fix'?'<button class="btn btn-soft" onclick="cancelFixDecl('+d.id+',\''+esc(d.producer_name)+'\')">בטלי החזרה</button> ':'')+
-       ((d.status==='submitted'||d.status==='released'||d.status==='needs_fix')?'<button class="btn btn-danger" title="כלי צדדי — כפילות / הגשת ניסיון / ביטול; נשארת בתיעוד, לא מוצגת ללקוח" onclick="rejectDecl('+d.id+',\''+esc(d.producer_name)+'\')">✖ פסלי</button>':'')+
-       (d.status==='rejected'?'<button class="btn btn-soft" onclick="unrejectDecl('+d.id+',\''+esc(d.producer_name)+'\')">החזירי</button>':'')+
+       (d.status==='approved'?'<button class="btn btn-soft" onclick="unapproveDecl('+d.id+',\''+jsq(d.producer_name)+'\')">בטלי אישור</button> ':'')+
+       (d.status==='released'?'<button class="btn btn-soft" onclick="unreleaseDecl('+d.id+',\''+jsq(d.producer_name)+'\')">בטלי שיתוף</button> ':'')+
+       ((d.status==='submitted'||d.status==='released')?'<button class="btn btn-soft" title="הכלי המרכזי להגשה עם פגם: ההערות שלך מוצגות ללקוח והטופס נפתח לו ממולא לתיקון" onclick="returnFixDecl('+d.id+',\''+jsq(d.producer_name)+'\')">🛠 החזירי לתיקון</button> ':'')+
+       (d.status==='needs_fix'?'<button class="btn btn-soft" onclick="cancelFixDecl('+d.id+',\''+jsq(d.producer_name)+'\')">בטלי החזרה</button> ':'')+
+       ((d.status==='submitted'||d.status==='released'||d.status==='needs_fix')?'<button class="btn btn-danger" title="כלי צדדי — כפילות / הגשת ניסיון / ביטול; נשארת בתיעוד, לא מוצגת ללקוח" onclick="rejectDecl('+d.id+',\''+jsq(d.producer_name)+'\')">✖ פסלי</button>':'')+
+       (d.status==='rejected'?'<button class="btn btn-soft" onclick="unrejectDecl('+d.id+',\''+jsq(d.producer_name)+'\')">החזירי</button>':'')+
        '</td></tr>'+
        '<tr id="decl-'+i+'" class="'+g.cls+' det hidden"><td colspan="9" style="background:#F8FBFA">'+declDetails(d)+'</td></tr>';
 }
@@ -767,13 +769,13 @@ function render(){
         '</td><td>'+fmtDate(u.last_login_at)+'</td>'+
         '<td>'+(declOnly?'<span class="muted">—</span>'
           :'<button class="btn '+(rem?'':'btn-soft')+'" title="מייל תזכורת קצר בכל יום חמישי — רק מספרים וקישור לפורטל, בלי מסמכים. נשלח רק אם היו פעולות באותו שבוע." '+
-          'onclick="toggleRem('+u.id+','+(rem?1:0)+',\''+esc(u.email)+'\')">'+(rem?'🔔 פועלת':'🔕 כבויה')+'</button>')+'</td>'+
-        '<td><button class="btn btn-soft" title="מייל שמסביר ללקוח מה יש בפורטל ואיך נכנסים — לשליחה ראשונה או לתזכורת" onclick="sendInvite('+u.id+',\''+esc(u.email)+'\')">✉ '+(u.invited_at?'הזמנה שוב':'שליחת הזמנה')+'</button> '+
-        '<button class="btn btn-soft" onclick="sendLink(\''+esc(u.email)+'\')">שלחי קישור כניסה</button> '+
-        '<button class="btn btn-soft" title="תיקון כתובת המייל של איש הקשר — המשתמש וההיסטוריה שלו נשמרים, רק הכתובת מתחלפת" onclick="editEmail('+u.id+',\''+esc(u.email)+'\')">✏ עריכת מייל</button> '+
-        '<button class="btn btn-soft" title="שם איש הקשר (רשות) — מוצג לצד המייל" onclick="editName('+u.id+',\''+esc(u.contact_name||'')+'\',\''+esc(u.email)+'\')">👤 שם</button> '+
-        (declOnly?'':'<button class="btn btn-soft" title="משתמש שרואה כמה חברות בפורטל (מתג מעבר) — למשל לאורה עם שתי חברות גדות" onclick="editExtras('+u.id+',\''+esc(u.email)+'\')">חברות נוספות</button> ')+
-        '<button class="btn btn-danger" onclick="delUser('+u.id+',\''+esc(u.email)+'\')">הסירי</button></td></tr>';
+          'onclick="toggleRem('+u.id+','+(rem?1:0)+',\''+jsq(u.email)+'\')">'+(rem?'🔔 פועלת':'🔕 כבויה')+'</button>')+'</td>'+
+        '<td><button class="btn btn-soft" title="מייל שמסביר ללקוח מה יש בפורטל ואיך נכנסים — לשליחה ראשונה או לתזכורת" onclick="sendInvite('+u.id+',\''+jsq(u.email)+'\')">✉ '+(u.invited_at?'הזמנה שוב':'שליחת הזמנה')+'</button> '+
+        '<button class="btn btn-soft" onclick="sendLink(\''+jsq(u.email)+'\')">שלחי קישור כניסה</button> '+
+        '<button class="btn btn-soft" title="תיקון כתובת המייל של איש הקשר — המשתמש וההיסטוריה שלו נשמרים, רק הכתובת מתחלפת" onclick="editEmail('+u.id+',\''+jsq(u.email)+'\')">✏ עריכת מייל</button> '+
+        '<button class="btn btn-soft" title="שם איש הקשר (רשות) — מוצג לצד המייל" onclick="editName('+u.id+',\''+jsq(u.contact_name||'')+'\',\''+jsq(u.email)+'\')">👤 שם</button> '+
+        (declOnly?'':'<button class="btn btn-soft" title="משתמש שרואה כמה חברות בפורטל (מתג מעבר) — למשל לאורה עם שתי חברות גדות" onclick="editExtras('+u.id+',\''+jsq(u.email)+'\')">חברות נוספות</button> ')+
+        '<button class="btn btn-danger" onclick="delUser('+u.id+',\''+jsq(u.email)+'\')">הסירי</button></td></tr>';
     }).join('');
     h+='<div class="client" data-cid="'+c.id+'">'+
        '<div class="name">'+esc(c.name)+
@@ -804,10 +806,10 @@ function render(){
        '<div class="row" style="margin-top:8px">'+
          (c.client_type==='indirect'
            ?'<button class="btn" title="כניסה שרואה רק את אזור הצהרת היצרן וההסכמה, בלי אישורי פריקה ובלי טופסי מלווה" '+
-              'onclick="addUser('+c.id+',\''+esc(c.name)+'\',1)">משתמש הצהרות בלבד</button>'+
+              'onclick="addUser('+c.id+',\''+jsq(c.name)+'\',1)">משתמש הצהרות בלבד</button>'+
             '<button class="btn btn-soft" title="כניסה מלאה — רק אם היצרן ביקש במפורש לראות גם את האישורים שבהם הוא רשום כמקור" '+
-              'onclick="addUser('+c.id+',\''+esc(c.name)+'\')">הוסיפי משתמש רגיל</button>'
-           :'<button class="btn" onclick="addUser('+c.id+',\''+esc(c.name)+'\')">הוסיפי משתמש</button>')+
+              'onclick="addUser('+c.id+',\''+jsq(c.name)+'\')">הוסיפי משתמש רגיל</button>'
+           :'<button class="btn" onclick="addUser('+c.id+',\''+jsq(c.name)+'\')">הוסיפי משתמש</button>')+
          '<a class="btn btn-soft" target="_blank" title="עמוד הבית של הלקוח — ההצהרות, המסמכים לחתימה ומסמכי ההסכמה, כולל של היצרנים העקיפים שלו" '+
            'href="/portal?client_id='+c.id+'">👁 עמוד הבית של הלקוח</a>'+
          '<a class="btn btn-soft" target="_blank" title="אזור המסמכים — אישורי פריקה וטופסי מלווה" '+
@@ -817,9 +819,9 @@ function render(){
            'onclick="editShortName('+c.id+')">שם קצר לקבצים</button>'+
          (c.docs_blocked
            ?'<button class="btn" title="שחרור מיידי — כל האישורים והטופסי מלווה נפתחים ללקוח בחזרה" '+
-             'onclick="toggleDocsBlock('+c.id+',\''+esc(c.name)+'\',0)">🔓 שחררי מסמכים</button>'
+             'onclick="toggleDocsBlock('+c.id+',\''+jsq(c.name)+'\',0)">🔓 שחררי מסמכים</button>'
            :'<button class="btn btn-danger" title="חוסם אישורי פריקה וטופסי מלווה לחברה כולה — הקיימים וכל מה שייכנס בעתיד. ההצהרות וההסכמות נשארות פתוחות" '+
-             'onclick="toggleDocsBlock('+c.id+',\''+esc(c.name)+'\',1)">⛔ חסמי מסמכים</button>')+
+             'onclick="toggleDocsBlock('+c.id+',\''+jsq(c.name)+'\',1)">⛔ חסמי מסמכים</button>')+
        '</div></div>';
   });
   document.getElementById('stats').textContent=

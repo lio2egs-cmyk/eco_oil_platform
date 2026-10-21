@@ -277,6 +277,8 @@ function toast(msg){
   clearTimeout(t._h); t._h=setTimeout(function(){ t.style.display='none'; }, msg.length>80?11000:5200);
 }
 function esc(s){ return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/"/g,'&quot;'); }
+/* מחרוזת בתוך onclick='...': גרש בשם (צ'ק, ג'י) שבר את הכפתור בשקט (לימור 21/10) */
+function jsq(s){ return esc(String(s==null?'':s).replace(/\\/g,'\\\\').replace(/'/g,"\\'")); }
 
 async function load(){
   var url='/depot/portal/my-assets'+(CLIENT_ID?('?client_id='+CLIENT_ID):'');
@@ -451,14 +453,14 @@ function renderRows(){
     if(a.request){
       acts='<span class="muted">'+esc(a.request.status)+'</span>';
     } else if(a.can_release){
-      acts='<button class="act" onclick="event.stopPropagation();openDlg(\''+esc(a.visit_id)+'\',\''+esc(a.tank)+'\')">🚚 בקשו שחרור</button>';
+      acts='<button class="act" onclick="event.stopPropagation();openDlg(\''+jsq(a.visit_id)+'\',\''+jsq(a.tank)+'\')">🚚 בקשו שחרור</button>';
     } else if(a.can_cancel){
-      acts='<button class="act warn" onclick="event.stopPropagation();cancelRelease(\''+esc(a.visit_id)+'\',\''+esc(a.tank)+'\')">↩ בטלו שחרור</button>';
+      acts='<button class="act warn" onclick="event.stopPropagation();cancelRelease(\''+jsq(a.visit_id)+'\',\''+jsq(a.tank)+'\')">↩ בטלו שחרור</button>';
     } else if(a.note){
       acts='<span class="muted">'+esc(a.note)+'</span>';
     }
     /* תיקון פרטים אחרי שליחה (לימור 06/10/2026) — אותו ✎ באותה עמודה כמו בטופס המקדים */
-    if(a.can_amend) acts='<button class="act" title="תיקון או השלמה של מרכז רווח / מוביל אוסף" onclick="event.stopPropagation();openEdit(\''+esc(a.visit_id)+'\',\''+esc(a.tank)+'\')">✎</button>'+acts;
+    if(a.can_amend) acts='<button class="act" title="תיקון או השלמה של מרכז רווח / מוביל אוסף" onclick="event.stopPropagation();openEdit(\''+jsq(a.visit_id)+'\',\''+jsq(a.tank)+'\')">✎</button>'+acts;
     var pc=esc(a.profit_center||'—')+amendLine(a.amend&&a.amend.internal_ref);
     var tr=document.createElement('tr');
     tr.className='asset';
@@ -469,7 +471,7 @@ function renderRows(){
     var k=pickKey(a.visit_id,a.tank);
     var pick=a.can_release
       ? '<input type="checkbox" class="pick" data-k="'+esc(k)+'"'+(PICKED[k]?' checked':'')+
-        ' onclick="event.stopPropagation()" onchange="togglePick(this,\''+esc(a.visit_id)+'\',\''+esc(a.tank)+'\')">'
+        ' onclick="event.stopPropagation()" onchange="togglePick(this,\''+jsq(a.visit_id)+'\',\''+jsq(a.tank)+'\')">'
       : '<span class="pick-gap"></span>';
     tr.innerHTML='<td>'+pick+'<span class="arrow">▶</span><span class="tank">'+esc(a.tank)+'</span></td>'+
       '<td>'+esc(a.material||'—')+'</td>'+
