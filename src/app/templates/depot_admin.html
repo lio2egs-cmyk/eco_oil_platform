@@ -220,6 +220,77 @@ async function toggleDailyMail(uid,email,on){
   toast((on?'✓ ':'')+email+(on?' יקבל את הדוח היומי במייל':' — הדוח היומי במייל כובה'));
 }
 
+/* עדכון התנועות כל שעתיים (טנקו, לימור 22/10) — מתג לחברה; הנמענים = נמעני הדוח היומי. */
+async function toggleMovementMail(cid,name,on){
+  var r=await api('/depot/admin/clients/'+cid,{method:'PUT',body:JSON.stringify({movement_mail:!!on})});
+  if(!r||!r.ok){ toast('עדכון הסימון נכשל'); await reload(); return; }
+  toast((on?'✓ ':'')+name+(on?' — עדכון תנועות כל שעתיים הופעל לנמעני הדוח היומי':' — עדכון התנועות כל שעתיים כובה'));
+  await reload();
+}
+
+/* חיבור API ללקוח (לימור+יואב 22/10): המפתח המלא מוצג פעם אחת בלבד בהנפקה —
+   בשרת נשמרת רק טביעת אצבע. מוסרים אותו בטלפון, לא במייל. */
+async function toggleApiKeys(cid,name){
+  var box=document.getElementById('apikeys-'+cid);
+  if(box.innerHTML){ box.innerHTML=''; return; }
+  await renderApiKeys(cid,name);
+}
+async function renderApiKeys(cid,name){
+  var box=document.getElementById('apikeys-'+cid);
+  var r=await api('/depot/admin/clients/'+cid+'/api-keys');
+  if(!r||!r.ok){ box.innerHTML='<div class="muted">טעינת המפתחות נכשלה</div>'; return; }
+  var d=await r.json();
+  var h='<div style="margin-top:8px;border-top:1px solid #ddd;padding-top:6px"><b style="font-size:13px">🔑 חיבור API — '+esc(name)+'</b>';
+  if(d.keys.length){
+    h+='<table style="margin-top:4px"><tr><th>מפתח</th><th>תיאור</th><th>כתובות מורשות</th><th>הונפק</th><th>שימוש אחרון</th><th></th></tr>';
+    d.keys.forEach(function(k){
+      var live=!k.revoked_at;
+      h+='<tr><td><code>'+esc(k.prefix)+'…</code></td><td>'+esc(k.label||'')+'</td>'+
+         '<td>'+esc(k.allowed_ips||'מכל כתובת')+'</td><td>'+esc(k.created_at||'')+' · '+esc(k.created_by||'')+'</td>'+
+         '<td>'+esc(k.last_used_at||'עוד לא')+'</td><td>'+
+         (live?'<button class="btn btn-soft" onclick="editKeyIps('+k.id+','+cid+',\''+jsq(name)+'\',\''+jsq(k.allowed_ips||'')+'\')">כתובות</button> '+
+               '<button class="btn btn-danger" onclick="revokeKey('+k.id+','+cid+',\''+jsq(name)+'\')">בטלו</button>'
+              :'<span class="muted">בוטל '+esc(k.revoked_at)+'</span>')+'</td></tr>';
+    });
+    h+='</table>';
+  } else h+='<div class="muted" style="font-size:12.5px">אין מפתח ללקוח הזה.</div>';
+  h+='<div class="row" style="margin-top:6px"><button class="btn" onclick="createKey('+cid+',\''+jsq(name)+'\')">הנפיקו מפתח</button></div>';
+  if(d.calls.length){
+    h+='<div style="margin-top:6px"><b style="font-size:12.5px">פניות אחרונות</b><table style="margin-top:2px"><tr><th>מתי</th><th>כתובת</th><th>שורות</th><th>תוצאה</th></tr>';
+    d.calls.forEach(function(c){
+      var ok=c.status===200;
+      h+='<tr><td>'+esc(c.at)+'</td><td>'+esc(c.ip||'')+'</td><td>'+(c.rows==null?'':c.rows)+'</td>'+
+         '<td>'+(ok?'<span style="color:#2E7D32">✓</span>':'<span style="color:#C0564F">⚠ '+c.status+' '+esc(c.note||'')+'</span>')+'</td></tr>';
+    });
+    h+='</table></div>';
+  }
+  box.innerHTML=h+'</div>';
+}
+async function createKey(cid,name){
+  var label=prompt('תיאור המפתח ל-'+name+' (למשל: פריוריטי — ניר):','');
+  if(label===null) return;
+  var ips=prompt('כתובות IP מורשות, מופרדות בפסיק (ריק = מכל כתובת):','');
+  if(ips===null) return;
+  var r=await api('/depot/admin/clients/'+cid+'/api-keys',{method:'POST',body:JSON.stringify({label:label.trim(),allowed_ips:ips.trim()})});
+  if(!r||!r.ok){ toast('הנפקת המפתח נכשלה'); return; }
+  var k=await r.json();
+  prompt('המפתח מוצג עכשיו פעם אחת בלבד ולא יישמר בשום מקום.\nהעתיקו אותו ומסרו בטלפון לאיש הקשר — לא במייל.',k.key);
+  await renderApiKeys(cid,name);
+}
+async function revokeKey(kid,cid,name){
+  if(!confirm('לבטל את המפתח של '+name+'? המחשב שלהם יפסיק לקבל נתונים מיד.')) return;
+  var r=await api('/depot/admin/api-keys/'+kid,{method:'PATCH',body:JSON.stringify({revoke:true})});
+  toast(r&&r.ok?'המפתח בוטל':'הביטול נכשל');
+  await renderApiKeys(cid,name);
+}
+async function editKeyIps(kid,cid,name,cur){
+  var ips=prompt('כתובות IP מורשות, מופרדות בפסיק (ריק = מכל כתובת):',cur||'');
+  if(ips===null) return;
+  var r=await api('/depot/admin/api-keys/'+kid,{method:'PATCH',body:JSON.stringify({allowed_ips:ips.trim()})});
+  toast(r&&r.ok?'הכתובות נשמרו':'השמירה נכשלה');
+  await renderApiKeys(cid,name);
+}
+
 /* מייל ההזמנה הראשוני (לימור 02/09 — פתיחת הפורטל לכלל הלקוחות) — נוסח
    קבוע ומאושר בצד השרת; שליחה פרטנית, נרשמת ביומן הפעולות. */
 async function sendInvite(id,email){
@@ -494,6 +565,8 @@ function render(){
     } else {
       h+='<div class="muted">אין עדיין משתמשים לחברה זו.</div>';
     }
+    h+='<div style="margin-top:6px"><label style="font-size:12.5px;cursor:pointer" title="לכל היותר מייל אחד בכל שעתיים, ורק כשהיו תנועות — לאותם אנשי קשר שמסומנים 📊 דוח יומי במייל. מצורף קובץ במבנה הדוח היומי עם כל תנועות היום.">'+
+       '<input type="checkbox" '+(c.movement_mail?'checked':'')+' onchange="toggleMovementMail('+c.id+',\''+jsq(c.name)+'\',this.checked)"> 🕑 עדכון תנועות כל שעתיים (לנמעני הדוח היומי)</label></div>';
     h+=clientSubmissions(c.id);
     h+='<div class="row" style="margin-top:8px">'+
        '<button class="btn" onclick="addUser('+c.id+',\''+jsq(c.name)+'\')">הוסיפו משתמש</button>'+
@@ -501,7 +574,8 @@ function render(){
        '<button class="btn btn-soft" title="עמוד הבית של הפורטל בדיוק כפי שהלקוח רואה אותו" onclick="window.open(\'/portal?client_id='+c.id+'\',\'_blank\')">👁 עמוד הבית של הלקוח</button>'+
        '<button class="btn btn-soft" title="מסך התעודות בדיוק כפי שהלקוח רואה אותו" onclick="window.open(\'/depot/certificates?client_id='+c.id+'\',\'_blank\')">👁 תעודות הלקוח</button>'+
        '<button class="btn btn-soft" title="מסך הנכסים בדיוק כפי שהלקוח רואה אותו" onclick="window.open(\'/depot/assets?client_id='+c.id+'\',\'_blank\')">👁 הנכסים של הלקוח</button>'+
-       '</div></div>';
+       '<button class="btn btn-soft" title="חיבור ישיר מהמחשב של הלקוח (API): הנפקת מפתח, ביטול, כתובות מורשות ויומן הפניות" onclick="toggleApiKeys('+c.id+',\''+jsq(c.name)+'\')">🔑 חיבור API</button>'+
+       '</div><div id="apikeys-'+c.id+'"></div></div>';
   });
   document.getElementById('list').innerHTML=h;
 }

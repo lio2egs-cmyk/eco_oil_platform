@@ -31,6 +31,10 @@ class Client(db.Model):
     docs_blocked_at = db.Column(db.DateTime, nullable=True)
     docs_blocked_by = db.Column(db.String(120), nullable=True)
     docs_blocked_reason = db.Column(db.Text)
+    # עדכון התנועות כל שעתיים (בקשת טנקו/ניר, לימור 22/10/2026): מתג לחברה;
+    # הנמענים = בדיוק אנשי הקשר שמסומנים "דוח יומי במייל" ("אותה רשימה, לא
+    # מוסיפים ולא מורידים"). ברירת מחדל כבוי.
+    movement_mail = db.Column(db.Boolean, default=False)
 
     sub_clients = db.relationship("Client", backref=db.backref("parent_client", remote_side="Client.id"), lazy="dynamic")
 
@@ -1225,3 +1229,79 @@ class FieldPhonePhoto(db.Model):
     data = db.Column(db.LargeBinary)
     size = db.Column(db.Integer)
     created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+
+
+class DepotMovement(db.Model):
+    """רשימת התנועות האחת בענן — מקור משותף למייל כל-שעתיים ול-API של הלקוח
+    (בקשת טנקו/ניר, הכרעת לימור 22/10/2026). הגשר של יעל מחשב את התנועות
+    מהקובץ החי באותו חישוב בדיוק כמו הדוח היומי (gen_daily_pdf.collect) ודוחף
+    את 7 ימי העבודה האחרונים; מה שנעלם מהחלון (שורת רפאים שנמחקה) מסומן
+    "בוטל" ולא נמחק — הלקוח רואה את הביטול ולא מפספס אותו בשקט."""
+    __tablename__ = "depot_movements"
+
+    id = db.Column(db.Integer, primary_key=True)
+    # עוגן השורה בקובץ: iso|ביקור|מכל|פעולה, rt|ביקור|מכלית|פעולה, rep|Repair_ID
+    key = db.Column(db.String(200), unique=True, nullable=False, index=True)
+    folder = db.Column(db.String(200), nullable=False, index=True)   # הלקוח כמו בתיקיית הדוח היומי
+    tank = db.Column(db.String(40), nullable=False)                  # מס' נכס
+    profit_center = db.Column(db.String(100))                        # מרכז רווח / "מספרנו"
+    action = db.Column(db.String(120), nullable=False)               # סוג פעולה — כלשון הדוח היומי
+    move_date = db.Column(db.Date, nullable=False, index=True)
+    move_time = db.Column(db.String(5))                              # HH:MM, ריק כשאין שעה (תיקונים)
+    first_seen_at = db.Column(db.DateTime, nullable=False)           # מתי הופיעה לראשונה בענן (UTC)
+    updated_at = db.Column(db.DateTime, nullable=False, index=True)  # שינוי אחרון בשדה גלוי / ביטול
+    cancelled_at = db.Column(db.DateTime)
+    # מייל כל-שעתיים: mail_pending = יש מה לדווח (חדשה / שונתה / בוטלה);
+    # ever_mailed = כבר דווחה פעם — ביטול של תנועה שלא דווחה לא נשלח.
+    mail_pending = db.Column(db.Boolean, default=True, nullable=False, index=True)
+    ever_mailed = db.Column(db.Boolean, default=False, nullable=False)
+
+
+class DepotMovementMail(db.Model):
+    """יומן המייל כל-שעתיים — שורה לכל ניסיון שליחה (כלל 20/10: יומן לכל ריצה)."""
+    __tablename__ = "depot_movement_mails"
+
+    id = db.Column(db.Integer, primary_key=True)
+    client_id = db.Column(db.Integer, db.ForeignKey("clients.id"), nullable=False, index=True)
+    slot = db.Column(db.String(20), nullable=False, index=True)      # YYYY-MM-DD/HH — חלון שעתיים (שעון ישראל)
+    at = db.Column(db.DateTime, nullable=False, index=True)
+    n_new = db.Column(db.Integer, default=0)
+    n_changed = db.Column(db.Integer, default=0)
+    n_cancelled = db.Column(db.Integer, default=0)
+    sent_to = db.Column(db.Text)
+    failed_to = db.Column(db.Text)
+    result = db.Column(db.String(40), nullable=False)                # נשלח / נשלח חלקית / כשל בשליחה
+
+
+class DepotApiKey(db.Model):
+    """מפתח API ללקוח (טנקו, לימור+יואב 22/10/2026). נשמרת רק טביעת אצבע
+    (SHA-256) — המפתח עצמו מוצג פעם אחת ביצירה ולא נשמר בשום מקום."""
+    __tablename__ = "depot_api_keys"
+
+    id = db.Column(db.Integer, primary_key=True)
+    client_id = db.Column(db.Integer, db.ForeignKey("clients.id"), nullable=False, index=True)
+    key_hash = db.Column(db.String(64), unique=True, nullable=False, index=True)
+    prefix = db.Column(db.String(12), nullable=False)                # תחילית לזיהוי במסך, לא סוד
+    label = db.Column(db.String(120))
+    allowed_ips = db.Column(db.String(400))                          # רשימה מופרדת בפסיקים; ריק = מכל כתובת
+    created_at = db.Column(db.DateTime, nullable=False)
+    created_by = db.Column(db.String(120))
+    revoked_at = db.Column(db.DateTime)
+    revoked_by = db.Column(db.String(120))
+    last_used_at = db.Column(db.DateTime)
+
+    client = db.relationship("Client")
+
+
+class DepotApiCall(db.Model):
+    """יומן כל פנייה ל-API — גם פניות שנדחו (מפתח שגוי, כתובת לא מורשית, עומס)."""
+    __tablename__ = "depot_api_calls"
+
+    id = db.Column(db.Integer, primary_key=True)
+    key_id = db.Column(db.Integer, db.ForeignKey("depot_api_keys.id"), index=True)  # ריק = מפתח לא מזוהה
+    at = db.Column(db.DateTime, nullable=False, index=True)
+    ip = db.Column(db.String(64))
+    since = db.Column(db.String(40))
+    rows = db.Column(db.Integer)
+    status = db.Column(db.Integer, nullable=False)                   # קוד התשובה (200 / 401 / 403 / 429 ...)
+    note = db.Column(db.String(200))

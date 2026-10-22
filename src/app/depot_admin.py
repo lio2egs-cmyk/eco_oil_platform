@@ -93,6 +93,7 @@ def overview():
         "clients": [{
             "id": c.id, "name": c.name,
             "billing_aliases": c.billing_aliases or "",
+            "movement_mail": bool(c.movement_mail),
             "users": by_client.get(c.id, []),
         } for c in clients],
         "staff": [{
@@ -189,6 +190,10 @@ def update_client(client_id):
     if "billing_aliases" in data:
         client.billing_aliases = (data.get("billing_aliases") or "").strip() or None
         _log("עדכון צורות כתיב", client.name)
+    # עדכון התנועות כל שעתיים לנמעני הדוח היומי (לימור 22/10/2026)
+    if "movement_mail" in data:
+        client.movement_mail = bool(data["movement_mail"])
+        _log("עדכון תנועות כל שעתיים " + ("הופעל" if client.movement_mail else "כובה"), client.name)
     db.session.commit()
     return jsonify(id=client.id, name=client.name,
                    billing_aliases=client.billing_aliases or "")

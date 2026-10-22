@@ -18,6 +18,7 @@ from .depot_assets import depot_assets
 from .depot_amend import depot_amend
 from .depot_announce import depot_announce
 from .depot_daily import depot_daily
+from .depot_movements import depot_movements
 from .file_gate import file_gate
 from .db import db
 
@@ -215,6 +216,8 @@ def create_app():
             "ALTER TABLE depot_asset_snapshots ADD COLUMN exit_date DATE",
             "ALTER TABLE depot_asset_snapshots ADD COLUMN exit_time VARCHAR(5)",
             "ALTER TABLE depot_asset_snapshots ADD COLUMN exited BOOLEAN DEFAULT FALSE",
+            # עדכון התנועות כל שעתיים (טנקו, לימור 22/10/2026)
+            "ALTER TABLE clients ADD COLUMN movement_mail BOOLEAN DEFAULT FALSE",
         ):
             try:
                 db.session.execute(db.text(stmt))
@@ -281,6 +284,7 @@ def create_app():
     app.register_blueprint(depot_amend)
     app.register_blueprint(depot_announce)
     app.register_blueprint(depot_daily)
+    app.register_blueprint(depot_movements)
     app.register_blueprint(file_gate)
 
     @app.route("/health")
