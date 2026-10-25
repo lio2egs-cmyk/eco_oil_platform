@@ -484,14 +484,21 @@ def bridge_movements_status():
                           if k.last_used_at else None),
         "created": _il_fmt(k.created_at),
     } for k in DepotApiKey.query.filter(DepotApiKey.revoked_at.is_(None)).all()]
-    refused = DepotApiCall.query.filter(DepotApiCall.at >= now - timedelta(hours=24),
-                                        DepotApiCall.status != 200).count()
+    # התראה רק על חסימה של מפתח אמיתי (המחשב של הלקוח נחסם: כתובת לא מורשית,
+    # מפתח מבוטל, עומס). פניות בלי מפתח / עם מפתח לא קיים — רובוטים מהאינטרנט
+    # או בדיקה שלנו — נרשמות ביומן ונספרות בנפרד, בלי התראה (לימור 25/10/2026,
+    # אחרי התראת שווא מבדיקה בלי מפתח).
+    since24 = now - timedelta(hours=24)
+    refused = DepotApiCall.query.filter(DepotApiCall.at >= since24, DepotApiCall.status != 200,
+                                        DepotApiCall.key_id.isnot(None)).count()
+    anon = DepotApiCall.query.filter(DepotApiCall.at >= since24, DepotApiCall.status != 200,
+                                     DepotApiCall.key_id.is_(None)).count()
     return jsonify(
         last_push_min=(int((now - st.updated_at).total_seconds() // 60)
                        if st and st.updated_at else None),
         last_push_note=st.value if st else None,
         waiting=list(waiting.values()), last_mails=last_mails,
-        api_keys=keys, api_refused_24h=refused)
+        api_keys=keys, api_refused_24h=refused, api_anon_refused_24h=anon)
 
 
 # ------------------------------------------------------------------ API
