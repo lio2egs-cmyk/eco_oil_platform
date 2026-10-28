@@ -534,7 +534,7 @@ def filing_feed_pending():
     """מה שממתין לתיוק: מסמכי הסכמה שהופקו (filed_at ריק) + סריקות חתומות
     של הצהרות שאושרו סופית (scan_filed_at ריק)."""
     from .db import AgreementDocument, Client, ProducerDeclaration
-    from .ecooil_docs import _doc_file_name
+    from .ecooil_docs import _doc_file_name, _scan_mime
 
     agreements = (AgreementDocument.query
                   .filter(AgreementDocument.number.isnot(None),
@@ -573,7 +573,9 @@ def filing_feed_pending():
                     "file_name": _doc_file_name(d, "הצהרה חתומה"),
                     "approved_at": d.approved_at.isoformat() if d.approved_at else None,
                     "scan_filename": d.signed_scan_filename,
-                    "scan_mime": d.signed_scan_mime})
+                    # לפי הסיומת בלבד — בלי לטעון את הקובץ עצמו לכל שורה
+                    "scan_mime": _scan_mime(b"", d.signed_scan_filename,
+                                            d.signed_scan_mime)})
         scan_rows.append(row)
     return jsonify({"agreements": ag_rows, "scans": scan_rows})
 
@@ -588,8 +590,10 @@ def filing_feed_scan(decl_id):
     d = db.session.get(ProducerDeclaration, decl_id)
     if d is None or not d.signed_scan_data:
         return jsonify({"error": "not found"}), 404
+    from .ecooil_docs import _scan_mime
     return Response(d.signed_scan_data,
-                    mimetype=d.signed_scan_mime or "application/octet-stream")
+                    mimetype=_scan_mime(d.signed_scan_data, d.signed_scan_filename,
+                                        d.signed_scan_mime))
 
 
 @ecooil_bridge.route("/filing-feed/reset", methods=["POST"])

@@ -54,17 +54,69 @@ def _read_scan_upload():
         return None, "הקובץ גדול מדי (עד 15MB)", None
     if not data:
         return None, "הקובץ ריק", None
-    return data, f.filename[:200], (f.mimetype or "application/octet-stream")[:60]
+    return data, f.filename[:200], _scan_mime(data, f.filename, f.mimetype)[:60]
+
+
+_SCAN_EXT_MIME = {".pdf": "application/pdf", ".jpg": "image/jpeg",
+                  ".jpeg": "image/jpeg", ".png": "image/png",
+                  ".webp": "image/webp", ".heic": "image/heic",
+                  ".heif": "image/heif"}
+
+
+def _scan_mime(data, filename, declared=None):
+    """סוג הקובץ לפי התוכן עצמו, לא לפי מה שהדפדפן הצהיר (לימור 28/10).
+
+    טלפונים ומחשבים מסוימים שולחים PDF או צילום כ-"application/octet-stream"
+    — ואז הדפדפן לא מציג אותו אלא מוריד קובץ. הבתים הראשונים קובעים; אחריהם
+    סיומת השם; ההצהרה של הדפדפן רק כמוצא אחרון."""
+    head = bytes(data[:16]) if data else b""
+    if head.startswith(b"%PDF"):
+        return "application/pdf"
+    if head.startswith(b"\xff\xd8\xff"):
+        return "image/jpeg"
+    if head.startswith(b"\x89PNG"):
+        return "image/png"
+    if head[:4] == b"RIFF" and head[8:12] == b"WEBP":
+        return "image/webp"
+    if head[4:8] == b"ftyp" and head[8:12] in (b"heic", b"heix", b"hevc",
+                                               b"heim", b"heis", b"mif1", b"msf1"):
+        return "image/heic"
+    ext = os.path.splitext(filename or "")[1].lower()
+    if ext in _SCAN_EXT_MIME:
+        return _SCAN_EXT_MIME[ext]
+    return declared or "application/octet-stream"
+
+
+def _heic_to_jpeg(data):
+    """צילום אייפון (HEIC) — הדפדפנים לא מציגים אותו, אז ממירים ל-JPEG לצפייה.
+    הקובץ המקורי נשמר כמו שהוא (גם לתיוק). None אם ההמרה לא הצליחה."""
+    try:
+        import io
+        import pillow_heif
+        from PIL import Image
+        pillow_heif.register_heif_opener()
+        img = Image.open(io.BytesIO(data))
+        out = io.BytesIO()
+        img.convert("RGB").save(out, "JPEG", quality=90)
+        return out.getvalue()
+    except Exception:
+        current_app.logger.exception("HEIC conversion failed")
+        return None
 
 
 def _scan_response(d):
-    """הסריקה השמורה כתשובת הורדה/צפייה."""
+    """הסריקה השמורה כתשובת צפייה — תמיד בסוג שהדפדפן יודע להציג."""
+    data = d.signed_scan_data
+    mime = _scan_mime(data, d.signed_scan_filename, d.signed_scan_mime)
+    ext = os.path.splitext(d.signed_scan_filename or "")[1].lower()
+    if mime in ("image/heic", "image/heif"):
+        jpeg = _heic_to_jpeg(data)
+        if jpeg is not None:
+            data, mime, ext = jpeg, "image/jpeg", ".jpg"
     return Response(
-        d.signed_scan_data,
-        mimetype=d.signed_scan_mime or "application/octet-stream",
+        data, mimetype=mime,
         headers={"Content-Disposition":
-                 f"inline; filename=signed_declaration_{d.id}"
-                 + os.path.splitext(d.signed_scan_filename or "")[1].lower()})
+                 f"inline; filename=signed_declaration_{d.id}{ext}"})
 
 
 def _decl_scope_ids(user, include_indirect=True):
