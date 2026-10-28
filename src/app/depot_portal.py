@@ -26,6 +26,10 @@ PURPOSES = ("שטיפה + אחסנה", "אחסנה בלבד", "שטיפה בלב
 PHOTO_SETS = ("2 פנים / 4 חוץ", "סט מלא (הכל)")
 MAX_MSDS_BYTES = 10 * 1024 * 1024
 
+# מייל אישור קבלה למגיש/ה — רק למי שביקש (לימור 28/10/2026: שרון מלוג אין).
+# להוספת אדם: להוסיף את המייל כאן. כל השאר ממשיכים בלי מייל, כמו היום.
+PREARRIVAL_RECEIPT_EMAILS = {"sharon@loginsl.com"}
+
 # ISO-6346: ערכי אותיות מדלגים על כפולות 11
 _ISO_LETTERS = {c: v for c, v in zip(
     "ABCDEFGHIJKLMNOPQRSTUVWXYZ",
@@ -176,6 +180,11 @@ def submit_prearrival():
         _notify_office(row, client)
     except Exception as exc:
         current_app.logger.error("prearrival office notification failed: %s", exc)
+
+    try:
+        _notify_submitter(row)
+    except Exception as exc:
+        current_app.logger.error("prearrival receipt to submitter failed: %s", exc)
 
     return jsonify(id=row.id, tank_number=row.tank_number), 201
 
@@ -430,6 +439,30 @@ style="background:#5B9E96;color:#fff;padding:9px 18px;border-radius:8px;
 text-decoration:none;font-weight:bold">לצפייה בכל ההגשות — מסך ניהול הדיפו</a></p></div>"""
     send_office_email(subject=f"מידע מקדים חדש — {row.tank_number} ({client.name})",
                       html=html, to="shtifot@eco-oil.co.il")
+
+
+def _notify_submitter(row):
+    """אישור קבלה למגיש/ה — רק מי שב-PREARRIVAL_RECEIPT_EMAILS."""
+    from .mailer import send_office_email
+    user = db.session.get(User, row.submitted_by_user_id or 0)
+    email = (user.email or "").strip().lower() if user else ""
+    if email not in PREARRIVAL_RECEIPT_EMAILS:
+        return
+    expected = row.expected_date.strftime('%d/%m/%Y') if row.expected_date else "—"
+    purpose = row.purpose if row.purpose != 'אחר' else row.purpose_other
+    html = f"""<div dir="rtl" style="font-family:Arial,sans-serif">
+<p>שלום,</p>
+<p>בקשתך למידע מקדים התקבלה בפורטל אקו דיפו ועברה לטיפול.</p>
+<table style="border-collapse:collapse">
+<tr><td style="border:1px solid #999;padding:6px 10px;background:#EDF3F2;font-weight:bold">מספר איזוטנק</td>
+<td style="border:1px solid #999;padding:6px 10px">{row.tank_number}</td></tr>
+<tr><td style="border:1px solid #999;padding:6px 10px;background:#EDF3F2;font-weight:bold">מטרת הכניסה</td>
+<td style="border:1px solid #999;padding:6px 10px">{purpose or "—"}</td></tr>
+<tr><td style="border:1px solid #999;padding:6px 10px;background:#EDF3F2;font-weight:bold">תאריך הגעה משוער</td>
+<td style="border:1px solid #999;padding:6px 10px">{expected}</td></tr>
+</table>
+<p>בברכה,<br>אקו דיפו</p></div>"""
+    send_office_email(subject=f"בקשתך התקבלה — {row.tank_number}", html=html, to=user.email)
 
 
 # ------------------------------------------------------------- bridge side
