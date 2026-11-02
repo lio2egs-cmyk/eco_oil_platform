@@ -27,7 +27,7 @@ from .auth import depot_admin_required
 from .db import (db, Client, DepotAmendment, DepotAssetSnapshot, DepotReleaseRequest,
                  DepotWashCert, User)
 from .depot_certs import _client_folders, _folder_client_map, _norm
-from .depot_portal import _amend_view, _depot_client_for_request
+from .depot_portal import _amend_view, _depot_client_for_request, submitter_text
 from .ecooil_bridge import ecooil_bridge_required
 from .field import bridge_required
 
@@ -452,6 +452,7 @@ def submit_release_request():
         visit_id=visit_id,
         tank=a.tank,
         action=action,
+        source="portal",
         **fields,
     )
     db.session.add(row)
@@ -526,7 +527,7 @@ def submit_release_batch():
     for visit_id, a, fields in targets:
         row = DepotReleaseRequest(client_id=client.id, submitted_by_user_id=uid,
                                   visit_id=visit_id, tank=a.tank, action="release",
-                                  **fields)
+                                  source="portal", **fields)
         db.session.add(row)
         rows.append((row, a))
     db.session.commit()
@@ -559,9 +560,9 @@ def _notify_office(row, client, asset):
                 f'<td style="border:1px solid #999;padding:6px 10px">{v or "—"}</td></tr>')
 
     kind = "בקשת שחרור" if row.action == "release" else "ביטול שחרור"
-    submitter = db.session.get(User, row.submitted_by_user_id or 0)
+    where = "ממערכת הלקוח (API)" if row.source == "api" else "בפורטל הדיפו"
     html = f"""<div dir="rtl" style="font-family:Arial,sans-serif">
-<p>התקבלה {kind} חדשה בפורטל הדיפו — הסטטוס יתעדכן אוטומטית ע"י הגשר.</p>
+<p>התקבלה {kind} חדשה {where} — הסטטוס יתעדכן אוטומטית ע"י הגשר.</p>
 <table style="border-collapse:collapse">
 {tr("לקוח", client.name)}
 {tr("מספר מכל", row.tank)}
@@ -570,7 +571,7 @@ def _notify_office(row, client, asset):
 {tr("תאריך איסוף מבוקש", _req_range(row))}
 {tr("מוביל אוסף", row.carrier)}
 {tr("הערות הלקוח", row.notes)}
-{tr("הוגש על ידי", submitter.email if submitter else None)}
+{tr("הוגש על ידי", submitter_text(row))}
 </table>
 <p style="margin-top:14px"><a href="https://depot.eco-oil.co.il/depot-admin"
 style="background:#5B9E96;color:#fff;padding:9px 18px;border-radius:8px;
@@ -591,7 +592,7 @@ def _notify_office_batch(rows, client, assets):
         return f'<td style="{style}">{v if v not in (None, "") else "—"}</td>'
 
     first = rows[0]
-    submitter = db.session.get(User, first.submitted_by_user_id or 0)
+    where = "ממערכת הלקוח (API)" if first.source == "api" else "בפורטל הדיפו"
     n = len(rows)
     tank_rows = "".join(
         "<tr>" + td(i + 1) + td(r.tank) + td(r.visit_id) + td(_req_range(r)) + td(r.carrier)
@@ -599,11 +600,11 @@ def _notify_office_batch(rows, client, assets):
         for i, r in enumerate(rows))
     # תאריך ומוביל לכל מכל (לימור 27/09) — הטבלה למטה; למעלה רק מה שמשותף באמת
     html = f"""<div dir="rtl" style="font-family:Arial,sans-serif">
-<p>התקבלה בפורטל הדיפו <b>בקשת שחרור ל-{n} מכלים</b> של {client.name} — הסטטוס של כל מכל
+<p>התקבלה {where} <b>בקשת שחרור ל-{n} מכלים</b> של {client.name} — הסטטוס של כל מכל
 יתעדכן אוטומטית ע"י הגשר, כל מכל לחוד. תאריך האיסוף והמוביל מופיעים לכל מכל בטבלה.</p>
 <table style="border-collapse:collapse">
 <tr>{td("הערות הלקוח", True)}{td(first.notes)}</tr>
-<tr>{td("הוגש על ידי", True)}{td(submitter.email if submitter else None)}</tr>
+<tr>{td("הוגש על ידי", True)}{td(submitter_text(first))}</tr>
 </table>
 <table style="border-collapse:collapse;margin-top:14px">
 <tr>{td("#", True)}{td("מספר מכל", True)}{td("מס' ביקור", True)}{td("תאריך איסוף מבוקש", True)}{td("מוביל אוסף", True)}{td("מצב נוכחי בקובץ", True)}</tr>
@@ -725,6 +726,8 @@ def admin_release_requests():
            "error": "תקלה — ראו הערה"}
     rows = (DepotReleaseRequest.query
             .order_by(DepotReleaseRequest.created_at.desc()).limit(100).all())
+    emails = {u.id: u.email for u in User.query.filter(
+        User.id.in_({r.submitted_by_user_id for r in rows if r.submitted_by_user_id})).all()} if rows else {}
     return jsonify(requests=[{
         "id": r.id,
         "created_at": r.created_at.isoformat(),
@@ -738,4 +741,5 @@ def admin_release_requests():
         "status": r.status,
         "status_heb": heb.get(r.status, r.status),
         "bridge_note": r.bridge_note or "",
+        "submitted_by": submitter_text(r, emails) or "",
     } for r in rows])

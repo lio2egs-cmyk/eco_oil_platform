@@ -19,6 +19,7 @@ from .depot_amend import depot_amend
 from .depot_announce import depot_announce
 from .depot_daily import depot_daily
 from .depot_movements import depot_movements
+from .depot_api_write import depot_api_write
 from .file_gate import file_gate
 from .db import db
 
@@ -218,6 +219,13 @@ def create_app():
             "ALTER TABLE depot_asset_snapshots ADD COLUMN exited BOOLEAN DEFAULT FALSE",
             # עדכון התנועות כל שעתיים (טנקו, לימור 22/10/2026)
             "ALTER TABLE clients ADD COLUMN movement_mail BOOLEAN DEFAULT FALSE",
+            # חיבור הכתיבה של טנקו (לימור 02/11/2026)
+            "ALTER TABLE depot_api_keys ADD COLUMN can_write BOOLEAN DEFAULT FALSE",
+            "ALTER TABLE depot_api_calls ADD COLUMN endpoint VARCHAR(40)",
+            "ALTER TABLE depot_prearrivals ADD COLUMN source VARCHAR(20) DEFAULT 'portal'",
+            "ALTER TABLE depot_prearrivals ADD COLUMN api_key_id INTEGER REFERENCES depot_api_keys(id)",
+            "ALTER TABLE depot_release_requests ADD COLUMN source VARCHAR(20) DEFAULT 'portal'",
+            "ALTER TABLE depot_release_requests ADD COLUMN api_key_id INTEGER REFERENCES depot_api_keys(id)",
         ):
             try:
                 db.session.execute(db.text(stmt))
@@ -285,6 +293,7 @@ def create_app():
     app.register_blueprint(depot_announce)
     app.register_blueprint(depot_daily)
     app.register_blueprint(depot_movements)
+    app.register_blueprint(depot_api_write)
     app.register_blueprint(file_gate)
 
     @app.route("/health")

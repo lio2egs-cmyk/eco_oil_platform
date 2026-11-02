@@ -936,6 +936,10 @@ class DepotPreArrival(db.Model):
     bridge_note = db.Column(db.String(400))
     posted_at = db.Column(db.DateTime)
     cancelled_at = db.Column(db.DateTime)
+    # מקור ההגשה (לימור 02/11/2026, חיבור הכתיבה של טנקו): 'portal' = הטופס,
+    # 'api' = מערכת הלקוח דרך המפתח. הגשר מטפל בשניהם אותו דבר.
+    source = db.Column(db.String(20), default="portal")
+    api_key_id = db.Column(db.Integer, db.ForeignKey("depot_api_keys.id"))
 
     client = db.relationship("Client")
 
@@ -957,7 +961,7 @@ class DepotArrivalCancel(db.Model):
     created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False, index=True)
 
     tank = db.Column(db.String(40), nullable=False, index=True)
-    source = db.Column(db.String(20), default="portal", nullable=False)   # portal / priority / office
+    source = db.Column(db.String(20), default="portal", nullable=False)   # portal / priority (= API מהמערכת של הלקוח, 02/11/2026) / office
     reason = db.Column(db.String(400))
 
     # pending → fetched (הגשר משך) → posted (השורה סומנה "בוטל שגוי" / לא הייתה
@@ -1119,6 +1123,8 @@ class DepotReleaseRequest(db.Model):
     status = db.Column(db.String(20), default="pending", nullable=False, index=True)
     bridge_note = db.Column(db.String(400))
     posted_at = db.Column(db.DateTime)
+    source = db.Column(db.String(20), default="portal")             # portal / api (02/11/2026)
+    api_key_id = db.Column(db.Integer, db.ForeignKey("depot_api_keys.id"))
 
     client = db.relationship("Client")
 
@@ -1289,6 +1295,9 @@ class DepotApiKey(db.Model):
     revoked_at = db.Column(db.DateTime)
     revoked_by = db.Column(db.String(120))
     last_used_at = db.Column(db.DateTime)
+    # הרשאת כתיבה (לימור 02/11/2026): בקשה מקדימה / שחרור / ביטולים מהמערכת של
+    # הלקוח. כבויה כברירת מחדל — מדליקים במסך הניהול למפתח מסוים.
+    can_write = db.Column(db.Boolean, default=False)
 
     client = db.relationship("Client")
 
@@ -1305,3 +1314,4 @@ class DepotApiCall(db.Model):
     rows = db.Column(db.Integer)
     status = db.Column(db.Integer, nullable=False)                   # קוד התשובה (200 / 401 / 403 / 429 ...)
     note = db.Column(db.String(200))
+    endpoint = db.Column(db.String(40))                              # movements / prearrivals / ... (02/11/2026)

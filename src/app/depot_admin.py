@@ -16,7 +16,7 @@ from sqlalchemy.orm import defer
 from werkzeug.security import generate_password_hash
 
 from .auth import depot_admin_required, clean_portal_email
-from .depot_portal import _payer_text
+from .depot_portal import _payer_text, submitter_text
 from .db import (db, AdminActionLog, Client, DepotPreArrival, LoginAuditLog,
                  MagicLinkToken, User)
 
@@ -141,7 +141,7 @@ def prearrivals():
             "created_at": r.created_at.isoformat(),
             "client_id": r.client_id,
             "client_name": r.client.name if r.client else "?",
-            "submitted_by": submitters.get(r.submitted_by_user_id, ""),
+            "submitted_by": submitter_text(r, submitters) or "",
             "tank_number": r.tank_number,
             "material": r.material,
             "un_class": f"{r.un_number} / {r.hazard_class}",

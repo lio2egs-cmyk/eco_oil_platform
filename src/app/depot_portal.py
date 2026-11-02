@@ -16,8 +16,8 @@ from datetime import date, datetime
 from flask import Blueprint, Response, current_app, jsonify, request
 from flask_jwt_extended import get_jwt, get_jwt_identity, jwt_required
 
-from .db import (db, Client, DepotAmendment, DepotArrivalCancel, DepotFormOptions,
-                 DepotPreArrival, User)
+from .db import (db, Client, DepotAmendment, DepotApiKey, DepotArrivalCancel,
+                 DepotFormOptions, DepotPreArrival, User)
 from .field import bridge_required
 
 depot_portal = Blueprint("depot_portal", __name__, url_prefix="/depot/portal")
@@ -45,6 +45,18 @@ def iso6346_ok(tank):
     s = sum((_ISO_LETTERS[ch] if i < 4 else int(ch)) * (2 ** i)
             for i, ch in enumerate(t[:10]))
     return (s % 11) % 10 == int(t[10])
+
+
+def submitter_text(row, emails=None):
+    """מי הגיש — המייל של המשתמש, או "מערכת הלקוח (API)" עם תיאור המפתח
+    (02/11/2026). emails = מילון {user_id: email} מוכן מראש לרשימות."""
+    if getattr(row, "source", None) in ("api", "priority"):
+        k = db.session.get(DepotApiKey, row.api_key_id or 0) if hasattr(row, "api_key_id") else None
+        return "מערכת הלקוח (API)" + (f" — {k.label}" if k is not None and k.label else "")
+    if emails is not None:
+        return emails.get(row.submitted_by_user_id, "")
+    u = db.session.get(User, row.submitted_by_user_id or 0)
+    return u.email if u else None
 
 
 def _depot_client_for_request():
@@ -78,16 +90,11 @@ def form_options():
                    carriers=data.get("carriers") or [])
 
 
-@depot_portal.route("/prearrivals", methods=["POST"])
-@jwt_required()
-def submit_prearrival():
-    """הגשת טופס מידע מקדים (multipart: שדות + קובץ MSDS רשות).
-    כל שדות החובה נאכפים גם כאן — שורה נולדת שלמה (חוק 53/54)."""
-    client = _depot_client_for_request()
-    if client is None:
-        return jsonify(error="depot customers only"), 403
-
-    f = request.form
+def validate_prearrival(f, msds_bytes=None, msds_name=None, msds_mime=None):
+    """הבדיקות של הטופס המקדים — מקום אחד לטופס בפורטל ולמערכת הלקוח (API,
+    02/11/2026). f = מילון שדות כמו בטופס (מחרוזות; "1" = מסומן).
+    מחזיר (שדות לרשומה, None) או (None, {שדה: שגיאה בעברית}).
+    כל שדות החובה נאכפים — שורה נולדת שלמה (חוק 53/54)."""
     errors = {}
 
     tank = (f.get("tank_number") or "").upper().replace(" ", "").strip()
@@ -137,21 +144,13 @@ def submit_prearrival():
     if f.get("svc_repairs_on") == "1" and not svc_repairs:
         errors["svc_repairs"] = "סימנתם תיקונים — נא לפרט מה לתקן"
 
-    msds = request.files.get("msds")
-    msds_bytes = msds_name = msds_mime = None
-    if msds and msds.filename:
-        msds_bytes = msds.read()
-        if len(msds_bytes) > MAX_MSDS_BYTES:
-            errors["msds"] = "קובץ ה-MSDS גדול מדי (עד 10MB)"
-        msds_name = msds.filename[:200]
-        msds_mime = (msds.mimetype or "application/pdf")[:60]
+    if msds_bytes is not None and len(msds_bytes) > MAX_MSDS_BYTES:
+        errors["msds"] = "קובץ ה-MSDS גדול מדי (עד 10MB)"
 
     if errors:
-        return jsonify(errors=errors), 400
+        return None, errors
 
-    row = DepotPreArrival(
-        client_id=client.id,
-        submitted_by_user_id=int(get_jwt_identity()),
+    return dict(
         tank_number=tank,
         material=material[:200], un_number=un_number[:20],
         hazard_class=hazard_class[:20],
@@ -169,13 +168,15 @@ def submit_prearrival():
         payer_extras=(f.get("payer_extras") or "").strip()[:120] or None,
         payer_repairs=(f.get("payer_repairs") or "").strip()[:120] or None,
         notes=(f.get("notes") or "").strip()[:400] or None,
-        msds_filename=msds_name, msds_mime=msds_mime,
+        msds_filename=((msds_name or "msds.pdf")[:200]) if msds_bytes else None,
+        msds_mime=(msds_mime or "application/pdf")[:60] if msds_bytes else None,
         msds_size=len(msds_bytes) if msds_bytes else None,
-        msds_data=msds_bytes,
-    )
-    db.session.add(row)
-    db.session.commit()
+        msds_data=msds_bytes or None,
+    ), None
 
+
+def notify_new_prearrival(row, client):
+    """מייל למשרד + אישור קבלה למי שביקש — אחרי כל הגשה, מכל מקור."""
     try:
         _notify_office(row, client)
     except Exception as exc:
@@ -185,6 +186,34 @@ def submit_prearrival():
         _notify_submitter(row)
     except Exception as exc:
         current_app.logger.error("prearrival receipt to submitter failed: %s", exc)
+
+
+@depot_portal.route("/prearrivals", methods=["POST"])
+@jwt_required()
+def submit_prearrival():
+    """הגשת טופס מידע מקדים (multipart: שדות + קובץ MSDS רשות)."""
+    client = _depot_client_for_request()
+    if client is None:
+        return jsonify(error="depot customers only"), 403
+
+    msds = request.files.get("msds")
+    msds_bytes = msds_name = msds_mime = None
+    if msds and msds.filename:
+        msds_bytes = msds.read()
+        msds_name = msds.filename
+        msds_mime = msds.mimetype
+
+    fields, errors = validate_prearrival(request.form, msds_bytes, msds_name, msds_mime)
+    if errors:
+        return jsonify(errors=errors), 400
+
+    row = DepotPreArrival(client_id=client.id,
+                          submitted_by_user_id=int(get_jwt_identity()),
+                          source="portal", **fields)
+    db.session.add(row)
+    db.session.commit()
+
+    notify_new_prearrival(row, client)
 
     return jsonify(id=row.id, tank_number=row.tank_number), 201
 
@@ -327,12 +356,11 @@ def _notify_office_cancel(row, pa, client):
                 f'background:#EDF3F2;font-weight:bold">{k}</td>'
                 f'<td style="border:1px solid #999;padding:6px 10px">{v or "—"}</td></tr>')
 
-    submitter = db.session.get(User, row.submitted_by_user_id or 0)
     what = ("ההגשה בוטלה לפני שנפתחה שורת צפי — אין מה לעשות."
             if row.status == "posted" else
             "שורת הצפי בקובץ תסומן אוטומטית \"בוטל שגוי\" ע\"י הגשר.")
     html = f"""<div dir="rtl" style="font-family:Arial,sans-serif">
-<p>הלקוח הודיע בפורטל הדיפו על <b>ביטול הגעה</b> של נכס שהוגשה לו בקשה מקדימה. {what}</p>
+<p>הלקוח הודיע {"ממערכת הלקוח (API)" if row.source in ("api", "priority") else "בפורטל הדיפו"} על <b>ביטול הגעה</b> של נכס שהוגשה לו בקשה מקדימה. {what}</p>
 <table style="border-collapse:collapse">
 {tr("לקוח", client.name)}
 {tr("מספר איזוטנק", row.tank)}
@@ -340,7 +368,7 @@ def _notify_office_cancel(row, pa, client):
 {tr("תאריך הגעה משוער שהיה", pa.expected_date.strftime('%d/%m/%Y') if pa.expected_date else None)}
 {tr("הבקשה המקדימה הוגשה", pa.created_at.strftime('%d/%m/%Y %H:%M'))}
 {tr("סיבת הביטול (לפי הלקוח)", row.reason)}
-{tr("בוטל על ידי", submitter.email if submitter else None)}
+{tr("בוטל על ידי", submitter_text(row))}
 </table>
 <p style="margin-top:14px"><a href="https://depot.eco-oil.co.il/depot-admin"
 style="background:#5B9E96;color:#fff;padding:9px 18px;border-radius:8px;
@@ -418,7 +446,7 @@ def _notify_office(row, client):
         f"סט תמונות ({row.svc_photos})" if row.svc_photos else None,
         f"תיקונים: {row.svc_repairs}" if row.svc_repairs else None])) or "—"
     html = f"""<div dir="rtl" style="font-family:Arial,sans-serif">
-<p>התקבל טופס מידע מקדים חדש בפורטל הדיפו — שורת הצפי תיפתח אוטומטית ע"י הגשר.</p>
+<p>התקבל טופס מידע מקדים חדש {"ממערכת הלקוח (API)" if row.source == "api" else "בפורטל הדיפו"} — שורת הצפי תיפתח אוטומטית ע"י הגשר.</p>
 <table style="border-collapse:collapse">
 {tr("לקוח", client.name)}
 {tr("מספר איזוטנק", row.tank_number)}
@@ -433,6 +461,7 @@ def _notify_office(row, client):
 {tr("טלפון חרום", row.emergency_phone)}
 {tr("הערות", row.notes)}
 {tr("MSDS", row.msds_filename or "לא צורף")}
+{tr("הוגש על ידי", submitter_text(row))}
 </table>
 <p style="margin-top:14px"><a href="https://depot.eco-oil.co.il/depot-admin"
 style="background:#5B9E96;color:#fff;padding:9px 18px;border-radius:8px;

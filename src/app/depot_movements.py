@@ -489,8 +489,15 @@ def bridge_movements_status():
     # או בדיקה שלנו — נרשמות ביומן ונספרות בנפרד, בלי התראה (לימור 25/10/2026,
     # אחרי התראת שווא מבדיקה בלי מפתח).
     since24 = now - timedelta(hours=24)
-    refused = DepotApiCall.query.filter(DepotApiCall.at >= since24, DepotApiCall.status != 200,
-                                        DepotApiCall.key_id.isnot(None)).count()
+    # כתיבה: דחייה עניינית (שדה חסר / מכל לא באחסנה) חוזרת ללקוח עם הסיבה —
+    # נספרת בנפרד, לא כחסימה (02/11/2026)
+    writes = db.and_(DepotApiCall.endpoint.isnot(None), DepotApiCall.endpoint != "movements")
+    refused = DepotApiCall.query.filter(
+        DepotApiCall.at >= since24, DepotApiCall.key_id.isnot(None), DepotApiCall.status >= 400,
+        db.not_(db.and_(writes, DepotApiCall.status.in_(WRITE_REJECT_STATUSES)))).count()
+    write_rejected = DepotApiCall.query.filter(
+        DepotApiCall.at >= since24, DepotApiCall.key_id.isnot(None), writes,
+        DepotApiCall.status.in_(WRITE_REJECT_STATUSES)).count()
     anon = DepotApiCall.query.filter(DepotApiCall.at >= since24, DepotApiCall.status != 200,
                                      DepotApiCall.key_id.is_(None)).count()
     return jsonify(
@@ -498,7 +505,8 @@ def bridge_movements_status():
                        if st and st.updated_at else None),
         last_push_note=st.value if st else None,
         waiting=list(waiting.values()), last_mails=last_mails,
-        api_keys=keys, api_refused_24h=refused, api_anon_refused_24h=anon)
+        api_keys=keys, api_refused_24h=refused, api_anon_refused_24h=anon,
+        api_write_rejected_24h=write_rejected)
 
 
 # ------------------------------------------------------------------ API
@@ -538,14 +546,57 @@ def _hash_key(raw):
     return hashlib.sha256(raw.encode("utf-8")).hexdigest()
 
 
-def _api_fail(status, note, key=None, ip=None, since=None):
-    db.session.add(DepotApiCall(key_id=key.id if key else None, at=datetime.utcnow(),
+# חסימות ברמת המפתח — הן (ורק הן) מתריעות למשרד: המחשב של הלקוח נחסם.
+# דחייה עניינית של בקשת כתיבה (שדה חסר, מכל לא באחסנה) חוזרת ללקוח עם הסיבה
+# ונספרת בנפרד (api_write_rejected_24h) — 02/11/2026.
+KEY_REFUSAL_STATUSES = (401, 403, 429)
+WRITE_REJECT_STATUSES = (400, 404, 409, 422)
+
+
+def api_log(key, ip, endpoint, status, rows=None, note=None, since=None):
+    """שורה ביומן הפניות + חותמת 'שימוש אחרון' למפתח. commit כלול."""
+    now = datetime.utcnow()
+    if key is not None and status < 400:
+        key.last_used_at = now
+    db.session.add(DepotApiCall(key_id=key.id if key else None, at=now,
                                 ip=(ip or "")[:64], since=(since or "")[:40],
-                                rows=None, status=status, note=note[:200]))
+                                rows=rows, status=status,
+                                note=(note or "")[:200] or None,
+                                endpoint=(endpoint or "")[:40] or None))
     db.session.commit()
+
+
+def _api_fail(status, note, key=None, ip=None, since=None, endpoint="movements", **extra):
+    api_log(key, ip, endpoint, status, note=note, since=since)
     msgs = {401: "invalid or missing API key", 403: "forbidden", 429: "rate limit exceeded",
-            400: "bad request"}
-    return jsonify(error=msgs.get(status, "error"), detail=note), status
+            400: "bad request", 404: "not found", 409: "conflict", 422: "validation failed"}
+    return jsonify(error=msgs.get(status, "error"), detail=note, **extra), status
+
+
+def api_gate(endpoint, write=False, since=None):
+    """השער האחד לכל נקודות ה-API: מפתח → כתובת מורשית → הרשאת כתיבה → קצב.
+    מחזיר (key, ip, None) או (None, ip, תשובת-שגיאה מוכנה, כבר ביומן)."""
+    ip = _client_ip()
+    raw = _bearer_token() or request.headers.get("X-API-Key", "").strip() or None
+    if not raw:
+        return None, ip, _api_fail(401, "no key", ip=ip, since=since, endpoint=endpoint)
+    key = DepotApiKey.query.filter_by(key_hash=_hash_key(raw)).first()
+    if key is None or key.revoked_at is not None:
+        return None, ip, _api_fail(401, "unknown or revoked key" if key is None else "revoked key",
+                                   key=key, ip=ip, since=since, endpoint=endpoint)
+    if not _ip_allowed(key, ip):
+        return None, ip, _api_fail(403, "ip not allowed", key=key, ip=ip, since=since,
+                                   endpoint=endpoint)
+    if write and not key.can_write:
+        return None, ip, _api_fail(403, "write not allowed for this key", key=key, ip=ip,
+                                   since=since, endpoint=endpoint)
+    recent = DepotApiCall.query.filter(
+        DepotApiCall.key_id == key.id,
+        DepotApiCall.at >= datetime.utcnow() - timedelta(hours=1)).count()
+    if recent >= RATE_PER_HOUR:
+        return None, ip, _api_fail(429, "rate limit", key=key, ip=ip, since=since,
+                                   endpoint=endpoint)
+    return key, ip, None
 
 
 @depot_movements.route("/depot/api/v1/movements", methods=["GET"])
@@ -557,22 +608,11 @@ def api_movements():
     בלי היסטוריה (לימור 22/10/2026: "מההתחלה נתחיל בעדכון של היום"): מוגש רק
     "היום" — תנועות שתאריכן היום, או שנרשמו/תוקנו/בוטלו היום (רישום מאוחר של
     אתמול שנכנס לקובץ היום הוא חדשה של היום)."""
-    ip = _client_ip()
     since_raw = (request.args.get("since") or "").strip()
-    raw = _bearer_token() or request.headers.get("X-API-Key", "").strip() or None
-    if not raw:
-        return _api_fail(401, "no key", ip=ip, since=since_raw)
-    key = DepotApiKey.query.filter_by(key_hash=_hash_key(raw)).first()
-    if key is None or key.revoked_at is not None:
-        return _api_fail(401, "unknown or revoked key" if key is None else "revoked key",
-                         key=key, ip=ip, since=since_raw)
-    if not _ip_allowed(key, ip):
-        return _api_fail(403, "ip not allowed", key=key, ip=ip, since=since_raw)
+    key, ip, fail = api_gate("movements", since=since_raw)
+    if fail is not None:
+        return fail
     now = datetime.utcnow()
-    recent = DepotApiCall.query.filter(DepotApiCall.key_id == key.id,
-                                       DepotApiCall.at >= now - timedelta(hours=1)).count()
-    if recent >= RATE_PER_HOUR:
-        return _api_fail(429, "rate limit", key=key, ip=ip, since=since_raw)
 
     il_today = _il_now().date()
     day_start = (datetime.combine(il_today, datetime.min.time()).replace(tzinfo=IL_TZ)
@@ -583,7 +623,8 @@ def api_movements():
             # "+" בכתובת שלא קודדה מגיע כרווח — מחזירים אותו
             s = datetime.fromisoformat(since_raw.replace(" ", "+").replace("Z", "+00:00"))
         except ValueError:
-            return _api_fail(400, "since is not ISO-8601", key=key, ip=ip, since=since_raw)
+            return _api_fail(400, "since is not ISO-8601", key=key, ip=ip, since=since_raw,
+                             endpoint="movements")
         if s.tzinfo is not None:
             s = s.astimezone(timezone.utc).replace(tzinfo=None)
         since = s
@@ -605,10 +646,7 @@ def api_movements():
         "status": "cancelled" if m.cancelled_at else "active",
         "updated_at": _utc_z(m.updated_at),
     } for m in rows]
-    key.last_used_at = now
-    db.session.add(DepotApiCall(key_id=key.id, at=now, ip=ip[:64], since=since_raw[:40],
-                                rows=len(out), status=200, note=None))
-    db.session.commit()
+    api_log(key, ip, "movements", 200, rows=len(out), since=since_raw)
     return jsonify(server_time=_utc_z(server_time),
                    today=il_today.isoformat(),
                    count=len(out), movements=out)
@@ -623,7 +661,8 @@ def _admin_log(action, details):
 
 def _key_json(k):
     return {"id": k.id, "prefix": k.prefix, "label": k.label,
-            "allowed_ips": k.allowed_ips or "", "created_at": _il_fmt(k.created_at),
+            "allowed_ips": k.allowed_ips or "", "can_write": bool(k.can_write),
+            "created_at": _il_fmt(k.created_at),
             "created_by": k.created_by, "last_used_at": _il_fmt(k.last_used_at),
             "revoked_at": _il_fmt(k.revoked_at)}
 
@@ -638,7 +677,7 @@ def admin_list_keys(client_id):
              .order_by(DepotApiCall.at.desc()).limit(20).all())
     return jsonify(keys=[_key_json(k) for k in keys], calls=[{
         "at": _il_fmt(c.at), "ip": c.ip, "rows": c.rows, "status": c.status,
-        "note": c.note} for c in calls])
+        "note": c.note, "endpoint": c.endpoint or "movements"} for c in calls])
 
 
 @depot_movements.route("/depot/admin/clients/<int:client_id>/api-keys", methods=["POST"])
@@ -678,7 +717,7 @@ def _clean_ips(v):
 @depot_movements.route("/depot/admin/api-keys/<int:key_id>", methods=["PATCH"])
 @depot_admin_required
 def admin_update_key(key_id):
-    """ביטול מפתח (מתג הכיבוי) או עדכון הכתובות המורשות."""
+    """ביטול מפתח (מתג הכיבוי), עדכון הכתובות המורשות, או הרשאת כתיבה."""
     from .depot_admin import _actor
     k = db.session.get(DepotApiKey, key_id)
     if k is None:
@@ -692,5 +731,9 @@ def admin_update_key(key_id):
     if "allowed_ips" in data:
         k.allowed_ips = _clean_ips(data.get("allowed_ips"))
         _admin_log("כתובות מורשות למפתח API", f"{name}: {k.prefix}… → {k.allowed_ips or 'מכל כתובת'}")
+    if "can_write" in data and k.revoked_at is None:
+        k.can_write = bool(data.get("can_write"))
+        _admin_log("הרשאת כתיבה למפתח API",
+                   f"{name}: {k.prefix}… → {'מורשה לכתוב' if k.can_write else 'קריאה בלבד'}")
     db.session.commit()
     return jsonify(**_key_json(k))
