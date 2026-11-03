@@ -287,10 +287,41 @@ if(ECO_USER && ECO_USER.client_name){
 var current=null, seq=0;
 var DRAFT_KEY='eco_declaration_draft';
 
+/* הערך שנשלח לשרת חייב להיות value מפורש: בלי value הדפדפן שולח את הטקסט המוצג,
+   ותרגום אוטומטי (Chrome/Edge) מתרגם אותו — השרת מקבל אנגלית ופוסל (הגנים הבהאיים, לימור 03/11) */
+function escAttr(s){ return String(s).replace(/[&<>"]/g,function(ch){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[ch];}); }
 function optHtml(arr){
   var h='<option value="">— בחר/י —</option>';
-  for(var i=0;i<arr.length;i++){ h+='<option>'+arr[i]+'</option>'; }
+  for(var i=0;i<arr.length;i++){ h+='<option value="'+escAttr(arr[i])+'">'+arr[i]+'</option>'; }
   return h;
+}
+
+/* קביעת בחירה ששמורה בטיוטה. טיוטה שנשמרה לפני התיקון בדף מתורגם מכילה את הטקסט המתורגם
+   (למשל באנגלית) — מחפשים אותו גם בטקסט המוצג של האפשרויות. התרגום של כרטיס חדש מגיע
+   באיחור קל, לכן מה שלא נמצא מנסים שוב כמה פעמים */
+function pickOption(sel, saved){
+  sel.value=saved;
+  if(sel.value===saved) return true;
+  var want=String(saved).trim().toLowerCase();
+  for(var i=1;i<sel.options.length;i++){
+    if(sel.options[i].text.trim().toLowerCase()===want){ sel.selectedIndex=i; return true; }
+  }
+  sel.value='';
+  return false;
+}
+function setField(el, saved){
+  if(el.tagName==='SELECT'){
+    if(!pickOption(el, saved)){ retryPick(el, saved, 0); }
+  }else{ el.value=saved; }
+  showPick(el);
+}
+function retryPick(sel, saved, n){
+  if(n>=20 || !document.body.contains(sel) || sel.value) return;
+  setTimeout(function(){
+    if(sel.value) return;               /* הלקוח כבר בחר בעצמו */
+    if(pickOption(sel, saved)){ showPick(sel); updatePermit(); }
+    else{ retryPick(sel, saved, n+1); }
+  }, 300);
 }
 
 /* שדה רשימה ברוחב מלא + שורת "קריאה חוזרת" שמציגה את ההגדרה המלאה שנבחרה */
@@ -348,7 +379,7 @@ function buildCard(d){
         '<input type="text" data-k="concentration_range" placeholder="הקלדה — לא חובה"><span class="opt">רשות</span></div>'+
 
       '<div class="fld"><label>כמות שנתית (טון)</label>'+
-        '<select data-k="quantity_band" onchange="updatePermit()"><option value="">— בחר/י —</option><option>עד 10 טון</option><option>מעל 10 טון</option></select><span class="req">חובה</span></div>'+
+        '<select data-k="quantity_band" onchange="updatePermit()">'+optHtml(['עד 10 טון','מעל 10 טון'])+'</select><span class="req">חובה</span></div>'+
 
       '<div class="fld"><label>סוג האריזה</label>'+
         '<select data-k="packaging">'+optHtml(d.pkg)+'</select><span class="req">חובה</span></div>'+
@@ -360,7 +391,8 @@ function buildCard(d){
 function showPick(sel){
   var rb=sel.parentNode.querySelector('.readback');
   if(!rb) return;
-  if(sel.value){ rb.textContent='נבחר: '+sel.value; rb.style.display='block'; }
+  /* הטקסט המוצג (ולא value) — בדף מתורגם הלקוח רואה את הבחירה בשפה שלו */
+  if(sel.value){ rb.textContent='נבחר: '+sel.options[sel.selectedIndex].text; rb.style.display='block'; }
   else { rb.textContent=''; rb.style.display='none'; }
 }
 
@@ -509,7 +541,7 @@ function restoreDraft(){
       var els=cardEls[i].querySelectorAll('[data-k]');
       for(var j=0;j<els.length;j++){
         var k=els[j].getAttribute('data-k');
-        if(d.materials[i][k]!==undefined){ els[j].value=d.materials[i][k]; showPick(els[j]); }
+        if(d.materials[i][k]!==undefined){ setField(els[j], d.materials[i][k]); }
       }
     }
     if(d.producer){
@@ -571,7 +603,7 @@ async function loadFixMode(){
       var els=card.querySelectorAll('[data-k]');
       for(var j=0;j<els.length;j++){
         var k=els[j].getAttribute('data-k');
-        if(fill[k]!==undefined && fill[k]!==null){ els[j].value=fill[k]; showPick(els[j]); }
+        if(fill[k]!==undefined && fill[k]!==null){ setField(els[j], fill[k]); }
       }
     }
     document.getElementById('p_name').value=d.producer_name||'';
