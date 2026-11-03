@@ -277,7 +277,7 @@ async function createKey(cid,name){
   var r=await api('/depot/admin/clients/'+cid+'/api-keys',{method:'POST',body:JSON.stringify({label:label.trim(),allowed_ips:ips.trim()})});
   if(!r||!r.ok){ toast('הנפקת המפתח נכשלה'); return; }
   var k=await r.json();
-  prompt('המפתח מוצג עכשיו פעם אחת בלבד ולא יישמר בשום מקום.\nהעתיקו אותו ומסרו בטלפון לאיש הקשר — לא במייל.',k.key);
+  prompt('המפתח מוצג עכשיו פעם אחת בלבד ולא יישמר בשום מקום.\nהעתיקו אותו עכשיו ומסרו לאיש הקשר בנפרד מהמדריך (מייל נפרד / וואטסאפ).',k.key);
   await renderApiKeys(cid,name);
 }
 var API_EP_HEB={'movements':'משיכת תנועות','assets':'רשימת נכסים','form-options':'רשימות הטופס',
