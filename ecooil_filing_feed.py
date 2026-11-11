@@ -124,6 +124,33 @@ def find_customer_dir(root, candidates, allow_partial=True):
     if len(partial) > 1:
         names = ", ".join(sorted(partial.values())[:4])
         return None, f"כמה תיקיות מתאימות חלקית ({names}) — לא ניחשתי"
+
+    # השוואה בלי רווחים (לימור 01/11): היצרן בפורטל "כל מוביל כרמיאל",
+    # התיקייה "כלמוביל בעמ" — אותה חברה, הבדל של רווח בלבד. קודם התאמה
+    # מלאה בלי רווחים, ואז שם-התיקייה כחלק משם היצרן; רק התאמה יחידה.
+    def _compact(x):
+        return _norm(x).replace(" ", "")
+    by_compact = {}
+    for dn, hits in by_norm.items():
+        by_compact.setdefault(dn.replace(" ", ""), []).extend(hits)
+    for cand in candidates:
+        hits = by_compact.get(_compact(cand))
+        if hits and len(hits) == 1:
+            return hits[0][1], None
+    compact_partial = {}
+    for cand in candidates:
+        n = _compact(cand)
+        if len(n) < 5:
+            continue
+        for dn, hits in by_compact.items():
+            if len(dn) >= 5 and dn in n:
+                for disp, path in hits:
+                    compact_partial[path] = disp
+    if len(compact_partial) == 1:
+        return next(iter(compact_partial)), None
+    if len(compact_partial) > 1:
+        names = ", ".join(sorted(compact_partial.values())[:4])
+        return None, f"כמה תיקיות מתאימות חלקית ({names}) — לא ניחשתי"
     return None, ("לא נמצאה תיקיית לקוח מתאימה תחת " + root +
                   " — צרי תיקייה (או הוסיפי צורת כתיב בפורטל)")
 
@@ -149,6 +176,8 @@ def find_site_subdir(customer_dir, producer_name):
         return None, None
     hits = []
     for d in subs:
+        if _norm(d) == "ארכיון":
+            continue
         toks = set(_norm(d).split())
         if toks and toks <= prod:
             hits.append(d)
@@ -380,6 +409,13 @@ def resolve_target(root, row):
     sub, note = find_docs_subdir(cdir)
     if note:
         return None, note
+    # תיקיות-סניף בתוך תיקיית המסמכים (לימור 01/11, כלמוביל:
+    # "כלמוביל בעמ\יצרן+הסכמה\כרמיאל" ו-"...\חיפה"): אותו כלל כמו תיקיית
+    # אתר — כל מילות התיקייה בשם היצרן. אין התאמה, או יותר מאחת = התיקייה
+    # עצמה, כמו קודם (לא חוסמים תיוק שעבד עד היום).
+    branch, _ = find_site_subdir(sub, producer)
+    if branch:
+        sub = branch
     return sub, None
 
 
