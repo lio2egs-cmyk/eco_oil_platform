@@ -41,6 +41,11 @@
       <button class="btn" id="go" onclick="send()">שלחו לי קישור כניסה</button>
       <div class="note">נתקלתם בבעיה? פנו אלינו ל-<b>portal@eco-oil.co.il</b><br>הגישה לפורטל מיועדת ללקוחות רשומים בלבד.</div>
     </div>
+    <div class="sent" id="checking">
+      <div class="ico">🔑</div>
+      <h2>מזהים אתכם…</h2>
+      <p>המחשב הזה כבר מחובר לפורטל — מיד נכנסים.</p>
+    </div>
     <div class="sent" id="sent">
       <div class="ico">📩</div>
       <h2>הקישור בדרך אליכם</h2>
@@ -49,6 +54,41 @@
     </div>
   </div>
 {% raw %}<script>
+  /* מי שכבר מחובר נכנס ישר (לימור 12/11/2026). כפתור הפורטל באתר מוביל לכאן,
+     והדף הציג "הקלידו מייל" גם לדפדפן שעדיין זוכר את הלקוח — שרון (לוג אין)
+     ביקשה 8 קישורים בחמישה שבועות. בודקים את הכניסה השמורה מול השרת: תקפה →
+     /portal בלי להקליד כלום; פגה או בוטלה → מנקים ומציגים את הטופס כרגיל;
+     אין תשובה מהשרת → הטופס כרגיל, בלי למחוק כלום. מנהלת ראשית לא מועברת. */
+  (async function(){
+    var rt=null, role='';
+    try{
+      rt=localStorage.getItem('eco_refresh_token');
+      role=(JSON.parse(localStorage.getItem('eco_user')||'{}')||{}).role||'';
+    }catch(_){ return; }
+    if(!rt || role==='admin') return;
+    var form=document.getElementById('form'), chk=document.getElementById('checking');
+    form.style.display='none'; chk.style.display='block';
+    function showForm(){ chk.style.display='none'; form.style.display='block'; }
+    try{
+      var ctl=new AbortController(); var tm=setTimeout(function(){ ctl.abort(); },8000);
+      var r=await fetch('/auth/refresh',{method:'POST',headers:{'Authorization':'Bearer '+rt},signal:ctl.signal});
+      clearTimeout(tm);
+      if(r.ok){
+        var d=await r.json();
+        if(d && d.access_token){
+          localStorage.setItem('eco_access_token',d.access_token);
+          location.replace('/portal');
+          return;
+        }
+      }
+      if(r.status===401||r.status===422){
+        localStorage.removeItem('eco_access_token');
+        localStorage.removeItem('eco_refresh_token');
+        localStorage.removeItem('eco_user');
+      }
+    }catch(_){}
+    showForm();
+  })();
   async function send(){
     var el=document.getElementById('em'); var v=el.value.trim();
     if(!v || v.indexOf('@')<1){ el.focus(); el.style.borderColor='#d9534f'; return; }
