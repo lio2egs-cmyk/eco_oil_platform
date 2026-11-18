@@ -859,6 +859,8 @@ def admin_edit_declaration_fields(decl_id):
     # תיקון טעות הקלדה בשם העסק בלבד, בלי חתימה מחדש — הח.פ. הוא שמזהה את
     # החותם, והשם המתוקן מופיע מיד בהצהרה, במסמך ההסכמה ובשמות הקבצים.
     # כל שאר השדות נשארים נעולים מהחתימה והלאה.
+    # אותו יום, אותה הצהרה: גם ספרה שגויה במספר היתר הרעלים (923480 במקום
+    # 923481) — ולכן החריג מכסה שני שדות זיהוי: שם העסק ומספר ההיתר.
     name_only = d.status == "approved"
     if d.status not in ("submitted", "released", "approved"):
         return jsonify({"error": "עריכה אפשרית רק לפני חתימת הלקוח — "
@@ -869,7 +871,7 @@ def admin_edit_declaration_fields(decl_id):
         return jsonify({"error": "שם העסק לא יכול להישאר ריק"}), 400
     changes = []
     for key, col in _ADMIN_EDITABLE_FIELDS.items():
-        if name_only and key != "producer_name":
+        if name_only and key not in ("producer_name", "permit_number"):
             continue
         if key not in data:
             continue
@@ -880,7 +882,7 @@ def admin_edit_declaration_fields(decl_id):
             changes.append(f"{key}: '{old or ''}' ← '{new or ''}'")
     if not changes:
         return jsonify({"id": d.id, "changed": 0})
-    stamp = (("תיקון שם אחרי חתימה (טעות הקלדה, בלי חתימה מחדש) "
+    stamp = (("תיקון אחרי חתימה (טעות הקלדה, בלי חתימה מחדש) "
               if name_only else "עריכת משרד ")
              + f"{datetime.utcnow():%d/%m/%Y}: " + " | ".join(changes))
     d.notes = f"{d.notes}\n{stamp}" if d.notes else stamp
