@@ -780,6 +780,12 @@ class EcoOilUnloadEvent(db.Model):
     # מפתח טבעי (לימור 17/09/2026): זהות קבועה של השורה בין סבבי הגשר, כדי
     # שמספר הזיהוי לא יתחלף כל שעה. נגזר בצד המשרד — ראו ecooil_natkey.py.
     nat_key = db.Column(db.String(64), index=True)
+    # בדיקת הצהרה אוטומטית מול המסד (לימור 11/11/2026, decl_auto.py) — מחושב
+    # בענן, לא נדחף מהמשרד: None = לא נבדק (לא חומ"ס / לפני 2026 / ללא אישור
+    # מלכתחילה); 'ok' / 'expiring' (פג בחודש הפריקה — מתפרסם) / 'army' (פטור,
+    # חוק 74ד) = מתפרסם; 'expired' / 'no_decl' = נחסם כמו "אין הצהרה";
+    # 'unlinked' = השם לא מקושר לשורה במסד — מתפרסם, ולימור מקבלת התראה.
+    decl_auto = db.Column(db.String(20), index=True)
     synced_at = db.Column(db.DateTime, default=datetime.utcnow)
 
     def __repr__(self):
@@ -974,6 +980,26 @@ class DepotArrivalCancel(db.Model):
     # לפי המחלקה ולא לפי שם: בקובץ יש מחלקה ישנה באותו שם (depot_pre_arrivals,
     # מהקורס) — חיפוש לפי מחרוזת נכשל על "Multiple classes found".
     prearrival = db.relationship(DepotPreArrival, foreign_keys=[prearrival_id])
+
+
+class EcoOilDeclLink(db.Model):
+    """טבלת הקישור: שם לקוח כפי שנכתב בריכוז → שורת החברה בגיליון
+    ח.פ.-היתר-תוקף, או "צבא" (לימור 11/11/2026). כל שם מקושר פעם אחת; שם
+    זהה לשם במסד מקושר לבד ולא נרשם כאן. kind: 'masad' (masad_name+hp) /
+    'army' (פטור מהצהרה, חוק 74ד) / 'pending' (שם חדש שמחכה ללימור;
+    alerted_at = מתי נשלחה עליו התראה)."""
+    __tablename__ = "ecooil_decl_links"
+
+    id = db.Column(db.Integer, primary_key=True)
+    name_norm = db.Column(db.String(200), unique=True, nullable=False, index=True)
+    name = db.Column(db.String(200), nullable=False)
+    kind = db.Column(db.String(10), nullable=False, default="pending")
+    masad_name = db.Column(db.String(200))
+    hp = db.Column(db.String(20))
+    first_seen = db.Column(db.DateTime, default=datetime.utcnow)
+    alerted_at = db.Column(db.DateTime)
+    decided_at = db.Column(db.DateTime)
+    actor = db.Column(db.String(60))
 
 
 class EcoOilValiditySnapshot(db.Model):

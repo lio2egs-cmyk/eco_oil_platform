@@ -163,6 +163,22 @@
       <div id="discList" class="muted">טוען…</div>
     </div>
   </div>
+  <!-- קישור שמות לקוח למסד ההצהרות (לימור 11/11/2026): הפורטל חוסם ומשחרר
+       אישורים לבד לפי תוקף ההצהרה בגיליון ח.פ.-היתר-תוקף. שם בריכוז שאינו
+       זהה לשם במסד מחכה כאן לקישור חד-פעמי (או לסימון "צבא", חוק 74ד).
+       עד הקישור — האישורים מתפרסמים. המונה אדום כשיש שמות שמחכים. -->
+  <div class="card" id="dlCard">
+    <h3 class="collapsible collapsed" id="dlHead" onclick="toggleDl()">
+      <span class="chev" id="dlChev">◂</span> קישור שמות לקוח למסד ההצהרות
+      <span class="pill" id="dlCount">…</span></h3>
+    <div id="dlBody" class="hidden">
+      <p class="muted" style="margin-bottom:8px">הכלל: שורת חומ"ס מ-2026 נחסמת לבד כשביום הפריקה לא הייתה הצהרה בתוקף לזרם (תוקף = עד סוף החודש שבמסד), ומשתחררת לבד כשההצהרה מתחדשת. שם שלא מקושר למסד — מתפרסם עד שתקשרי אותו.</p>
+      <datalist id="dlMasad"></datalist>
+      <div id="dlPending" class="muted">טוען…</div>
+      <div id="dlBlocked" style="margin-top:12px"></div>
+      <div id="dlLinked" style="margin-top:12px"></div>
+    </div>
+  </div>
 </div>
 
 <div class="toast" id="toast"></div>
@@ -242,6 +258,7 @@ async function reload(){
   render();
   loadDeclarations();
   loadDiscrepancies();
+  loadDeclLinks();
 }
 
 /* ── סתירות תיוק מול חיוב (לימור 06/08) ── */
@@ -399,6 +416,84 @@ async function discUndo(i){
   if(!r||!r.ok){ toast('הביטול נכשל'); return; }
   toast('התשובה בוטלה — הסתירה חזרה לרשימה');
   await loadDiscrepancies();
+}
+
+/* ── קישור שמות לקוח למסד ההצהרות (לימור 11/11/2026) ── */
+var DL_PENDING=[], DL_LINKED=[];
+function toggleDl(){
+  var head=document.getElementById('dlHead'), body=document.getElementById('dlBody');
+  var open=head.classList.contains('collapsed');
+  head.classList.toggle('collapsed',!open);
+  body.classList.toggle('hidden',!open);
+  document.getElementById('dlChev').textContent=open?'▾':'◂';
+}
+var DL_WHY={expired:'ההצהרה לזרם פגה לפני הפריקה',no_decl:'אין במסד הצהרה לזרם הזה'};
+async function loadDeclLinks(){
+  var pb=document.getElementById('dlPending'), cnt=document.getElementById('dlCount');
+  var r=await api('/eco-oil/admin/decl-links');
+  if(!r||!r.ok){ pb.textContent='שגיאה בטעינה'; cnt.textContent=''; return; }
+  var d=await r.json();
+  DL_PENDING=d.pending||[]; DL_LINKED=d.linked||[];
+  document.getElementById('dlMasad').innerHTML=(d.masad_names||[]).map(function(n){ return '<option value="'+esc(n)+'">'; }).join('');
+  var nb=(d.blocked||[]).reduce(function(a,b){ return a+b.count; },0);
+  cnt.textContent=(DL_PENDING.length?DL_PENDING.length+' שמות מחכים לקישור':'כל השמות מקושרים')+(nb?' · '+nb+' שורות חסומות אוטומטית':'');
+  cnt.classList.toggle('pill-alert', DL_PENDING.length>0);
+  var h='';
+  if(DL_PENDING.length){
+    h+='<table><tr><th>השם בריכוז</th><th>זרמים</th><th>שורות מ-2026</th><th>פריקה אחרונה</th><th>השורה שלו במסד</th></tr>';
+    DL_PENDING.forEach(function(p,i){
+      var sug=(p.suggest||[]).map(function(s,j){
+        return '<div style="cursor:pointer;padding:2px 8px;border:1px solid var(--line);border-radius:7px;margin:2px 0;font-size:12px;background:#fff" '+
+               'onclick="dlFill('+i+','+j+')">'+esc(s)+'</div>';
+      }).join('');
+      h+='<tr><td>'+esc(p.name)+'</td><td>'+esc((p.streams||[]).join(', '))+'</td><td>'+p.count+'</td><td>'+esc(p.latest)+'</td>'+
+         '<td><input id="dlIn-'+i+'" list="dlMasad" placeholder="הקלידי חלק מהשם במסד…" '+
+         'style="padding:5px 8px;border:1px solid var(--line);border-radius:7px;font-size:12.5px;width:260px"> '+
+         '<button class="btn" style="padding:5px 10px;font-size:12.5px" onclick="dlSave('+i+',1)">קשרי</button> '+
+         '<button class="btn btn-soft" style="padding:5px 10px;font-size:12.5px" onclick="dlSave('+i+',2)">צבא — פטור</button>'+
+         (sug?'<div class="muted" style="font-size:12px;margin-top:4px">הצעות (לחיצה ממלאת):</div>'+sug:'')+'</td></tr>';
+    });
+    h+='</table>';
+  } else h='<span class="ok">כל השמות בריכוז מ-2026 מקושרים למסד ✓</span>';
+  pb.innerHTML=h;
+  var bl=d.blocked||[], bh='';
+  if(bl.length){
+    bh='<p class="muted" style="margin:0 0 4px">🔒 חסום עכשיו אוטומטית — ישתחרר לבד כשההצהרה תתחדש במסד:</p>'+
+       '<table><tr><th>לקוח</th><th>זרם</th><th>למה</th><th>שורות</th><th>פריקה אחרונה</th></tr>'+
+       bl.map(function(b){ return '<tr><td>'+esc(b.customer)+'</td><td>'+esc(b.stream)+'</td><td>'+esc(DL_WHY[b.why]||b.why)+'</td><td>'+b.count+'</td><td>'+esc(b.latest)+'</td></tr>'; }).join('')+'</table>';
+  }
+  document.getElementById('dlBlocked').innerHTML=bh;
+  var lh='';
+  if(DL_LINKED.length){
+    lh='<p class="muted" style="margin:0 0 4px">✔ שמות שכבר קישרת ('+DL_LINKED.length+'):</p><table>'+
+       '<tr><th>השם בריכוז</th><th>מקושר ל</th><th>מתי</th><th></th></tr>'+
+       DL_LINKED.map(function(l,i){
+         var to=l.kind==='army'?'צבא — פטור מהצהרה':esc(l.masad_name)+(l.hp?' (ח.פ. '+esc(l.hp)+')':'');
+         return '<tr><td>'+esc(l.name)+'</td><td>'+to+'</td><td>'+esc(l.decided_at)+'</td>'+
+                '<td><button class="btn btn-soft" onclick="dlUndo('+i+')">↩ ביטול הקישור</button></td></tr>';
+       }).join('')+'</table>';
+  }
+  document.getElementById('dlLinked').innerHTML=lh;
+}
+function dlFill(i,j){ document.getElementById('dlIn-'+i).value=DL_PENDING[i].suggest[j]; }
+async function dlSave(i,k){
+  var kind=(k===2)?'army':'masad';
+  var p=DL_PENDING[i], body={name:p.name,kind:kind};
+  if(kind==='masad'){
+    body.masad_name=document.getElementById('dlIn-'+i).value.trim();
+    if(!body.masad_name){ toast('בחרי את השורה במסד (הקלידי חלק מהשם) לפני הקישור'); return; }
+  }
+  var r=await api('/eco-oil/admin/decl-links',{method:'POST',body:JSON.stringify(body)});
+  if(!r||!r.ok){ var e={}; try{ e=await r.json(); }catch(_){ } toast(e.error||'השמירה נכשלה'); return; }
+  toast(kind==='army'?'סומן צבא ✓ — האישורים שלו לא ייחסמו':'קושר ✓ — האישורים נבדקו מחדש מול המסד');
+  await loadDeclLinks();
+}
+async function dlUndo(i){
+  var l=DL_LINKED[i];
+  var r=await api('/eco-oil/admin/decl-links',{method:'DELETE',body:JSON.stringify({name:l.name})});
+  if(!r||!r.ok){ toast('הביטול נכשל'); return; }
+  toast('הקישור בוטל — השם חזר לרשימת הממתינים');
+  await loadDeclLinks();
 }
 
 /* ── הצהרות יצרן מהפורטל (צפייה בלבד בשלב זה) ── */

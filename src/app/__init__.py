@@ -11,6 +11,7 @@ from .ecooil_bridge import ecooil_bridge
 from .ecooil_docs import ecooil_docs
 from .digest import digest
 from .reminders import reminders
+from .decl_auto import decl_auto_bp
 from .depot_admin import depot_admin
 from .depot_portal import depot_portal
 from .depot_certs import depot_certs
@@ -241,6 +242,8 @@ def create_app():
             "ALTER TABLE ecooil_unload_events ADD COLUMN manifest_path VARCHAR(400)",
             "ALTER TABLE ecooil_unload_events ADD COLUMN manifest_key VARCHAR(500)",
             "ALTER TABLE ecooil_unload_events ADD COLUMN filed_owner VARCHAR(200)",
+            # בדיקת הצהרה אוטומטית (לימור 11/11/2026)
+            "ALTER TABLE ecooil_unload_events ADD COLUMN decl_auto VARCHAR(20)",
         ):
             try:
                 db.session.execute(db.text(stmt))
@@ -285,6 +288,7 @@ def create_app():
     app.register_blueprint(ecooil_docs)
     app.register_blueprint(digest)
     app.register_blueprint(reminders)
+    app.register_blueprint(decl_auto_bp)
     app.register_blueprint(depot_admin)
     app.register_blueprint(depot_portal)
     app.register_blueprint(depot_certs)

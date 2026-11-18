@@ -18,7 +18,8 @@ from flask import Blueprint, jsonify, request
 
 from .db import db, User, Client, EcoOilUnloadEvent
 from .ecooil_bridge import ecooil_bridge_required
-from .ecooil_docs import _scoped_query, WITHHELD_STATUSES
+from .ecooil_docs import _scoped_query, WITHHELD_STATUSES  # noqa: F401
+from .decl_auto import is_withheld
 from .mailer import send_office_email
 
 reminders = Blueprint("reminders", __name__)
@@ -192,8 +193,8 @@ def _week_counts(client, start, end):
     q, _mode = _scoped_query(client)
     rows = q.filter(EcoOilUnloadEvent.event_date >= start,
                     EcoOilUnloadEvent.event_date <= end).all()
-    certs = sum(1 for r in rows if r.pdf_key and r.doc_status not in WITHHELD_STATUSES)
-    manifests = sum(1 for r in rows if r.manifest_key and r.doc_status not in WITHHELD_STATUSES)
+    certs = sum(1 for r in rows if r.pdf_key and not is_withheld(r))
+    manifests = sum(1 for r in rows if r.manifest_key and not is_withheld(r))
     return len(rows), certs, manifests
 
 

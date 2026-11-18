@@ -26,6 +26,7 @@ ecooil_docs = Blueprint("ecooil_docs", __name__, url_prefix="/eco-oil")
 # awaiting_declaration → orange legal notice + declaration button;
 # unpublished → nothing shown, no explanation.
 WITHHELD_STATUSES = {"awaiting_declaration", "unpublished"}
+from .decl_auto import effective_doc_status, is_withheld  # noqa: E402
 
 # תפקיד "הצהרות בלבד" (לימור 05/08) — לקוח עקיף שרואה רק הצהרה+הסכמה,
 # לעולם לא את אזור המסמכים (אישורי פריקה / טופסי מלווה).
@@ -1352,11 +1353,11 @@ def my_documents():
             # withholds only the SENDING — so a filed PDF must never override the
             # sanction. Withheld statuses hide BOTH downloads. A company-level
             # block (17/08) hides them all the same way, row by row.
-            "has_pdf": (not blocked) and bool(r.pdf_key)
-            and r.doc_status not in WITHHELD_STATUSES,
-            "has_manifest": (not blocked) and bool(r.manifest_key)
-            and r.doc_status not in WITHHELD_STATUSES,
-            "doc_status": r.doc_status,
+            # השכבה האוטומטית (לימור 11/11/2026): תוקף ההצהרה במסד חוסם
+            # ומשחרר בעצמו — effective_doc_status מחבר אותה להחלטה הידנית.
+            "has_pdf": (not blocked) and bool(r.pdf_key) and not is_withheld(r),
+            "has_manifest": (not blocked) and bool(r.manifest_key) and not is_withheld(r),
+            "doc_status": effective_doc_status(r),
         } for r in rows],
     })
 
@@ -1379,7 +1380,7 @@ def download(event_id):
         return jsonify({"error": "not found"}), 404
     # Sanction enforcement at the API level (not just the UI): a withheld row
     # serves NOTHING, even though the files are filed.
-    if ev.doc_status in WITHHELD_STATUSES:
+    if is_withheld(ev):
         return jsonify({"error": "withheld"}), 403
     # ?doc=manifest serves the signed טופס מלווה scan; default = the certificate
     key = ev.manifest_key if request.args.get("doc") == "manifest" else ev.pdf_key
@@ -1431,7 +1432,7 @@ def download_all():
                       EcoOilUnloadEvent.id.asc()).limit(5000).all()
     files = []  # (key, zip_name)
     for r in rows:
-        if r.doc_status in WITHHELD_STATUSES:
+        if is_withheld(r):
             continue
         stamp = r.event_date.strftime("%Y-%m-%d") if r.event_date else "ללא-תאריך"
         if r.pdf_key:

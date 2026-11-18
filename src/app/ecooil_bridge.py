@@ -232,6 +232,13 @@ def _run_dict(run):
             "deleted": run.deleted, "unchanged": run.unchanged, "total": run.total}
 
 
+def _decl_recompute():
+    """חסימה/שחרור לפי תוקף ההצהרה במסד (decl_auto.py, לימור 11/11/2026).
+    תקלה כאן לעולם לא מפילה את הסנכרון — היא נרשמת ומוחזרת לגשר ביומן."""
+    from .decl_auto import recompute
+    return recompute()
+
+
 @ecooil_bridge.route("/sync", methods=["POST"])
 @ecooil_bridge_required
 def sync_events():
@@ -268,10 +275,11 @@ def sync_events():
     deleted = _delete_by_ids(stale_ids)
     run = _record_run("full", inserted, updated, deleted, unchanged)
     db.session.commit()
+    decl = _decl_recompute()
     return jsonify({"ok": True, "loaded": len(rows), "skipped": skipped,
                     "inserted": inserted, "updated": updated,
                     "deleted": deleted, "unchanged": unchanged,
-                    "total": run.total})
+                    "total": run.total, "decl_auto": decl})
 
 
 @ecooil_bridge.route("/sync-delta", methods=["POST"])
@@ -320,9 +328,10 @@ def sync_delta():
                         "reason": "cloud row count differs from the office's — send a full snapshot"}), 409
     run = _record_run("delta", inserted, updated, deleted, unchanged)
     db.session.commit()
+    decl = _decl_recompute()
     return jsonify({"ok": True, "skipped": skipped, "inserted": inserted,
                     "updated": updated, "deleted": deleted,
-                    "unchanged": unchanged, "total": run.total})
+                    "unchanged": unchanged, "total": run.total, "decl_auto": decl})
 
 
 @ecooil_bridge.route("/status", methods=["GET"])
@@ -392,7 +401,8 @@ def validity_snapshot():
     snap.data = _json.dumps({"rows": rows}, ensure_ascii=False)
     snap.updated_at = datetime.utcnow()
     db.session.commit()
-    return jsonify(ok=True, rows=len(rows))
+    # תוקף שהשתנה במסד משחרר/חוסם שורות כבר בסבב הזה (לימור 11/11/2026)
+    return jsonify(ok=True, rows=len(rows), decl_auto=_decl_recompute())
 
 
 @ecooil_bridge.route("/masad-feed", methods=["GET"])
