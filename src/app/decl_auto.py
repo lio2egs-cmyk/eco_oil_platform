@@ -101,7 +101,55 @@ def validity_index():
             dd = _parse(d)
             if dd and (label not in e["streams"] or dd > e["streams"][label]):
                 e["streams"][label] = dd
+    # חברה עם כמה אתרים (לימור 18/11, אור ברקן: בריכוז "אור ברקן בע"מ" בלי
+    # אתר, במסד שורה לשוהם ושורה לחלמיש — והיא לא יכלה לבחור "את שתיהן"):
+    # לכל ח.פ. שיש לו כמה שורות נוספת אפשרות אחת "כל האתרים", שמאחדת אותן —
+    # לכל זרם התאריך המאוחר מבין האתרים.
+    by_hp = {}
+    for e in idx.values():
+        hp = re.sub(r"\D", "", e["hp"] or "")
+        if hp:
+            by_hp.setdefault(hp, []).append(e)
+    for hp, sites in by_hp.items():
+        if len(sites) < 2:
+            continue
+        label = _company_label(sorted(s["name"].strip() for s in sites), hp)
+        streams = {}
+        for s in sites:
+            for st, dd in s["streams"].items():
+                if st not in streams or dd > streams[st]:
+                    streams[st] = dd
+        idx[norm(label)] = {"name": label, "hp": hp, "streams": streams, "company": True}
     return idx
+
+
+ALL_SITES = "כל האתרים"
+
+
+def _company_label(names, hp):
+    """'אור ברקן בע"מ — כל האתרים (ח.פ. 511546392)': החלק המשותף לשמות האתרים."""
+    common = names[0]
+    for n in names[1:]:
+        i = 0
+        while i < min(len(common), len(n)) and common[i] == n[i]:
+            i += 1
+        common = common[:i]
+    # לא חותכים באמצע מילה ("דלק ה|שרון" / "דלק ה|צפון")
+    if any(len(n) > len(common) and re.match(r"\w", n[len(common)]) for n in names) \
+            and re.search(r"\w$", common):
+        common = common[:common.rfind(" ") + 1] if " " in common else ""
+    common = re.sub(r"[\s,\-–—(\[]*(אתר)?[\s,\-–—(\[]*$", "", common).strip()
+    if len(common) < 4:
+        common = names[0]
+    return f"{common} — {ALL_SITES} (ח.פ. {hp})"
+
+
+def _company_by_hp(vidx, hp):
+    hp = re.sub(r"\D", "", hp or "")
+    for e in vidx.values():
+        if e.get("company") and e["hp"] == hp:
+            return e
+    return None
 
 
 def classify(ev, link, vidx):
@@ -117,6 +165,9 @@ def classify(ev, link, vidx):
     target = None
     if link is not None and link.kind == "masad":
         target = vidx.get(norm(link.masad_name))
+        # קישור ל"כל האתרים" נשען על הח.פ. — נשאר תקף גם אם שם אתר שונה במסד
+        if target is None and ALL_SITES in (link.masad_name or ""):
+            target = _company_by_hp(vidx, link.hp)
     if target is None:
         target = vidx.get(norm(ev.customer))
     if target is None:
@@ -232,7 +283,7 @@ def _admin():
 
 
 _GENERIC = {"שותפות", "מוגבלת", "תעשיות", "ישראל", "אתר", "חברת", "חברה", "מפעל",
-            "בעמ", "ושירותים", "שירותים", "בע", "מ", "ltd"}
+            "בעמ", "ושירותים", "שירותים", "בע", "מ", "ltd", "האתרים"}
 
 
 def _words(n):
@@ -250,13 +301,14 @@ def _suggest(name_n, vidx):
         shared = len(words & _words(k))
         score = shared + (5 if len(shorter) >= 6 and shorter in longer else 0)
         if score:
-            out.append((score, e["name"]))
+            out.append((score, e["name"], bool(e.get("company"))))
     if not out:
         return []
-    top = max(s for s, _n in out)
+    top = max(x[0] for x in out)
     out = [x for x in out if x[0] >= max(1, top - 1)]
-    out.sort(key=lambda x: (-x[0], x[1]))
-    return [n for _s, n in out[:5]]
+    # "כל האתרים" של החברה מוצגת ראשונה — היא התשובה כשבריכוז אין שם אתר
+    out.sort(key=lambda x: (not x[2], -x[0], x[1]))
+    return [x[1] for x in out[:5]]
 
 
 @decl_auto_bp.route("/admin/decl-links", methods=["GET"])
