@@ -124,6 +124,7 @@ def validity_index():
 
 
 ALL_SITES = "כל האתרים"
+PLACEHOLDER = "ממתין לפירוט"
 
 
 def _company_label(names, hp):
@@ -159,6 +160,14 @@ def classify(ev, link, vidx):
     if ev.event_date is None or ev.event_date < AUTO_FROM:
         return None, None
     if ev.doc_status in ("no_cert_by_design", "unpublished"):
+        return None, None
+    # חד-פעמי (לימור 18/11): קליטה חריגה שאין ולא יהיה לה שורה במסד — מוביל
+    # ששאב אצל עצמו (צ. כץ), פריקה חד-פעמית באישור יואב (תחנת הכח חיפה).
+    # לא נבדק ולא מחכה לקישור; ההחלטה הידנית של לימור על השורה נשארת כמו שהיא.
+    if link is not None and link.kind == "exempt":
+        return None, None
+    # "ממתין לפירוט" הוא לא שם לקוח — השורה מחכה שהמוביל יפרט מאיפה שאב
+    if norm(ev.customer).startswith(PLACEHOLDER):
         return None, None
     if link is not None and link.kind == "army":
         return "army", None
@@ -367,7 +376,7 @@ def save_link():
             db.session.commit()
         return jsonify({"ok": True, "result": recompute(alert=False)})
     kind = body.get("kind")
-    if kind not in ("masad", "army"):
+    if kind not in ("masad", "army", "exempt"):
         return jsonify({"error": "bad kind"}), 400
     target = None
     if kind == "masad":

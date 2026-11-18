@@ -450,7 +450,8 @@ async function loadDeclLinks(){
          '<td><input id="dlIn-'+i+'" list="dlMasad" placeholder="הקלידי חלק מהשם במסד…" '+
          'style="padding:5px 8px;border:1px solid var(--line);border-radius:7px;font-size:12.5px;width:260px"> '+
          '<button class="btn" style="padding:5px 10px;font-size:12.5px" onclick="dlSave('+i+',1)">קשרי</button> '+
-         '<button class="btn btn-soft" style="padding:5px 10px;font-size:12.5px" onclick="dlSave('+i+',2)">צבא — פטור</button>'+
+         '<button class="btn btn-soft" style="padding:5px 10px;font-size:12.5px" onclick="dlSave('+i+',2)">צבא — פטור</button> '+
+         '<button class="btn btn-soft" style="padding:5px 10px;font-size:12.5px" title="קליטה חד-פעמית שאין לה שורה במסד — לא נבדקת מול ההצהרות, והשם יורד מהרשימה" onclick="dlSave('+i+',3)">חד-פעמי — בלי בדיקה</button>'+
          (sug?'<div class="muted" style="font-size:12px;margin-top:4px">הצעות (לחיצה ממלאת):</div>'+sug:'')+'</td></tr>';
     });
     h+='</table>';
@@ -468,7 +469,7 @@ async function loadDeclLinks(){
     lh='<p class="muted" style="margin:0 0 4px">✔ שמות שכבר קישרת ('+DL_LINKED.length+'):</p><table>'+
        '<tr><th>השם בריכוז</th><th>מקושר ל</th><th>מתי</th><th></th></tr>'+
        DL_LINKED.map(function(l,i){
-         var to=l.kind==='army'?'צבא — פטור מהצהרה':esc(l.masad_name)+(l.hp?' (ח.פ. '+esc(l.hp)+')':'');
+         var to=l.kind==='army'?'צבא — פטור מהצהרה':l.kind==='exempt'?'חד-פעמי — לא נבדק מול ההצהרות':esc(l.masad_name)+(l.hp?' (ח.פ. '+esc(l.hp)+')':'');
          return '<tr><td>'+esc(l.name)+'</td><td>'+to+'</td><td>'+esc(l.decided_at)+'</td>'+
                 '<td><button class="btn btn-soft" onclick="dlUndo('+i+')">↩ ביטול הקישור</button></td></tr>';
        }).join('')+'</table>';
@@ -477,7 +478,7 @@ async function loadDeclLinks(){
 }
 function dlFill(i,j){ document.getElementById('dlIn-'+i).value=DL_PENDING[i].suggest[j]; }
 async function dlSave(i,k){
-  var kind=(k===2)?'army':'masad';
+  var kind=(k===2)?'army':(k===3)?'exempt':'masad';
   var p=DL_PENDING[i], body={name:p.name,kind:kind};
   if(kind==='masad'){
     body.masad_name=document.getElementById('dlIn-'+i).value.trim();
@@ -485,7 +486,7 @@ async function dlSave(i,k){
   }
   var r=await api('/eco-oil/admin/decl-links',{method:'POST',body:JSON.stringify(body)});
   if(!r||!r.ok){ var e={}; try{ e=await r.json(); }catch(_){ } toast(e.error||'השמירה נכשלה'); return; }
-  toast(kind==='army'?'סומן צבא ✓ — האישורים שלו לא ייחסמו':'קושר ✓ — האישורים נבדקו מחדש מול המסד');
+  toast(kind==='army'?'סומן צבא ✓ — האישורים שלו לא ייחסמו':kind==='exempt'?'סומן חד-פעמי ✓ — השם ירד מהרשימה':'קושר ✓ — האישורים נבדקו מחדש מול המסד');
   await loadDeclLinks();
 }
 async function dlUndo(i){
