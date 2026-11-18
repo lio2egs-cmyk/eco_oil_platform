@@ -65,7 +65,9 @@ MIME_EXT = {"application/pdf": ".pdf", "image/jpeg": ".jpg", "image/png": ".png"
 # ------------------------------------------------------------- folder matching
 def _norm(s):
     s = str(s or "")
-    for ch in ('"', "'", "׳", "״", "-", "_", ".", ",", "+", "(", ")"):
+    # קו ארוך (– —) ומקף עברי (־) = מקף רגיל (אשכול 18/11: הלקוח הקליד
+    # "בע"מ – תחנת הכח", התיקייה עם פסיק — והקו הארוך לבדו הפיל את ההתאמה)
+    for ch in ('"', "'", "׳", "״", "-", "–", "—", "־", "_", ".", ",", "+", "(", ")"):
         s = s.replace(ch, " ")
     s = " ".join(s.split())
     for suffix in ("בע מ", "בעמ"):
@@ -73,7 +75,22 @@ def _norm(s):
     return " ".join(s.split())
 
 
-def find_customer_dir(root, candidates, allow_partial=True):
+def _edit_distance(a, b, limit):
+    """מרחק עריכה (החלפה / הוספה / השמטה של אות); עוצר כשעבר את limit."""
+    if abs(len(a) - len(b)) > limit:
+        return limit + 1
+    prev = list(range(len(b) + 1))
+    for i, ca in enumerate(a, 1):
+        cur = [i]
+        for j, cb in enumerate(b, 1):
+            cur.append(min(prev[j] + 1, cur[j - 1] + 1, prev[j - 1] + (ca != cb)))
+        if min(cur) > limit:
+            return limit + 1
+        prev = cur
+    return prev[-1]
+
+
+def find_customer_dir(root, candidates, allow_partial=True, allow_near=False):
     """התיקייה של הלקוח — התאמה מנורמלת, בלי ניחושים.
     מ-19/08 החיפוש יורד גם רמה אחת פנימה, אל תוך תיקיות-אם (מקרה גדות פי
     גלילות: תיקיות קבוצת גדות יושבות בתוך "גדות_כולל" ולכן התיוק החטיא).
@@ -151,6 +168,27 @@ def find_customer_dir(root, candidates, allow_partial=True):
     if len(compact_partial) > 1:
         names = ", ".join(sorted(compact_partial.values())[:4])
         return None, f"כמה תיקיות מתאימות חלקית ({names}) — לא ניחשתי"
+
+    # שם קרוב (לימור 18/11, אשכול: בהצהרה "ייצוא ... הכח", התיקייה "ייצור
+    # ... הכוח"): טעות הקלדה של אות או שתיים בשם ארוך (אות אחת בשם קצר)
+    # עדיין מוצאת את התיקייה — אבל רק כשיש תיקייה אחת כזו בדיוק. שתיים
+    # קרובות = מדווחים, לא מנחשים. מופעל רק ליצרן עקיף (ראי resolve_target).
+    if allow_near:
+        near = {}
+        for cand in candidates:
+            n = _compact(cand)
+            if len(n) < 8:
+                continue
+            limit = 2 if len(n) >= 12 else 1
+            for dn, hits in by_compact.items():
+                if len(dn) >= 8 and _edit_distance(n, dn, limit) <= limit:
+                    for disp, path in hits:
+                        near[path] = disp
+        if len(near) == 1:
+            return next(iter(near)), None
+        if len(near) > 1:
+            names = ", ".join(sorted(near.values())[:4])
+            return None, f"כמה תיקיות בשם קרוב ({names}) — לא ניחשתי"
     return None, ("לא נמצאה תיקיית לקוח מתאימה תחת " + root +
                   " — צרי תיקייה (או הוסיפי צורת כתיב בפורטל)")
 
@@ -387,14 +425,18 @@ def resolve_target(root, row):
     indirect = bool(producer) and bool(account_forms) and _norm(producer) not in account_forms
 
     if indirect:
-        cdir, note = find_customer_dir(root, [producer])
+        cdir, note = find_customer_dir(root, [producer], allow_near=True)
         if cdir is None:
+            # ההערה הכללית ("הוסיפי צורת כתיב בפורטל") לא מצורפת כאן: צורת
+            # כתיב בכרטיס המוביל הייתה מתייקת את היצרן אצל המוביל (18/11).
+            extra = f" [{note}]" if note and "לא ניחשתי" in note else ""
             return None, (
-                f'לא נמצאה תיקייה בשם "{producer}" תחת {root}. '
+                f'לא נמצאה תיקייה בשם "{producer}" (או בשם קרוב) תחת {root}. '
                 "זהו יצרן עקיף, והמסמכים שלו מתויקים אצלו ולא אצל המוביל "
                 f'("{account}") — לכן לא תייקתי. '
-                "צרי לו תיקייה (עם תת-תיקיית מסמכים), והתיוק יושלם "
-                "אוטומטית בסיבוב השעתי הבא." + (f" [{note}]" if note else ""))
+                "אם יש לו תיקייה בשם שונה — כתבי ל-Claude; אם אין — צרי לו "
+                "תיקייה (עם תת-תיקיית מסמכים), והתיוק יושלם אוטומטית "
+                "בסיבוב השעתי הבא." + extra)
     else:
         cdir, note = find_customer_dir(root, row.get("folder_candidates") or [])
         if note:
