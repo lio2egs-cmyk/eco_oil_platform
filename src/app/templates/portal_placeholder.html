@@ -29,6 +29,15 @@
     <!-- "הפורטל בבנייה" הוסר 03/09 (לימור): הפורטל פעיל ועובד -->
     <div class="msg">התחברתם בהצלחה. 🎉</div>
     {% if division == 'eco_oil' %}
+    <!-- התראת תוקף (לימור 19/11): הצהרה שתוקפה מסתיים בקרוב — מה-1 בחודש
+         שלפני חודש הפקיעה. הנוסח אושר ע"י לימור: מודיע ומבקש לחדש, בלי לפרט
+         מה ייחסם ומתי. מוצג רק כשיש כאלה; נעלם לבד כשההצהרה מתחדשת במסד. -->
+    <div id="expiringBox" style="display:none;margin-top:22px;text-align:right;background:#FFF7E8;border:1.5px solid #E8C97A;border-radius:12px;padding:14px 16px">
+      <div style="font-family:var(--fh);color:#8a5d00;font-size:15px;margin-bottom:8px">⚠ לתשומת לבכם: תוקף הצהרת היצרן מסתיים בקרוב</div>
+      <div id="expiringList"></div>
+      <div style="font-size:13px;color:#6b5a2e;margin:10px 0 8px">יש לחדש את ההצהרה עד למועד זה.</div>
+      <a href="/declaration" style="display:inline-block;background:#8a5d00;color:#fff;border-radius:9px;padding:9px 16px;font-family:var(--fh);font-size:13.5px;text-decoration:none">📄 לחידוש הצהרת יצרן</a>
+    </div>
     <!-- מסמכים שלימור שחררה לחתימה (03/08) — מוצג רק כשיש כאלה -->
     <div id="signDocs" style="display:none;margin-top:22px;text-align:right;background:#FFF7E8;border:1.5px solid #E8C97A;border-radius:12px;padding:14px 16px">
       <!-- נוסח 03/09 (לימור): כותרת עם מילת פעולה "נדרש" — מצב שדורש טיפול,
@@ -270,6 +279,16 @@
         });
         document.getElementById('carrierSummaryRows').innerHTML=h;
         document.getElementById('carrierSummary').style.display='block';
+      })();
+      /* התראת "תוקף מסתיים בקרוב" (לימור 19/11) — שורה לכל לקוח+זרם */
+      (function(){
+        var ex=payload.expiring||[];
+        if(!ex.length) return;
+        document.getElementById('expiringList').innerHTML=ex.map(function(x){
+          return '<div style="font-size:13.5px;color:#4a3a10;padding:4px 0;border-bottom:1px solid #F1DFB0">'+
+            '<b>'+esc(x.name)+'</b> · '+esc(x.stream)+' · בתוקף עד '+esc(x.until)+'</div>';
+        }).join('');
+        document.getElementById('expiringBox').style.display='block';
       })();
     }catch(e){}
   })();

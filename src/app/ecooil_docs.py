@@ -1128,6 +1128,64 @@ def _homs_clients_for_account(account_clients):
     return out
 
 
+def _expiring_declarations(account_clients, today=None):
+    """התראת הדף הראשי (לימור 19/11/2026): הצהרות שתוקפן מסתיים בקרוב — במקום
+    מייל ללימור עם רשימת "מי עומד לפוג". מקור: תמונת גיליון ח.פ.-היתר-תוקף.
+      * של מי: השורות של החשבון עצמו (שם הכרטיס / צורת כתיב, גם עם סיומת
+        אתר: "אור ברקן בע"מ, אתר שוהם"), ושל הלקוחות שהמוביל מביא ("סוג לקוח").
+      * מתי: מה-1 בחודש שלפני חודש הפקיעה ועד סוף חודש הפקיעה (תאריך במסד =
+        בתוקף עד סוף אותו חודש). אחרי שפג — אין התראה כאן; האישורים של פריקות
+        מאוחרות יותר נחסמים במסך המסמכים (decl_auto). מתחדש במסד → נעלם לבד.
+    מחזיר [{"name", "stream", "until"}] ממוין לפי תאריך."""
+    import json as _json
+    from datetime import date as _date
+    from .db import EcoOilValiditySnapshot
+    from .decl_auto import _parse, _eom
+
+    snap = EcoOilValiditySnapshot.query.first()
+    if snap is None or not snap.data:
+        return []
+    try:
+        sheet_rows = _json.loads(snap.data).get("rows", [])
+    except Exception:
+        return []
+    today = today or _date.today()
+    keys = set()
+    for c in account_clients:
+        for n in [c.name] + [a.strip() for a in (c.billing_aliases or "").splitlines()
+                             if a.strip()]:
+            nn = _norm_name(n)
+            if nn:
+                keys.add(nn)
+    carried = {(_norm_name(h.get("name"))) for h in _homs_clients_for_account(account_clients)}
+    seen, out = set(), []
+    for r in sheet_rows:
+        nn = _norm_name(r.get("name"))
+        if not nn:
+            continue
+        own = nn in keys or any(len(k) >= 6 and nn.startswith(k + " ") for k in keys)
+        if not own and nn not in carried:
+            continue
+        for stream, raw in (r.get("streams") or {}).items():
+            d = _parse(raw)
+            if d is None:
+                continue
+            end = _eom(d)
+            start = _date(d.year - 1, 12, 1) if d.month == 1 else _date(d.year, d.month - 1, 1)
+            if not (start <= today <= end):
+                continue
+            key = (nn, stream)
+            if key in seen:
+                continue
+            seen.add(key)
+            out.append({"name": (r.get("name") or "").strip(), "stream": stream,
+                        "until": end.strftime("%d/%m/%Y"), "_d": end.isoformat()})
+    out.sort(key=lambda x: (x["_d"], x["name"], x["stream"]))
+    for x in out:
+        x.pop("_d")
+    return out
+
+
 @ecooil_docs.route("/portal/my-declaration-docs", methods=["GET"])
 @jwt_required()
 def my_declaration_docs():
@@ -1187,6 +1245,8 @@ def my_declaration_docs():
     account_clients = list(Client.query.filter(Client.id.in_(own)).all())
     return jsonify({"declarations": rows, "preview": preview,
                     "homs_clients": _homs_clients_for_account(account_clients),
+                    # התראת "תוקף מסתיים בקרוב" בדף הראשי (לימור 19/11)
+                    "expiring": _expiring_declarations(account_clients),
                     # בורר "עבור איזו חברה" בטופס ההצהרה (23/09) — ריק לחברה אחת
                     "companies": _companies_for_user(claims)})
 
@@ -1360,6 +1420,10 @@ def my_documents():
             "has_pdf": (not blocked) and bool(r.pdf_key) and not is_withheld(r),
             "has_manifest": (not blocked) and bool(r.manifest_key) and not is_withheld(r),
             "doc_status": effective_doc_status(r),
+            # ההצהרה לזרם פגה לפני הפריקה (להבדיל מ"מעולם לא הוסדרה") —
+            # נוסח חסימה נפרד, לימור 19/11/2026
+            "expired_decl": (getattr(r, "decl_auto", None) == "expired"
+                             and effective_doc_status(r) == "awaiting_declaration"),
         } for r in rows],
     })
 

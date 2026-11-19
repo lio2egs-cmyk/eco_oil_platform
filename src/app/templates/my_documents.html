@@ -194,6 +194,11 @@ function docCell(r){
   if(out) return out;
   // חסימת חברה (17/08) — אותה הודעה בכל שורה, כדי שגם מי שגלל למטה יבין למה
   if(BLOCKED) return '<span class="blocked-cell">לפנות להנהלת החשבונות</span>';
+  if(r.doc_status==='awaiting_declaration' && r.expired_decl)
+    // ההצהרה פגה לפני הפריקה — נוסח לימור 19/11/2026; לא לשנות בלי אישור.
+    return '<span class="sanction">האישור חסום לצפייה ולהורדה.'+
+           '<br>לשחרור החסימה יש להסדיר את הצהרת היצרן.'+
+           '<br><a class="btn-decl" href="/declaration">למילוי הצהרת יצרן</a></span>';
   if(r.doc_status==='awaiting_declaration')
     // First sentence approved by Yoav 20/07/2026; per-site sentence added per
     // Limor 13/08/2026 (the אידיאה multi-site case) — do not change without approval.
