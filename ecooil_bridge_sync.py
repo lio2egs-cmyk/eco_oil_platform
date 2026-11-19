@@ -150,7 +150,8 @@ def portal_directive(text):
     if not t:
         return None
     if "לא לפרסם" in t:
-        return "awaiting_declaration" if "הצהרה" in t else "unpublished"
+        # "הצהר" covers both "אין הצהרה" and "אין הצהרת יצרן" (Limor writes both, 19/11)
+        return "awaiting_declaration" if "הצהר" in t else "unpublished"
     return None
 
 
