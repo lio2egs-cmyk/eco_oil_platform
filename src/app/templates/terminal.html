@@ -107,6 +107,7 @@
     <!-- צילום מהטלפון (אישור לימור 08/09): לטאבלט אין עדשה רחבה (אבחון) — בשטיפה
          ותיקונים בלבד סורקים QR והתמונות מהטלפון נכנסות לאותו אירוע -->
     <button class="btn hidden" id="phoneBtn" style="background:#455a64;" onclick="openPhonePanel()">📱 צילום מהטלפון</button>
+    <!-- לימור 19/11: תמונה שכבר שמורה במכשיר (מקרה מונדר — השליחה נתקעה והנכס כבר לא מול העובד) -->
     <input type="file" id="fileInput" accept="image/*" class="hidden" multiple>
     <div class="photos" id="thumbs"></div>
     <div id="treatWrap" class="hidden">
@@ -148,6 +149,9 @@
     <button class="btn" onclick="submitEvent()">✅ שליחה</button>
     <button class="btn secondary" onclick="goHome()">ביטול</button>
     <div class="note">אין קליטה? אפשר לשלוח — האירוע יחכה במכשיר ויעלה לבד.</div>
+    <!-- לימור 19/11: קישור קטן, רק למקרה הצורך — תמונה שכבר שמורה במכשיר (מקרה מונדר:
+         השליחה נתקעה והנכס כבר לא מול העובד). בכוונה לא כפתור גדול. -->
+    <div class="note" style="text-align:left;"><a id="galleryBtn" href="#" style="color:#888; font-size:14px;" onclick="fileInput.click(); return false;">תמונה שמורה במכשיר</a></div>
   </div>
 </div>
 
@@ -237,7 +241,16 @@ const idbReady = new Promise(res => {
 });
 function outbox(mode) { return idb.transaction("outbox", mode).objectStore("outbox"); }
 function idbAll() { return new Promise(res => { const r = outbox("readonly").getAll(); r.onsuccess = () => res(r.result); }); }
-function idbPut(item) { return new Promise(res => { outbox("readwrite").put(item).onsuccess = res; }); }
+// לימור 19/11: שמירה שנכשלה (זיכרון מלא וכד') חייבת להחזיר שגיאה — קודם היא נתקעה בשקט
+// וכפתור השליחה נראה "לא מגיב".
+function idbPut(item) {
+  return new Promise((res, rej) => {
+    const tx = idb.transaction("outbox", "readwrite");
+    tx.oncomplete = () => res();
+    tx.onerror = tx.onabort = () => rej(tx.error || new Error("save failed"));
+    tx.objectStore("outbox").put(item);
+  });
+}
 function idbDel(key) { return new Promise(res => { outbox("readwrite").delete(key).onsuccess = res; }); }
 
 const token = () => localStorage.getItem("device_token");
@@ -1021,7 +1034,15 @@ async function submitEvent() {
     label: `${document.getElementById("flowTitle").textContent} ${tank || "(מהתמונה)"}`,
     state: "queued", ts: Date.now(),
   };
-  await idbPut(item);
+  try {
+    await idbPut(item);
+  } catch (e) {
+    // אין שתיקה: העובד נשאר במסך עם התמונות, ורואה מה לעשות
+    alert("⚠ הדיווח לא נשמר במכשיר ולכן לא נשלח.\n\n" +
+          "לא לסגור את המסך. להתקשר למשרד עכשיו.\n\n" +
+          "(פרט למשרד: " + ((e && (e.name || e.message)) || "שגיאת שמירה") + ")");
+    return;
+  }
   superseding = null;
   goHome();
   pump();
