@@ -561,7 +561,9 @@ def run(api_base, masad_path, dry_run=False):
                              or (r[4] is not None and str(r[4]).strip())),
                             default=1)
                         target, note, fill_hp = resolve_summary_row(rows_ix, d)
-                        vu = _parse_dt(d.get("valid_until"))
+                        # לגיליון התוקפים נכתב החודש הראשון החסום (לימור
+                        # 19/11/2026) — הענן שולח אותו; ענן ישן → כמו קודם
+                        vu = _parse_dt(d.get("summary_until") or d.get("valid_until"))
                         wnum = d.get("waste_stream_number") or ""
                         if fill_hp and isinstance(target, int):
                             # שורה קיימת באותו שם בלי ח.פ. — ממלאים מההצהרה

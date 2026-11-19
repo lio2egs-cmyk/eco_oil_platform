@@ -1093,6 +1093,18 @@ def _notify_transporter_agreement_issued(d, agreement, emails):
     return sent
 
 
+def _parse_decl_date(raw):
+    """תאריך מגיליון התוקפים → היום האחרון בתוקף (None אם אינו תאריך)."""
+    from .decl_auto import _parse, last_valid_day
+    d = _parse(raw)
+    if d is None:
+        return None
+    # תאריך של סוף חודש הגיע מהצהרה שהופקה בפורטל לפני 19/11/2026 — כך הוא
+    # מודפס על המסמך שבידי הלקוח, ומוצג כמו שהוא (הפער מול כלל החסימה יופיע
+    # רק ב-2028; לימור תכריע עד אז). ה-1 בחודש = היום שלפניו.
+    return last_valid_day(d) if d.day == 1 else d
+
+
 def _homs_clients_for_account(account_clients):
     """שורות גיליון ח.פ.-היתר-תוקף ששייכות לחשבון (לימור 03/09): שורה שייכת
     כשעמודת "סוג לקוח" שלה — שם המוביל המביא, לרוב בכתיב מקוצר ("צ. כץ") —
@@ -1123,7 +1135,13 @@ def _homs_clients_for_account(account_clients):
             continue
         ref_words = set(ref.split())
         if ref in keys or any(ref_words <= ws for ws in word_sets):
-            out.append({"name": r.get("name"), "streams": r.get("streams") or {}})
+            # "בתוקף עד" = היום האחרון בתוקף (החודש שבמסד חסום מה-1 בו, לימור
+            # 19/11) — "01/11/2026" במסד מוצג למוביל כ-31/10/2026
+            shown = {}
+            for label, raw in (r.get("streams") or {}).items():
+                dd = _parse_decl_date(raw)
+                shown[label] = dd.strftime("%d/%m/%Y") if dd else raw
+            out.append({"name": r.get("name"), "streams": shown})
     out.sort(key=lambda x: (x.get("name") or ""))
     return out
 
@@ -1133,14 +1151,15 @@ def _expiring_declarations(account_clients, today=None):
     מייל ללימור עם רשימת "מי עומד לפוג". מקור: תמונת גיליון ח.פ.-היתר-תוקף.
       * של מי: השורות של החשבון עצמו (שם הכרטיס / צורת כתיב, גם עם סיומת
         אתר: "אור ברקן בע"מ, אתר שוהם"), ושל הלקוחות שהמוביל מביא ("סוג לקוח").
-      * מתי: מה-1 בחודש שלפני חודש הפקיעה ועד סוף חודש הפקיעה (תאריך במסד =
-        בתוקף עד סוף אותו חודש). אחרי שפג — אין התראה כאן; האישורים של פריקות
-        מאוחרות יותר נחסמים במסך המסמכים (decl_auto). מתחדש במסד → נעלם לבד.
+      * מתי: לאורך החודש שלפני החסימה. החודש שרשום במסד חסום מה-1 בו
+        (decl_auto.block_start), ולכן "11/2026" במסד = התראה בכל אוקטובר,
+        עם "בתוקף עד 31/10/2026". מה-1 בנובמבר אין התראה כאן — האישורים של
+        הפריקות מאז נחסמים במסך המסמכים. מתחדש במסד → נעלם לבד.
     מחזיר [{"name", "stream", "until"}] ממוין לפי תאריך."""
     import json as _json
     from datetime import date as _date
     from .db import EcoOilValiditySnapshot
-    from .decl_auto import _parse, _eom
+    from .decl_auto import _parse, block_start, last_valid_day
 
     snap = EcoOilValiditySnapshot.query.first()
     if snap is None or not snap.data:
@@ -1170,16 +1189,18 @@ def _expiring_declarations(account_clients, today=None):
             d = _parse(raw)
             if d is None:
                 continue
-            end = _eom(d)
-            start = _date(d.year - 1, 12, 1) if d.month == 1 else _date(d.year, d.month - 1, 1)
-            if not (start <= today <= end):
+            blocked_from = block_start(d)
+            end = last_valid_day(d)
+            start = _date(end.year, end.month, 1)
+            shown_until = _parse_decl_date(raw) or end
+            if not (start <= today < blocked_from):
                 continue
             key = (nn, stream)
             if key in seen:
                 continue
             seen.add(key)
             out.append({"name": (r.get("name") or "").strip(), "stream": stream,
-                        "until": end.strftime("%d/%m/%Y"), "_d": end.isoformat()})
+                        "until": shown_until.strftime("%d/%m/%Y"), "_d": end.isoformat()})
     out.sort(key=lambda x: (x["_d"], x["name"], x["stream"]))
     for x in out:
         x.pop("_d")

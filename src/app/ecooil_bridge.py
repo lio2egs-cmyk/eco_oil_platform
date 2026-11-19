@@ -405,6 +405,17 @@ def validity_snapshot():
     return jsonify(ok=True, rows=len(rows), decl_auto=_decl_recompute())
 
 
+def _summary_until(d):
+    from datetime import timedelta
+    vu, vf = d.valid_until, d.valid_from
+    if vu is None:
+        return None
+    nxt = (vu + timedelta(days=1)).replace(hour=0, minute=0, second=0, microsecond=0)
+    if vf is not None and nxt.day == 1 and nxt.month == vf.month:
+        return nxt.isoformat()          # הכלל החדש — 1 בחודש החסימה
+    return vu.isoformat()               # הצהרה מלפני 19/11/2026
+
+
 @ecooil_bridge.route("/masad-feed", methods=["GET"])
 @ecooil_bridge_required
 def masad_feed_pending():
@@ -464,6 +475,11 @@ def masad_feed_pending():
             "producer_email": d.client_email,
             "valid_from": d.valid_from.isoformat() if d.valid_from else None,
             "valid_until": d.valid_until.isoformat() if d.valid_until else None,
+            # התאריך לגיליון ח.פ.-היתר-תוקף (לימור 19/11/2026): שם רשום החודש
+            # הראשון החסום. הצהרה בכלל החדש (בתוקף עד סוף החודש שלפני חודש
+            # ההגשה) נכתבת כ-1 בחודש שאחרי — 31/10/2028 → 01/11/2028; הצהרה
+            # ישנה (עד סוף חודש ההגשה) נכתבת כמו שהיא.
+            "summary_until": _summary_until(d),
         }
 
     return jsonify({"declarations": [row(d) for d in decls]})

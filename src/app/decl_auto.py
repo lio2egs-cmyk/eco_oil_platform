@@ -9,10 +9,12 @@
   2. שם הלקוח בריכוז מקושר לשורה במסד: שם זהה (אחרי נרמול) — לבד; אחרת לפי
      טבלת הקישור (EcoOilDeclLink) שלימור ממלאת פעם אחת לכל שם במסך הניהול.
      שם צבאי מסומן "צבא" — פטור (חוק 74ד).
-  3. תאריך תוקף במסד = בתוקף עד סוף אותו חודש (לימור 11/11).
-     פריקה אחרי סוף החודש ⇒ 'expired' — נחסם. אין תאריך לזרם ⇒ 'no_decl' —
-     נחסם. פריקה בחודש שבו התוקף פג ⇒ 'expiring' — מתפרסם (ובשלב הבא: התראה
-     ללקוח "התוקף פג החודש, חשוב לחדש").
+  3. החודש שרשום במסד הוא החודש הראשון החסום (לימור 19/11/2026 — מחליף את
+     כלל 11/11 "בתוקף עד סוף אותו חודש", שלא יצר הרתעה): "01/11/2026" וגם
+     "30/11/2028" = חסום מה-1 בנובמבר, בלי קשר ליום שבתא.
+     פריקה מה-1 בחודש הזה והלאה ⇒ 'expired' — נחסם. אין תאריך לזרם ⇒
+     'no_decl' — נחסם. פריקה בחודש שלפניו (החודש האחרון בתוקף) ⇒ 'expiring'
+     — מתפרסם; ההתראה ללקוח "התוקף מסתיים בקרוב" מוצגת בדף הראשי.
   4. ההצהרה חודשה (התאריך במסד זז קדימה) ⇒ בסבב הבא השורה משתחררת לבד —
      גם אם לימור כתבה עליה "אין הצהרה" ידנית.
   5. שם שלא מקושר ⇒ 'unlinked' — מתפרסם (לא מסתירים מלקוח תקין), נרשם
@@ -23,7 +25,7 @@
 import calendar
 import json
 import re
-from datetime import date, datetime
+from datetime import date, datetime, timedelta
 
 from flask import Blueprint, current_app, jsonify, request
 from flask_jwt_extended import get_jwt, jwt_required
@@ -78,6 +80,16 @@ def _parse(d):
 
 def _eom(d):
     return date(d.year, d.month, calendar.monthrange(d.year, d.month)[1])
+
+
+def block_start(d):
+    """היום הראשון החסום: ה-1 בחודש שרשום במסד (לימור 19/11/2026)."""
+    return date(d.year, d.month, 1)
+
+
+def last_valid_day(d):
+    """היום האחרון בתוקף — מה שמוצג ללקוח כ"בתוקף עד"."""
+    return block_start(d) - timedelta(days=1)
 
 
 def validity_index():
@@ -184,10 +196,11 @@ def classify(ev, link, vidx):
     vu = target["streams"].get(ev.stream_norm.strip())
     if vu is None:
         return "no_decl", target["name"]
-    end = _eom(vu)
-    if end < ev.event_date:
+    block_from = block_start(vu)
+    if ev.event_date >= block_from:
         return "expired", target["name"]
-    if (vu.year, vu.month) == (ev.event_date.year, ev.event_date.month):
+    last_ok = block_from - timedelta(days=1)
+    if (last_ok.year, last_ok.month) == (ev.event_date.year, ev.event_date.month):
         return "expiring", target["name"]
     return "ok", target["name"]
 

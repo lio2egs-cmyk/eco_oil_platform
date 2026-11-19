@@ -3128,11 +3128,16 @@ def submit_portal_declaration():
             if not client or client.division != "eco_oil":
                 return {"error": "הלקוח לא נמצא"}, 404
 
-    # ─── תוקף: שנתיים לפי חודש (עד סוף אותו חודש, שנתיים קדימה) ───
+    # ─── תוקף: שנתיים לפי חודש. מ-19/11/2026 (לימור): עד סוף החודש *שלפני* —
+    # הצהרה מנובמבר 2026 בתוקף עד 31/10/2028, והפריקות נחסמות מה-1 בנובמבר
+    # 2028 (decl_auto.block_start). עד אז נרשם "עד סוף אותו חודש" (30/11/2028),
+    # וכך מודפס על 53 ההצהרות שאושרו לפני השינוי — הן לא משוכתבות. ───
     now = datetime.utcnow()
-    until_year = now.year + 2
-    last_day = monthrange(until_year, now.month)[1]
-    valid_until = datetime(until_year, now.month, last_day, 23, 59, 59)
+    until_year, until_month = now.year + 2, now.month - 1
+    if until_month == 0:
+        until_year, until_month = until_year - 1, 12
+    last_day = monthrange(until_year, until_month)[1]
+    valid_until = datetime(until_year, until_month, last_day, 23, 59, 59)
 
     submitted_by = int(get_jwt_identity())
     created = []
