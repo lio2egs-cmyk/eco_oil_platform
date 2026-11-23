@@ -226,14 +226,17 @@
       }
       if(done.length){
         document.getElementById('doneDocsList').innerHTML=done.map(function(d){
-          return '<div style="margin:10px 0"><a target="_blank" href="/declaration-doc?id='+d.id+'" '+
+          /* מסגרת לכל הצהרה + ההסכמה שלה (לימור 23/11, מקרה רפאל/בילי): בלי
+             הפרדה, קישור ההסכמה נצמד לכותרת ההצהרה הבאה ונקרא כאילו שייך לה.
+             שם הזרם נכתב גם בקישור ההסכמה עצמו. */
+          return '<div style="margin:12px 0;padding:10px 12px;background:#fff;border:1px solid #BFDDC3;border-radius:10px"><a target="_blank" href="/declaration-doc?id='+d.id+'" '+
             'style="color:#2F6B3A;font-weight:600;text-decoration:underline">הצהרת יצרן — '+
             esc(d.producer_name)+' ('+esc(d.material_name)+')</a>'+indirectTag(d)+
             '<span style="color:#8a8a8a;font-size:12px"> · בתוקף עד '+esc(d.valid_until||'')+'</span>'+
             (d.has_signed_scan?' · <a href="#" onclick="viewMyScan('+d.id+');return false;" style="font-size:12.5px;color:#2F5F59">המסמך החתום</a>':'')+
             stepBar(d)+
             /* גודל זהה להצהרה עצמה (לימור 03/09) — שני המסמכים שווי-חשיבות */
-            (d.agreement?'<div style="margin-top:4px"><a target="_blank" href="/agreement-doc?id='+d.agreement.id+'" style="color:#2F6B3A;font-weight:600;text-decoration:underline">📜 מסמך ההסכמה לקליטת הפסולת (מס\' '+d.agreement.number+')</a></div>':'')+
+            (d.agreement?'<div style="margin-top:8px;padding-top:8px;border-top:1px dashed #BFDDC3"><a target="_blank" href="/agreement-doc?id='+d.agreement.id+'" style="color:#2F6B3A;font-weight:600;text-decoration:underline">📜 מסמך ההסכמה לקליטת הפסולת — '+esc(d.material_name)+' <span style="white-space:nowrap">(מס\' '+d.agreement.number+')</span></a></div>':'')+
             '</div>';
         }).join('');
         document.getElementById('doneDocs').style.display='block';
